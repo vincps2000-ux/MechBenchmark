@@ -1,0 +1,19 @@
+{
+  "dirs": ["res://tests/unit", "res://tests/integration"],
+  "color_output": true,
+  "compact_mode": false,
+  "disable_colors": false,
+  "double_strategy": "partial",
+  "include_subdirs": true,
+  "inner_class": "",
+  "log_level": 1,
+  "opacity": 100,
+  "prefix": "test_",
+  "selected": "",
+  "should_exit": true,
+  "should_exit_on_success": false,
+  "should_maximize": false,
+  "suffix": ".gd",
+  "tests": [],
+  "unit_test_name": ""
+}

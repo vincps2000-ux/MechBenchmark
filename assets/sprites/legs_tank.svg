@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Tank treads — top-down view, robot faces right (+X) -->
+
+  <!-- Upper tread body -->
+  <rect x="4" y="8" width="56" height="18" rx="7" ry="7" fill="#3a4550" stroke="#8090a0" stroke-width="1.5"/>
+  <!-- Upper tread track links (dark stripes) -->
+  <line x1="12" y1="8" x2="12" y2="26" stroke="#252e36" stroke-width="2"/>
+  <line x1="20" y1="8" x2="20" y2="26" stroke="#252e36" stroke-width="2"/>
+  <line x1="28" y1="8" x2="28" y2="26" stroke="#252e36" stroke-width="2"/>
+  <line x1="36" y1="8" x2="36" y2="26" stroke="#252e36" stroke-width="2"/>
+  <line x1="44" y1="8" x2="44" y2="26" stroke="#252e36" stroke-width="2"/>
+  <line x1="52" y1="8" x2="52" y2="26" stroke="#252e36" stroke-width="2"/>
+  <!-- Upper tread highlight strip -->
+  <rect x="4" y="9" width="56" height="4" rx="3" ry="3" fill="#607080" opacity="0.5"/>
+
+  <!-- Lower tread body -->
+  <rect x="4" y="38" width="56" height="18" rx="7" ry="7" fill="#3a4550" stroke="#8090a0" stroke-width="1.5"/>
+  <!-- Lower tread track links -->
+  <line x1="12" y1="38" x2="12" y2="56" stroke="#252e36" stroke-width="2"/>
+  <line x1="20" y1="38" x2="20" y2="56" stroke="#252e36" stroke-width="2"/>
+  <line x1="28" y1="38" x2="28" y2="56" stroke="#252e36" stroke-width="2"/>
+  <line x1="36" y1="38" x2="36" y2="56" stroke="#252e36" stroke-width="2"/>
+  <line x1="44" y1="38" x2="44" y2="56" stroke="#252e36" stroke-width="2"/>
+  <line x1="52" y1="38" x2="52" y2="56" stroke="#252e36" stroke-width="2"/>
+  <!-- Lower tread highlight strip -->
+  <rect x="4" y="39" width="56" height="4" rx="3" ry="3" fill="#607080" opacity="0.5"/>
+
+  <!-- Central hull connector -->
+  <rect x="10" y="26" width="44" height="12" rx="2" ry="2" fill="#2a3540" stroke="#607080" stroke-width="1"/>
+  <!-- Hull accent / direction arrow -->
+  <polygon points="50,30 58,32 50,34" fill="#c8a040"/>
+  <!-- Hull bolts -->
+  <circle cx="18" cy="32" r="2" fill="#607080"/>
+  <circle cx="32" cy="32" r="2" fill="#607080"/>
+  <circle cx="46" cy="32" r="2" fill="#607080"/>
+</svg>

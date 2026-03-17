@@ -1,0 +1,62 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/.godot": true,
+            "**/.import": true
+        },
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false,
+        "files.associations": {
+            "*.gd": "gdscript",
+            "*.tscn": "ini",
+            "*.tres": "ini",
+            "*.godot": "ini"
+        },
+        "[gdscript]": {
+            "editor.tabSize": 4,
+            "editor.insertSpaces": false
+        }
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Run All Tests (GUT)",
+                "type": "shell",
+                "command": "powershell",
+                "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/run_tests.ps1"],
+                "group": "test",
+                "problemMatcher": []
+            },
+            {
+                "label": "Run Unit Tests Only",
+                "type": "shell",
+                "command": "powershell",
+                "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/run_tests.ps1", "-Unit"],
+                "group": "test",
+                "problemMatcher": []
+            },
+            {
+                "label": "Run Integration Tests Only",
+                "type": "shell",
+                "command": "powershell",
+                "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/run_tests.ps1", "-Integration"],
+                "group": "test",
+                "problemMatcher": []
+            },
+            {
+                "label": "Run Game",
+                "type": "shell",
+                "command": "godot",
+                "args": ["--path", "${workspaceFolder}"],
+                "group": "build",
+                "problemMatcher": []
+            }
+        ]
+    }
+}

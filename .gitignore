@@ -1,0 +1,14 @@
+# MechSurvivors — Godot 4.x project
+.godot/
+*.import
+export_presets.cfg
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~

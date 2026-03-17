@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3 uid="uid://laser_beam_001"]
+
+[ext_resource type="Script" path="res://src/weapons/laser_beam.gd" id="1"]
+
+[node name="LaserBeam" type="Node2D"]
+script = ExtResource("1")
+
+[node name="GlowLine" type="Line2D" parent="."]
+default_color = Color(0.0, 0.95, 1.0, 0.45)
+width = 7.0
+antialiased = true
+
+[node name="BeamLine" type="Line2D" parent="."]
+default_color = Color(0.6, 0.95, 1.0, 1.0)
+width = 2.5
+antialiased = true

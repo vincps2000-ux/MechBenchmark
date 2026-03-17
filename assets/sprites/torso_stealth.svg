@@ -1,0 +1,11 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stealth torso: sleek triangle pointing right (+X) -->
+  <!-- Outer hull -->
+  <polygon points="6,43 6,21 58,32" fill="#182834" stroke="#2a5a6e" stroke-width="1.5"/>
+  <!-- Inner highlight / inner plate -->
+  <polygon points="12,38 12,26 50,32" fill="#20404e" opacity="0.75"/>
+  <!-- Forward sensor dot -->
+  <circle cx="50" cy="32" r="3.5" fill="#48b8cc" opacity="0.9"/>
+  <!-- Spine line -->
+  <line x1="12" y1="32" x2="48" y2="32" stroke="#3a8898" stroke-width="1" opacity="0.6"/>
+</svg>

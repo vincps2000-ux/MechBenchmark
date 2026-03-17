@@ -1,0 +1,140 @@
+[gd_scene load_steps=4 format=3 uid="uid://workshop_screen_001"]
+
+[ext_resource type="Script" path="res://src/ui/workshop_screen.gd" id="1"]
+[ext_resource type="Shader" path="res://src/ui/start_background.gdshader" id="2"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bg"]
+shader = ExtResource("2")
+shader_parameter/time_scale = 0.5
+shader_parameter/color_dark = Color(0.06, 0.07, 0.1, 1)
+shader_parameter/color_mid = Color(0.14, 0.16, 0.22, 1)
+shader_parameter/color_accent = Color(0.75, 0.5, 0.15, 1)
+shader_parameter/color_teal = Color(0.15, 0.55, 0.55, 1)
+
+[node name="WorkshopScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+material = SubResource("ShaderMaterial_bg")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 30
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.75, 0.2, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_colors/font_outline_color = Color(0.45, 0.2, 0.05, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 42
+text = "WORKSHOP"
+horizontal_alignment = 1
+
+[node name="LegsSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LegsLabel" type="Label" parent="MarginContainer/VBox/LegsSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.9)
+theme_override_font_sizes/font_size = 22
+text = "CHASSIS LEGS"
+horizontal_alignment = 1
+
+[node name="LegsCenterContainer" type="CenterContainer" parent="MarginContainer/VBox/LegsSection"]
+layout_mode = 2
+
+[node name="LegsContainer" type="HBoxContainer" parent="MarginContainer/VBox/LegsSection/LegsCenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TorsoSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TorsoLabel" type="Label" parent="MarginContainer/VBox/TorsoSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.9)
+theme_override_font_sizes/font_size = 22
+text = "CHASSIS TORSO"
+horizontal_alignment = 1
+
+[node name="TorsosCenterContainer" type="CenterContainer" parent="MarginContainer/VBox/TorsoSection"]
+layout_mode = 2
+
+[node name="TorsosContainer" type="HBoxContainer" parent="MarginContainer/VBox/TorsoSection/TorsosCenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="GunsSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="GunsLabel" type="Label" parent="MarginContainer/VBox/GunsSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.9)
+theme_override_font_sizes/font_size = 22
+text = "WEAPON (choose one)"
+horizontal_alignment = 1
+
+[node name="GunsCenterContainer" type="CenterContainer" parent="MarginContainer/VBox/GunsSection"]
+layout_mode = 2
+
+[node name="GunsContainer" type="HBoxContainer" parent="MarginContainer/VBox/GunsSection/GunsCenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="BottomSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StatsLabel" type="Label" parent="MarginContainer/VBox/BottomSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.55, 0.85)
+theme_override_font_sizes/font_size = 18
+text = "Select legs and a weapon to see stats"
+horizontal_alignment = 1
+
+[node name="DeployCenter" type="CenterContainer" parent="MarginContainer/VBox/BottomSection"]
+layout_mode = 2
+
+[node name="DeployButton" type="Button" parent="MarginContainer/VBox/BottomSection/DeployCenter"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(280, 70)
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.9, 1)
+theme_override_colors/font_pressed_color = Color(0.9, 0.7, 0.3, 1)
+theme_override_font_sizes/font_size = 32
+text = "DEPLOY"

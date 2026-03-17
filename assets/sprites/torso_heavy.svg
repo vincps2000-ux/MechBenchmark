@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Heavy Armour torso: half-circle dome, flat back (left), curved front (right) -->
+  <!-- Outer armour D-shape: flat left edge, domed right -->
+  <path d="M 12,13 H 28 A 22 19 0 0 1 28,51 H 12 Z" fill="#2e1e10" stroke="#6a4020" stroke-width="2"/>
+  <!-- Inner raised plate -->
+  <path d="M 18,20 H 26 A 16 12 0 0 1 26,44 H 18 Z" fill="#4a2e14" opacity="0.8"/>
+  <!-- Armour rivets (back plate) -->
+  <circle cx="14" cy="20" r="2" fill="#6a5030" opacity="0.8"/>
+  <circle cx="14" cy="32" r="2" fill="#6a5030" opacity="0.8"/>
+  <circle cx="14" cy="44" r="2" fill="#6a5030" opacity="0.8"/>
+  <!-- Front armour highlight -->
+  <path d="M 26,22 A 14 10 0 0 1 26,42" fill="none" stroke="#8a6040" stroke-width="2" opacity="0.7"/>
+</svg>

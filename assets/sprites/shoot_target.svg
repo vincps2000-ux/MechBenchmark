@@ -1,0 +1,13 @@
+<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer ring -->
+  <circle cx="18" cy="18" r="16" fill="none" stroke="#ff4400" stroke-width="2"/>
+  <!-- Middle ring -->
+  <circle cx="18" cy="18" r="10" fill="none" stroke="#ff6600" stroke-width="1.5"/>
+  <!-- Inner ring -->
+  <circle cx="18" cy="18" r="4" fill="#ff4400" opacity="0.6"/>
+  <!-- Crosshair -->
+  <line x1="18" y1="2" x2="18" y2="14" stroke="#ff4400" stroke-width="1" opacity="0.7"/>
+  <line x1="18" y1="22" x2="18" y2="34" stroke="#ff4400" stroke-width="1" opacity="0.7"/>
+  <line x1="2" y1="18" x2="14" y2="18" stroke="#ff4400" stroke-width="1" opacity="0.7"/>
+  <line x1="22" y1="18" x2="34" y2="18" stroke="#ff4400" stroke-width="1" opacity="0.7"/>
+</svg>

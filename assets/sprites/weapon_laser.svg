@@ -1,0 +1,11 @@
+<svg width="28" height="12" viewBox="0 0 28 12" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gun body -->
+  <rect x="0" y="3" width="16" height="6" rx="2" fill="#445566" stroke="#222233" stroke-width="1"/>
+  <!-- Barrel -->
+  <rect x="15" y="4" width="10" height="4" rx="1" fill="#334455" stroke="#222233" stroke-width="1"/>
+  <!-- Energy cell accent -->
+  <rect x="2" y="4" width="5" height="4" rx="1" fill="#0088ff" opacity="0.85"/>
+  <!-- Muzzle tip glow -->
+  <circle cx="26" cy="6" r="2" fill="#00ffff" opacity="0.95"/>
+  <circle cx="26" cy="6" r="1" fill="#ffffff" opacity="0.8"/>
+</svg>

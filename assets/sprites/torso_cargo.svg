@@ -1,0 +1,14 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cargo torso: trapezoid, wide at back (left), narrow at front (right) -->
+  <!-- Outer hull trapezoid -->
+  <polygon points="8,44 8,20 52,27 52,37" fill="#28261e" stroke="#4a4830" stroke-width="1.5"/>
+  <!-- Cargo bay panel 1 -->
+  <rect x="12" y="24" width="12" height="16" rx="1.5" fill="#363420" stroke="#4a4830" stroke-width="1"/>
+  <!-- Cargo bay panel 2 -->
+  <rect x="27" y="26" width="12" height="12" rx="1.5" fill="#363420" stroke="#4a4830" stroke-width="1"/>
+  <!-- Forward small panel -->
+  <rect x="42" y="28" width="8" height="8" rx="1" fill="#30301e" stroke="#4a4830" stroke-width="1"/>
+  <!-- Hinge dots -->
+  <circle cx="12" cy="32" r="1.5" fill="#6a6840" opacity="0.8"/>
+  <circle cx="27" cy="32" r="1.5" fill="#6a6840" opacity="0.8"/>
+</svg>
