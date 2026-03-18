@@ -2,7 +2,8 @@
 class_name PlayerController
 extends CharacterBody2D
 
-const LASER_SCENE := preload("res://scenes/weapons/laser.tscn")
+const LASER_SCENE        := preload("res://scenes/weapons/laser.tscn")
+const FLAMETHROWER_SCENE := preload("res://scenes/weapons/flamethrower.tscn")
 
 const BASE_SPEED            := 200.0
 const ROTATION_SPEED_SPIDER := 1.8   # rad/s — spider turns a bit quicker
@@ -56,8 +57,20 @@ func _mount_weapon(torso_type: TorsoData.TorsoType) -> void:
 		_:                                offset = Vector2(0.0,   0.0)
 	weapon_mount.position = offset
 
-	var laser := LASER_SCENE.instantiate()
-	weapon_mount.add_child(laser)
+	var loadout: MechLoadout = GameManager.current_loadout
+	var gun_data: WeaponData = loadout.selected_gun if loadout else null
+
+	# Dispatch to the correct scene based on the typed enum — no magic strings
+	var weapon: Node
+	if gun_data and gun_data.weapon_type == WeaponData.WeaponType.LASER:
+		weapon = LASER_SCENE.instantiate()
+	else:
+		weapon = FLAMETHROWER_SCENE.instantiate()
+
+	# Give the weapon its data so it can read damage / cooldown from the loadout
+	if gun_data:
+		weapon.setup(gun_data)
+	weapon_mount.add_child(weapon)
 
 func _apply_leg_texture(mtype: LegData.MovementType) -> void:
 	var path: String

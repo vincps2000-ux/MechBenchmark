@@ -28,6 +28,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 material = SubResource("ShaderMaterial_bg")
+color = Color(0, 0, 0, 1)
 
 [node name="MarginContainer" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -37,15 +38,15 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 40
-theme_override_constants/margin_top = 30
+theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 40
-theme_override_constants/margin_bottom = 30
+theme_override_constants/margin_bottom = 20
 
-[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+[node name="MainVBox" type="VBoxContainer" parent="MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 10
 
-[node name="TitleLabel" type="Label" parent="MarginContainer/VBox"]
+[node name="TitleLabel" type="Label" parent="MarginContainer/MainVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.75, 0.2, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
@@ -57,79 +58,112 @@ theme_override_font_sizes/font_size = 42
 text = "WORKSHOP"
 horizontal_alignment = 1
 
-[node name="LegsSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+[node name="ContentHBox" type="HBoxContainer" parent="MarginContainer/MainVBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="LegsLabel" type="Label" parent="MarginContainer/VBox/LegsSection"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.9)
-theme_override_font_sizes/font_size = 22
-text = "CHASSIS LEGS"
-horizontal_alignment = 1
-
-[node name="LegsCenterContainer" type="CenterContainer" parent="MarginContainer/VBox/LegsSection"]
-layout_mode = 2
-
-[node name="LegsContainer" type="HBoxContainer" parent="MarginContainer/VBox/LegsSection/LegsCenterContainer"]
-unique_name_in_owner = true
-layout_mode = 2
+size_flags_vertical = 3
 theme_override_constants/separation = 16
 
-[node name="TorsoSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+[node name="LeftPanel" type="VBoxContainer" parent="MarginContainer/MainVBox/ContentHBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
+custom_minimum_size = Vector2(360, 0)
+theme_override_constants/separation = 0
 
-[node name="TorsoLabel" type="Label" parent="MarginContainer/VBox/TorsoSection"]
+[node name="CatLabel" type="Label" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.9)
-theme_override_font_sizes/font_size = 22
-text = "CHASSIS TORSO"
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.7)
+theme_override_font_sizes/font_size = 13
+text = "CATEGORY"
 
-[node name="TorsosCenterContainer" type="CenterContainer" parent="MarginContainer/VBox/TorsoSection"]
+[node name="CatScroll" type="ScrollContainer" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 58)
 
-[node name="TorsosContainer" type="HBoxContainer" parent="MarginContainer/VBox/TorsoSection/TorsosCenterContainer"]
+[node name="CategoryBox" type="VBoxContainer" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel/CatScroll"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 16
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
 
-[node name="GunsSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+[node name="HSep" type="HSeparator" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_colors/separator_color = Color(0.4, 0.4, 0.5, 0.4)
+theme_override_constants/separation = 10
 
-[node name="GunsLabel" type="Label" parent="MarginContainer/VBox/GunsSection"]
+[node name="PartsLabel" type="Label" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.9)
-theme_override_font_sizes/font_size = 22
-text = "WEAPON (choose one)"
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.7)
+theme_override_font_sizes/font_size = 13
+text = "PARTS"
 
-[node name="GunsCenterContainer" type="CenterContainer" parent="MarginContainer/VBox/GunsSection"]
+[node name="PartsScroll" type="ScrollContainer" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel"]
 layout_mode = 2
+size_flags_vertical = 3
 
-[node name="GunsContainer" type="HBoxContainer" parent="MarginContainer/VBox/GunsSection/GunsCenterContainer"]
+[node name="PartsBox" type="VBoxContainer" parent="MarginContainer/MainVBox/ContentHBox/LeftPanel/PartsScroll"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 16
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
 
-[node name="BottomSection" type="VBoxContainer" parent="MarginContainer/VBox"]
+[node name="VSep" type="VSeparator" parent="MarginContainer/MainVBox/ContentHBox"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_colors/separator_color = Color(0.4, 0.4, 0.5, 0.4)
 
-[node name="StatsLabel" type="Label" parent="MarginContainer/VBox/BottomSection"]
+[node name="RightPanel" type="VBoxContainer" parent="MarginContainer/MainVBox/ContentHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="PreviewTitle" type="Label" parent="MarginContainer/MainVBox/ContentHBox/RightPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.8, 0.75, 0.85)
+theme_override_font_sizes/font_size = 18
+text = "MECH PREVIEW"
+horizontal_alignment = 1
+
+[node name="SelectionInfo" type="Label" parent="MarginContainer/MainVBox/ContentHBox/RightPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.7, 0.5, 0.9)
+theme_override_font_sizes/font_size = 15
+text = "← Select a category and part"
+horizontal_alignment = 1
+
+[node name="PreviewBG" type="Panel" parent="MarginContainer/MainVBox/ContentHBox/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 240)
+
+[node name="PreviewCenter" type="CenterContainer" parent="MarginContainer/MainVBox/ContentHBox/RightPanel/PreviewBG"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PreviewStack" type="Control" parent="MarginContainer/MainVBox/ContentHBox/RightPanel/PreviewBG/PreviewCenter"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(220, 220)
+
+[node name="StatsLabel" type="Label" parent="MarginContainer/MainVBox/ContentHBox/RightPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.65, 0.55, 0.85)
-theme_override_font_sizes/font_size = 18
-text = "Select legs and a weapon to see stats"
+theme_override_font_sizes/font_size = 17
+text = "Still needed: Legs  ·  Torso  ·  Weapon"
 horizontal_alignment = 1
+autowrap_mode = 3
 
-[node name="DeployCenter" type="CenterContainer" parent="MarginContainer/VBox/BottomSection"]
+[node name="BottomHBox" type="HBoxContainer" parent="MarginContainer/MainVBox"]
 layout_mode = 2
 
-[node name="DeployButton" type="Button" parent="MarginContainer/VBox/BottomSection/DeployCenter"]
+[node name="Spacer" type="Control" parent="MarginContainer/MainVBox/BottomHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DeployButton" type="Button" parent="MarginContainer/MainVBox/BottomHBox"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(280, 70)

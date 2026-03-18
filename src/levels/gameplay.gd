@@ -20,6 +20,7 @@ var _player_camera: Camera2D
 var _bg_material: ShaderMaterial
 var _targets_node: Node2D   # container so targets don't clutter the root
 var _alive_targets: int = 0
+var _stats: PlayerStats     # cached reference — avoids repeated autoload lookup per frame
 
 func _ready() -> void:
 	# Spawn the player at the world origin
@@ -28,6 +29,9 @@ func _ready() -> void:
 	_player.global_position = Vector2.ZERO
 	_player_camera = _player.get_node("Camera2D") as Camera2D
 
+	# Cache stats reference once; GameManager owns the object and it lives for the run
+	_stats = GameManager.player_stats
+
 	# Duplicate the material so we own a local instance — avoids flicker from
 	# modifying a shared sub-resource every frame.
 	if background_rect and background_rect.material is ShaderMaterial:
@@ -35,11 +39,10 @@ func _ready() -> void:
 		background_rect.material = _bg_material
 
 	# Init HUD health bar from stats
-	var stats: PlayerStats = GameManager.player_stats
-	if stats:
-		health_bar.max_value = stats.max_health
-		health_bar.value     = stats.health
-		hp_label.text        = "%d / %d" % [stats.health, stats.max_health]
+	if _stats:
+		health_bar.max_value = _stats.max_health
+		health_bar.value     = _stats.health
+		hp_label.text        = "%d / %d" % [_stats.health, _stats.max_health]
 
 	# Spawn shootable target range
 	_targets_node = Node2D.new()
@@ -66,11 +69,10 @@ func _scroll_background() -> void:
 	_bg_material.set_shader_parameter("camera_world_pos", _player.global_position - cam_offset)
 
 func _update_hud() -> void:
-	var stats: PlayerStats = GameManager.player_stats
-	if not stats:
+	if not _stats:
 		return
-	health_bar.value = stats.health
-	hp_label.text    = "%d / %d" % [stats.health, stats.max_health]
+	health_bar.value = _stats.health
+	hp_label.text    = "%d / %d" % [_stats.health, _stats.max_health]
 	timer_label.text = GameManager.get_game_time_formatted()
 
 # ─── Target management ──────────────────────────────────────────────────────────

@@ -47,3 +47,34 @@ func test_level_up_does_nothing_at_max():
 	weapon.level_up()
 	assert_eq(weapon.damage, old_damage, "Damage should not change at max level")
 	assert_eq(weapon.level, weapon.max_level, "Level should not change at max level")
+
+# ── WeaponType enum ──────────────────────────────────────────────────────────
+
+func test_default_weapon_type_is_autocannon():
+	assert_eq(weapon.weapon_type, WeaponData.WeaponType.AUTOCANNON,
+		"Default weapon_type should be AUTOCANNON")
+
+func test_weapon_type_can_be_set():
+	weapon.weapon_type = WeaponData.WeaponType.LASER
+	assert_eq(weapon.weapon_type, WeaponData.WeaponType.LASER,
+		"weapon_type should be assignable to LASER")
+
+func test_get_sprite_path_laser():
+	weapon.weapon_type = WeaponData.WeaponType.LASER
+	assert_eq(weapon.get_sprite_path(), "res://assets/sprites/weapon_laser.svg",
+		"Laser should use the laser sprite")
+
+func test_get_sprite_path_railgun():
+	weapon.weapon_type = WeaponData.WeaponType.RAILGUN
+	assert_eq(weapon.get_sprite_path(), "res://assets/sprites/weapon_laser.svg",
+		"Railgun should use the laser sprite")
+
+func test_get_sprite_path_flamethrower():
+	weapon.weapon_type = WeaponData.WeaponType.FLAMETHROWER
+	assert_eq(weapon.get_sprite_path(), "res://assets/sprites/weapon_gun.svg",
+		"Flamethrower should use the gun sprite")
+
+func test_get_sprite_path_autocannon():
+	weapon.weapon_type = WeaponData.WeaponType.AUTOCANNON
+	assert_eq(weapon.get_sprite_path(), "res://assets/sprites/weapon_gun.svg",
+		"Autocannon should use the gun sprite")

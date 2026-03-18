@@ -12,9 +12,6 @@ var enemies_alive: int = 0
 var game_time: float = 0.0
 var is_running: bool = false
 
-func _ready() -> void:
-	player_stats = PlayerStats.new()
-
 func start_game() -> void:
 	player_stats = PlayerStats.new()
 	if current_loadout:

@@ -1,6 +1,7 @@
-# leg_data.gd — Data class for mech leg configuration
+# leg_data.gd — Data class for mech leg configuration.
+# Extends MechPartData for shared stat-modifier fields and apply_to_stats().
 class_name LegData
-extends Resource
+extends MechPartData
 
 enum MovementType {
 	SPIDER,  # WASD world-space strafe; Q/E rotate slowly
@@ -8,15 +9,12 @@ enum MovementType {
 	LEGS,    # WASD world-space; robot always faces mouse
 }
 
-@export var name: String = "Unnamed"
-@export var description: String = ""
-@export var tutorial_text: String = ""
 @export var movement_type: MovementType = MovementType.LEGS
-@export var speed_modifier: float = 1.0
-@export var health_modifier: float = 1.0
 
-## Apply this leg type's modifiers to the given PlayerStats
-func apply_to_stats(stats: PlayerStats) -> void:
-	stats.speed = stats.speed * speed_modifier
-	stats.max_health = int(stats.max_health * health_modifier)
-	stats.health = stats.max_health
+## Returns the sprite path for this leg type
+func get_sprite_path() -> String:
+	match movement_type:
+		MovementType.SPIDER: return "res://assets/sprites/legs_spider.svg"
+		MovementType.TANK:   return "res://assets/sprites/legs_tank.svg"
+		MovementType.LEGS:   return "res://assets/sprites/legs_bipedal.svg"
+		_:                   return "res://assets/sprites/mech_legs.svg"
