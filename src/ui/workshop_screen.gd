@@ -41,6 +41,15 @@ var _legs_rect:   TextureRect = null
 var _torso_rect:  TextureRect = null
 var _weapon_rect: TextureRect = null
 
+# Per-weapon sprite correction — mirrors rotation_degrees in weapon .tscn scenes.
+# Autocannon & Flamethrower SVGs face up (−Y); scenes apply −90° so they face right.
+# Laser & Railgun SVGs already face right (+X); scenes leave them at 0°.
+var _weapon_sprite_correction: float = 0.0
+
+# Weapon-mount offset in preview pixels, set when torso is selected.
+# Mirrors _mount_weapon() in player_controller.gd, scaled to the 220 px preview.
+var _weapon_mount_offset: Vector2 = Vector2.ZERO
+
 func _ready() -> void:
 	_all_legs   = MechCatalog.get_all_legs()
 	_all_torsos = MechCatalog.get_all_torsos()
@@ -52,16 +61,42 @@ func _ready() -> void:
 	_deploy_button.disabled = true
 	_update_stats_preview()
 
+func _process(_delta: float) -> void:
+	# Only the torso + weapon rotate to track the mouse; legs stay fixed.
+	if _preview_stack == null or _torso_rect == null:
+		return
+	var half := _preview_stack.size * 0.5
+	# Torso rotates around the preview centre.
+	_torso_rect.pivot_offset = half
+	# Weapon sprite-correction must also rotate around its own centre.
+	_weapon_rect.pivot_offset = _weapon_rect.size * 0.5
+	var center := _preview_stack.global_position + half
+	var mouse  := get_viewport().get_mouse_position()
+	# Dead-zone: ignore tiny distances to stop wild spinning.
+	if center.distance_to(mouse) < 20.0:
+		return
+	# All sprites face right (+X) after correction, same as the battlemap.
+	var angle := (mouse - center).angle()
+	_torso_rect.rotation = angle
+
 # ── Preview layer construction ────────────────────────────────────────────────
 
 func _build_preview_layers() -> void:
 	_legs_rect   = _make_preview_rect()
 	_torso_rect  = _make_preview_rect()
 	_weapon_rect = _make_preview_rect()
-	for rect in [_legs_rect, _torso_rect, _weapon_rect]:
+
+	# Legs + torso are direct children of the stack.
+	for rect in [_legs_rect, _torso_rect]:
 		_preview_stack.add_child(rect)
 		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		rect.modulate.a = 0.0
+
+	# Weapon is a child of the torso rect — exactly like the battlemap,
+	# where WeaponMount is a child of TorsoSprite.  It inherits rotation.
+	_torso_rect.add_child(_weapon_rect)
+	_weapon_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_weapon_rect.modulate.a = 0.0
 
 func _make_preview_rect() -> TextureRect:
 	var rect := TextureRect.new()
@@ -212,6 +247,7 @@ func _on_torso_selected(index: int) -> void:
 	_loadout.selected_torso  = _all_torsos[index]
 	_build_parts_for_category(Category.TORSO)
 	_update_preview_layer(_torso_rect, _loadout.selected_torso.get_sprite_path())
+	_update_weapon_mount_offset()
 	_selection_info.text = _loadout.selected_torso.name + " added to preview"
 	_update_deploy_state()
 	_update_stats_preview()
@@ -221,6 +257,15 @@ func _on_gun_selected(index: int) -> void:
 	_loadout.selected_gun = _all_guns[index]
 	_build_parts_for_category(Category.WEAPON)
 	_update_preview_layer(_weapon_rect, _loadout.selected_gun.get_sprite_path())
+	# Match the per-weapon rotation correction from the battlemap .tscn scenes:
+	# Autocannon & Flamethrower scenes set WeaponSprite rotation_degrees = -90;
+	# Laser & Railgun leave it at 0.
+	match _loadout.selected_gun.weapon_type:
+		WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER:
+			_weapon_sprite_correction = deg_to_rad(-90.0)
+		_:
+			_weapon_sprite_correction = 0.0
+	_weapon_rect.rotation = _weapon_sprite_correction
 	_selection_info.text = _loadout.selected_gun.name + " added to preview"
 	_update_deploy_state()
 	_update_stats_preview()
@@ -234,6 +279,28 @@ func _update_preview_layer(rect: TextureRect, path: String) -> void:
 		rect.modulate.a = 1.0
 	else:
 		rect.modulate.a = 0.0
+
+## Re-compute weapon mount offset when torso changes — mirrors _mount_weapon()
+## in player_controller.gd.  Offsets are in TorsoSprite-local pixels (48-64 px
+## artwork) scaled to the 220 px preview rect.
+func _update_weapon_mount_offset() -> void:
+	if _loadout.selected_torso == null:
+		_weapon_mount_offset = Vector2.ZERO
+		return
+	# Battlemap mount offsets (from player_controller._mount_weapon):
+	var raw_offset: Vector2
+	match _loadout.selected_torso.torso_type:
+		TorsoData.TorsoType.HEAVY_ARMOUR: raw_offset = Vector2(4.0,  17.0)
+		TorsoData.TorsoType.STEALTH:      raw_offset = Vector2(10.0,  0.0)
+		TorsoData.TorsoType.CARGO:        raw_offset = Vector2(-17.0, 0.0)
+		_:                                raw_offset = Vector2.ZERO
+	# Scale: battlemap offsets are in 64-px sprite-local coords.
+	# The preview rect is ~220 px, so scale proportionally.
+	var scale_factor := _preview_stack.size.x / 64.0 if _preview_stack.size.x > 0 else 1.0
+	_weapon_mount_offset = raw_offset * scale_factor
+	# Shift the weapon rect via position (not anchor offsets) so
+	# it moves relative to the torso centre without stretching.
+	_weapon_rect.position = _weapon_mount_offset
 
 # ── Stats / deploy ─────────────────────────────────────────────────────────────
 

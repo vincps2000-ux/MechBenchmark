@@ -24,6 +24,7 @@ enum WeaponType {
 func get_sprite_path() -> String:
 	match weapon_type:
 		WeaponType.LASER, WeaponType.RAILGUN: return "res://assets/sprites/weapon_laser.svg"
+		WeaponType.AUTOCANNON:               return "res://assets/sprites/weapon_autocannon.svg"
 		_:                                    return "res://assets/sprites/weapon_gun.svg"
 
 func can_level_up() -> bool:

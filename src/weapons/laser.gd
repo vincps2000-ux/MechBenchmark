@@ -19,7 +19,7 @@ func setup(data: WeaponData) -> void:
 	_damage = data.damage
 
 func _process(_delta: float) -> void:
-	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+	if Input.is_action_pressed("fire"):
 		_fire_continuous()
 	else:
 		_stop_beam()

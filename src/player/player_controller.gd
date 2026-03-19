@@ -2,8 +2,10 @@
 class_name PlayerController
 extends CharacterBody2D
 
+const AUTOCANNON_SCENE   := preload("res://scenes/weapons/autocannon.tscn")
 const LASER_SCENE        := preload("res://scenes/weapons/laser.tscn")
 const FLAMETHROWER_SCENE := preload("res://scenes/weapons/flamethrower.tscn")
+const RAILGUN_SCENE      := preload("res://scenes/weapons/railgun.tscn")
 
 const BASE_SPEED            := 200.0
 const ROTATION_SPEED_SPIDER := 1.8   # rad/s — spider turns a bit quicker
@@ -62,8 +64,12 @@ func _mount_weapon(torso_type: TorsoData.TorsoType) -> void:
 
 	# Dispatch to the correct scene based on the typed enum — no magic strings
 	var weapon: Node
-	if gun_data and gun_data.weapon_type == WeaponData.WeaponType.LASER:
-		weapon = LASER_SCENE.instantiate()
+	if gun_data:
+		match gun_data.weapon_type:
+			WeaponData.WeaponType.AUTOCANNON:   weapon = AUTOCANNON_SCENE.instantiate()
+			WeaponData.WeaponType.LASER:        weapon = LASER_SCENE.instantiate()
+			WeaponData.WeaponType.RAILGUN:      weapon = RAILGUN_SCENE.instantiate()
+			_:                                  weapon = FLAMETHROWER_SCENE.instantiate()
 	else:
 		weapon = FLAMETHROWER_SCENE.instantiate()
 

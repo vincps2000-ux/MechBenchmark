@@ -76,5 +76,5 @@ func test_get_sprite_path_flamethrower():
 
 func test_get_sprite_path_autocannon():
 	weapon.weapon_type = WeaponData.WeaponType.AUTOCANNON
-	assert_eq(weapon.get_sprite_path(), "res://assets/sprites/weapon_gun.svg",
-		"Autocannon should use the gun sprite")
+	assert_eq(weapon.get_sprite_path(), "res://assets/sprites/weapon_autocannon.svg",
+		"Autocannon should use the dedicated autocannon sprite")
