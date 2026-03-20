@@ -1,4 +1,4 @@
-# gameplay.gd — Root controller for the main gameplay scene
+# gameplay.gd — Root controller for the Testing Area
 extends Node2D
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
@@ -9,6 +9,10 @@ const TARGET_COUNT   := 15
 ## Minimum / maximum spawn distance from the world origin
 const SPAWN_DIST_MIN := 180.0
 const SPAWN_DIST_MAX := 550.0
+
+## Arena boundary (half-size from origin in each direction)
+const ARENA_HALF_SIZE := 1000.0
+const WALL_THICKNESS  := 30.0
 
 @onready var background_rect: ColorRect  = %BackgroundRect
 @onready var health_bar:      ProgressBar = %HealthBar
@@ -51,6 +55,10 @@ func _ready() -> void:
 	for _i in TARGET_COUNT:
 		_spawn_target()
 
+	# Create arena boundary walls and visuals
+	_create_arena_bounds()
+	queue_redraw()
+
 func _process(_delta: float) -> void:
 	_scroll_background()
 	_update_hud()
@@ -91,3 +99,83 @@ func _on_target_destroyed(_target: Node) -> void:
 	_alive_targets -= 1
 	# Respawn a fresh target after a short delay so the range never empties
 	get_tree().create_timer(0.6).timeout.connect(_spawn_target, CONNECT_ONE_SHOT)
+
+# ─── Arena bounds ────────────────────────────────────────────────────────────────
+
+func _create_arena_bounds() -> void:
+	var bounds := Node2D.new()
+	bounds.name = "ArenaBounds"
+	add_child(bounds)
+
+	# [position , full_size] for each wall segment
+	var half := ARENA_HALF_SIZE
+	var t    := WALL_THICKNESS
+	var wall_defs := [
+		# top
+		[Vector2(0, -(half + t * 0.5)), Vector2((half + t) * 2, t)],
+		# bottom
+		[Vector2(0, half + t * 0.5),    Vector2((half + t) * 2, t)],
+		# left
+		[Vector2(-(half + t * 0.5), 0), Vector2(t, half * 2)],
+		# right
+		[Vector2(half + t * 0.5, 0),    Vector2(t, half * 2)],
+	]
+
+	for def in wall_defs:
+		var wall := StaticBody2D.new()
+		wall.position        = def[0]
+		wall.collision_layer = 16   # physics layer 5 (environment)
+		wall.collision_mask  = 0
+		var col  := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size  = def[1]
+		col.shape  = rect
+		wall.add_child(col)
+		bounds.add_child(wall)
+
+func _draw() -> void:
+	var half := ARENA_HALF_SIZE
+	var arena_rect := Rect2(-half, -half, half * 2, half * 2)
+
+	# Outer glow
+	var glow := Color(0.9, 0.55, 0.1, 0.1)
+	draw_rect(Rect2(-half - 18, -half - 18, (half + 18) * 2, (half + 18) * 2), glow, false, 36.0)
+
+	# Main boundary
+	var boundary := Color(0.9, 0.55, 0.1, 0.65)
+	draw_rect(arena_rect, boundary, false, 4.0)
+
+	# Inner warning line
+	var warning := Color(0.95, 0.3, 0.1, 0.2)
+	var inset   := 25.0
+	draw_rect(Rect2(-half + inset, -half + inset, (half - inset) * 2, (half - inset) * 2), warning, false, 2.0)
+
+	# Corner brackets
+	var bracket_len   := 80.0
+	var bracket_color := Color(0.95, 0.7, 0.15, 0.85)
+	var corners := [
+		[Vector2(-half, -half), Vector2(1, 0), Vector2(0, 1)],
+		[Vector2( half, -half), Vector2(-1, 0), Vector2(0, 1)],
+		[Vector2(-half,  half), Vector2(1, 0), Vector2(0, -1)],
+		[Vector2( half,  half), Vector2(-1, 0), Vector2(0, -1)],
+	]
+	for c in corners:
+		draw_line(c[0], c[0] + c[1] * bracket_len, bracket_color, 3.0)
+		draw_line(c[0], c[0] + c[2] * bracket_len, bracket_color, 3.0)
+
+	# Hazard tick marks along each edge
+	var tick_spacing := 100.0
+	var tick_len     := 12.0
+	var tick_color   := Color(0.9, 0.6, 0.1, 0.35)
+	# Top & bottom edges
+	var x := -half + tick_spacing
+	while x < half:
+		draw_line(Vector2(x, -half), Vector2(x, -half + tick_len), tick_color, 1.5)
+		draw_line(Vector2(x,  half), Vector2(x,  half - tick_len), tick_color, 1.5)
+		x += tick_spacing
+	# Left & right edges
+	var y := -half + tick_spacing
+	while y < half:
+		draw_line(Vector2(-half, y), Vector2(-half + tick_len, y), tick_color, 1.5)
+		draw_line(Vector2( half, y), Vector2( half - tick_len, y), tick_color, 1.5)
+		y += tick_spacing

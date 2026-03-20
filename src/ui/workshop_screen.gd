@@ -336,5 +336,4 @@ func _on_deploy_pressed() -> void:
 	tween.tween_callback(_go_to_game)
 
 func _go_to_game() -> void:
-	GameManager.start_game()
-	get_tree().change_scene_to_file("res://scenes/levels/gameplay.tscn")
+	get_tree().change_scene_to_file("res://scenes/ui/level_select_screen.tscn")
