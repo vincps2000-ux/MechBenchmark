@@ -4,9 +4,8 @@ extends Node2D
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 
 @onready var background_rect: ColorRect  = %BackgroundRect
-@onready var health_bar:      ProgressBar = %HealthBar
+@onready var integrity_label: Label       = %IntegrityLabel
 @onready var timer_label:     Label       = %TimerLabel
-@onready var hp_label:        Label       = %HpLabel
 
 var _player: CharacterBody2D
 var _player_camera: Camera2D
@@ -26,9 +25,7 @@ func _ready() -> void:
 		background_rect.material = _bg_material
 
 	if _stats:
-		health_bar.max_value = _stats.max_health
-		health_bar.value     = _stats.health
-		hp_label.text        = "%d / %d" % [_stats.health, _stats.max_health]
+		_update_integrity_display()
 
 func _process(_delta: float) -> void:
 	_scroll_background()
@@ -47,6 +44,10 @@ func _scroll_background() -> void:
 func _update_hud() -> void:
 	if not _stats:
 		return
-	health_bar.value = _stats.health
-	hp_label.text    = "%d / %d" % [_stats.health, _stats.max_health]
+	_update_integrity_display()
 	timer_label.text = GameManager.get_game_time_formatted()
+
+func _update_integrity_display() -> void:
+	var filled  := "◆".repeat(_stats.integrity)
+	var empty   := "◇".repeat(_stats.max_integrity - _stats.integrity)
+	integrity_label.text = filled + empty

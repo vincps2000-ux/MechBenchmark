@@ -8,7 +8,7 @@ extends Node2D
 
 const BEAM_SCENE  := preload("res://scenes/weapons/railgun_beam.tscn")
 const MAX_RANGE   := 1200.0
-const HIT_MASK    := 2          # layer 2 = enemies / targets
+const HIT_MASK    := 2 | 16    # layer 2 = enemies + layer 5 = obstacles
 const CHARGE_TIME := 1.5        # seconds to reach full charge (1.0)
 const MIN_CHARGE  := 0.35       # fraction of charge needed to fire at all
 
@@ -75,7 +75,7 @@ func _shoot() -> void:
 		var query := PhysicsRayQueryParameters2D.create(muzzle_pos, end_pos)
 		query.collision_mask      = HIT_MASK
 		query.collide_with_areas  = true
-		query.collide_with_bodies = false
+		query.collide_with_bodies = true   # detect obstacle StaticBody2D
 		query.exclude             = excluded
 
 		var result := space.intersect_ray(query)
@@ -83,6 +83,10 @@ func _shoot() -> void:
 			break
 
 		var collider = result["collider"]
+		# Obstacle blocks the beam — stop piercing
+		if collider is StaticBody2D:
+			end_pos = result["position"]
+			break
 		if collider.has_method("take_damage"):
 			collider.take_damage(int(_damage * _charge))
 		excluded.append(collider.get_rid())

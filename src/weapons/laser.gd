@@ -4,8 +4,8 @@ extends Node2D
 
 const BEAM_SCENE := preload("res://scenes/weapons/laser_beam.tscn")
 const MAX_RANGE  := 900.0
-## Collision layer bits to test against (layer 2 = enemies / targets)
-const HIT_MASK   := 2
+## Collision layer bits to test against (layer 2 = enemies + layer 5 = obstacles)
+const HIT_MASK   := 2 | 16
 
 ## The live beam visual while firing; null when not firing
 var _beam: Node2D = null
@@ -35,7 +35,7 @@ func _fire_continuous() -> void:
 	var query  := PhysicsRayQueryParameters2D.create(muzzle_pos, target_pos)
 	query.collision_mask      = HIT_MASK
 	query.collide_with_areas  = true
-	query.collide_with_bodies = false
+	query.collide_with_bodies = true   # detect obstacle StaticBody2D
 
 	var result := space.intersect_ray(query)
 
@@ -46,11 +46,15 @@ func _fire_continuous() -> void:
 	else:
 		hit_pos = result["position"]
 		var collider = result["collider"]
-		# One-shot: only call take_damage once per unique target
-		if collider != _last_hit:
-			_last_hit = collider
-			if collider.has_method("take_damage"):
-				collider.take_damage(_damage)
+		# If we hit an obstacle (StaticBody2D), just stop the beam there
+		if collider is StaticBody2D:
+			_last_hit = null
+		else:
+			# One-shot: only call take_damage once per unique target
+			if collider != _last_hit:
+				_last_hit = collider
+				if collider.has_method("take_damage"):
+					collider.take_damage(_damage)
 
 	# Create beam on first frame, then update its endpoints each subsequent frame
 	if _beam == null or not is_instance_valid(_beam):

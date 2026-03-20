@@ -41,7 +41,10 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask  = 2
 	monitorable      = false   # nothing needs to detect us
-	monitoring       = true
+	# Defer monitoring enable to avoid "Can't change state while flushing queries"
+	# when spawned from inside an area_entered callback.
+	monitoring       = false
+	set_deferred("monitoring", true)
 
 	# Circle hitbox matching the full blast radius
 	var shape := CircleShape2D.new()

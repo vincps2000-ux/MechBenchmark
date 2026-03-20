@@ -9,7 +9,7 @@ extends Node2D
 const MAX_RANGE    := 240.0
 const CONE_ANGLE   := 0.873   # ≈ 50 degrees in radians
 const RAY_COUNT    := 11      # raycasts spread across the cone
-const HIT_MASK     := 2       # layer 2 = enemies / targets
+const HIT_MASK     := 2 | 16  # layer 2 = enemies + layer 5 = obstacles
 
 const SEG_COUNT    := 20      # vertices along the outer cone arc
 const TONGUE_COUNT := 8       # individual flame-streamer polygons
@@ -37,6 +37,10 @@ var _tongue_freq:       Array[float]     = []  # oscillation speed
 var _tongue_width:      Array[float]     = []  # half-width at muzzle end
 
 var _rng := RandomNumberGenerator.new()
+
+## Per-angle obstacle distances (updated each firing frame by _fire_cone).
+## Maps segment-index → max local-space distance the flame can reach.
+var _obstacle_ranges: Array[float] = []
 
 func _ready() -> void:
 	_rng.seed = 0xF1A4E  # fixed seed — same "personality" every run
@@ -86,6 +90,30 @@ func _fire_cone() -> void:
 	var space := get_world_2d().direct_space_state
 	var already_hit: Array = []
 
+	# ── First pass: find obstacle distances per visual segment ──────────────
+	# Cast one ray per visual segment against bodies only to find the nearest
+	# obstacle distance at each angle.  The flame visuals will be clamped to
+	# these distances so they no longer draw through walls.
+	_obstacle_ranges.clear()
+	for i in SEG_COUNT + 1:
+		var t     : float = float(i) / float(SEG_COUNT)
+		var angle : float = base_angle + lerp(-half, half, t)
+		var dir   := Vector2.from_angle(angle)
+		var end   := muzzle_pos + dir * MAX_RANGE
+
+		var oq := PhysicsRayQueryParameters2D.create(muzzle_pos, end)
+		oq.collision_mask      = 16   # obstacles only
+		oq.collide_with_areas  = false
+		oq.collide_with_bodies = true
+
+		var oresult := space.intersect_ray(oq)
+		if oresult.is_empty():
+			_obstacle_ranges.append(MAX_RANGE)
+		else:
+			var hit_dist: float = (oresult["position"] as Vector2 - muzzle_pos).length()
+			_obstacle_ranges.append(hit_dist)
+
+	# ── Second pass: damage raycasts (enemies + obstacles) ──────────────────
 	for i in RAY_COUNT:
 		var t     := float(i) / float(RAY_COUNT - 1)
 		var angle : float = base_angle + lerp(-half, half, t)
@@ -95,11 +123,14 @@ func _fire_cone() -> void:
 		var query := PhysicsRayQueryParameters2D.create(muzzle_pos, end)
 		query.collision_mask      = HIT_MASK
 		query.collide_with_areas  = true
-		query.collide_with_bodies = false
+		query.collide_with_bodies = true   # detect obstacle StaticBody2D
 
 		var result := space.intersect_ray(query)
 		if not result.is_empty():
 			var collider = result["collider"]
+			# Skip obstacles — they block the flame but don't take damage
+			if collider is StaticBody2D:
+				continue
 			if is_instance_valid(collider) and not already_hit.has(collider):
 				already_hit.append(collider)
 				if collider.has_method("take_damage"):
@@ -119,6 +150,14 @@ func _animate_flame() -> void:
 	# ── Outer cone: every arc vertex has its own noise pair ───────────────────
 	# Each segment blends a fast + slow sin wave with unique freq & phase, so
 	# no two adjacent edges move in sync — gives a genuinely ragged boundary.
+	# Determine per-segment max reach (clamped by obstacles if data available)
+	var seg_max: Array[float] = []
+	for i in SEG_COUNT + 1:
+		if i < _obstacle_ranges.size():
+			seg_max.append(_obstacle_ranges[i])
+		else:
+			seg_max.append(MAX_RANGE)
+
 	var outer := PackedVector2Array()
 	outer.append(Vector2.ZERO)
 	for i in SEG_COUNT + 1:
@@ -130,6 +169,8 @@ func _animate_flame() -> void:
 			+ 0.11 * sin(_time * _seg_freq_b[i]  + _seg_phase_b[i])
 			+ 0.07 * sin(_time * 37.0             + float(i) * 0.83)
 		)
+		# Clamp to obstacle distance at this angle
+		r = minf(r, seg_max[i])
 		outer.append(Vector2.from_angle(angle) * r)
 	_flame_poly.polygon = outer
 
@@ -144,6 +185,8 @@ func _animate_flame() -> void:
 			+ 0.22 * sin(_time * _seg_freq_a[i] * 1.4  + _seg_phase_a[i] + 0.9)
 			+ 0.10 * sin(_time * 29.0                   + float(i) * 1.1)
 		)
+		# Clamp inner cone to obstacle distance too
+		r = minf(r, seg_max[i] * 0.95)
 		inner.append(Vector2.from_angle(angle) * r)
 	_flame_inner.polygon = inner
 
@@ -162,6 +205,9 @@ func _animate_flame() -> void:
 			0.72 + 0.28 * sin(_time * _tongue_freq[i] * 1.15 + _tongue_phase[i] + 1.2)
 		)
 		var r   : float   = MAX_RANGE * len_frac
+		# Clamp tongue to the nearest obstacle along its angle
+		var tongue_seg_idx: int = clampi(int((angle / half * 0.5 + 0.5) * SEG_COUNT), 0, seg_max.size() - 1)
+		r = minf(r, seg_max[tongue_seg_idx])
 		var hw  : float   = _tongue_width[i]
 		var fwd : Vector2 = Vector2.from_angle(angle)
 		var perp: Vector2 = fwd.rotated(PI * 0.5)

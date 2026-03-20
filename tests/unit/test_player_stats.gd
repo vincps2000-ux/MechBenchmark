@@ -6,37 +6,40 @@ var stats: PlayerStats
 func before_each():
 	stats = PlayerStats.new()
 
-func test_initial_health():
-	assert_eq(stats.health, 100, "Player starts with 100 health")
+func test_initial_integrity():
+	assert_eq(stats.integrity, 4, "Player starts with 4 integrity")
+
+func test_initial_max_integrity():
+	assert_eq(stats.max_integrity, 4, "Player starts with 4 max integrity")
 
 func test_initial_level():
 	assert_eq(stats.level, 1, "Player starts at level 1")
 
 func test_take_damage():
-	stats.take_damage(30)
-	assert_eq(stats.health, 70, "Health should be 70 after taking 30 damage")
+	stats.take_damage(1)
+	assert_eq(stats.integrity, 3, "Integrity should be 3 after taking 1 damage")
 
 func test_take_damage_does_not_go_below_zero():
 	stats.take_damage(999)
-	assert_eq(stats.health, 0, "Health should not go below 0")
+	assert_eq(stats.integrity, 0, "Integrity should not go below 0")
 
 func test_heal():
-	stats.take_damage(50)
-	stats.heal(20)
-	assert_eq(stats.health, 70, "Health should be 70 after healing 20 from 50")
+	stats.take_damage(2)
+	stats.heal(1)
+	assert_eq(stats.integrity, 3, "Integrity should be 3 after healing 1 from 2")
 
 func test_heal_does_not_exceed_max():
-	stats.take_damage(10)
+	stats.take_damage(1)
 	stats.heal(999)
-	assert_eq(stats.health, stats.max_health, "Health should not exceed max_health")
+	assert_eq(stats.integrity, stats.max_integrity, "Integrity should not exceed max_integrity")
 
-func test_is_dead_when_health_zero():
-	stats.take_damage(100)
-	assert_true(stats.is_dead(), "Player should be dead at 0 health")
+func test_is_dead_when_integrity_zero():
+	stats.take_damage(4)
+	assert_true(stats.is_dead(), "Player should be dead at 0 integrity")
 
-func test_is_not_dead_when_health_above_zero():
-	stats.take_damage(99)
-	assert_false(stats.is_dead(), "Player should not be dead at 1 health")
+func test_is_not_dead_when_integrity_above_zero():
+	stats.take_damage(3)
+	assert_false(stats.is_dead(), "Player should not be dead at 1 integrity")
 
 func test_xp_for_next_level_scales():
 	var lvl1_xp = stats.xp_for_next_level()

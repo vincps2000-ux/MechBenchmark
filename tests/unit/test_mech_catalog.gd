@@ -29,8 +29,8 @@ func test_stealth_torso_is_fast_and_fragile():
 	var torsos := MechCatalog.get_all_torsos()
 	for t in torsos:
 		if t.name == "Stealth":
-			assert_gt(t.speed_modifier,  1.0, "Stealth torso should be faster than baseline")
-			assert_lt(t.health_modifier, 1.0, "Stealth torso should have less health than baseline")
+			assert_gt(t.speed_modifier, 1.0, "Stealth torso should be faster than baseline")
+			assert_eq(t.integrity, 2, "Stealth torso should have 2 integrity")
 			return
 	fail_test("Stealth torso not found in catalog")
 
@@ -38,8 +38,8 @@ func test_heavy_torso_is_slow_and_tanky():
 	var torsos := MechCatalog.get_all_torsos()
 	for t in torsos:
 		if t.name == "Heavy Armour":
-			assert_lt(t.speed_modifier,  1.0, "Heavy torso should be slower than baseline")
-			assert_gt(t.health_modifier, 1.0, "Heavy torso should have more health than baseline")
+			assert_lt(t.speed_modifier, 1.0, "Heavy torso should be slower than baseline")
+			assert_eq(t.integrity, 8, "Heavy torso should have 8 integrity")
 			return
 	fail_test("Heavy Armour torso not found in catalog")
 
@@ -63,8 +63,7 @@ func test_spider_legs_are_fast_but_fragile():
 	var legs := MechCatalog.get_all_legs()
 	for leg in legs:
 		if leg.name == "Spider":
-			assert_gt(leg.speed_modifier,  1.0, "Spider should be faster than baseline")
-			assert_lt(leg.health_modifier, 1.0, "Spider should have less health than baseline")
+			assert_gt(leg.speed_modifier, 1.0, "Spider should be faster than baseline")
 			return
 	fail_test("Spider legs not found in catalog")
 
@@ -72,8 +71,7 @@ func test_tank_legs_are_slow_but_tanky():
 	var legs := MechCatalog.get_all_legs()
 	for leg in legs:
 		if leg.name == "Tank":
-			assert_lt(leg.speed_modifier,  1.0, "Tank should be slower than baseline")
-			assert_gt(leg.health_modifier, 1.0, "Tank should have more health than baseline")
+			assert_lt(leg.speed_modifier, 1.0, "Tank should be slower than baseline")
 			return
 	fail_test("Tank legs not found in catalog")
 

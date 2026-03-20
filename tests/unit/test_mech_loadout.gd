@@ -37,29 +37,25 @@ func test_set_gun():
 func test_apply_to_stats_applies_leg_modifier():
 	var legs := LegData.new()
 	legs.speed_modifier  = 0.6
-	legs.health_modifier = 1.8
 
 	loadout.selected_legs = legs
 
 	var stats := PlayerStats.new()
 	loadout.apply_to_stats(stats)
 	assert_eq(stats.speed, 200.0 * 0.6, "Speed should reflect leg modifier")
-	assert_eq(stats.max_health, int(100 * 1.8), "Health should reflect leg modifier")
 
-func test_apply_to_stats_compounds_legs_and_torso():
+func test_apply_to_stats_torso_sets_integrity():
 	var legs := LegData.new()
 	legs.speed_modifier  = 1.0
-	legs.health_modifier = 1.5
 
 	var torso := TorsoData.new()
 	torso.speed_modifier  = 1.0
-	torso.health_modifier = 0.8
+	torso.integrity       = 8
 
 	loadout.selected_legs  = legs
 	loadout.selected_torso = torso
 
 	var stats := PlayerStats.new()
 	loadout.apply_to_stats(stats)
-	# Compound: legs apply first, then torso multiplies the result
-	var expected_health := int(int(100 * 1.5) * 0.8)
-	assert_eq(stats.max_health, expected_health, "Compound health modifiers should be applied in sequence")
+	assert_eq(stats.max_integrity, 8, "Integrity should come from torso")
+	assert_eq(stats.integrity, 8, "Current integrity should equal max")

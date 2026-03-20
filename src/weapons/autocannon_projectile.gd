@@ -23,13 +23,12 @@ var _pierced: int   = 0
 
 func _ready() -> void:
 	# Layer 4 (bit 3) = projectiles; mask layer 2 (bit 1) = enemies
-	set_collision_layer_value(4, true)
-	set_collision_mask_value(2, true)
-	# Disable the default layers so only our explicit bits are set
-	collision_layer = 8   # bit 3 only
-	collision_mask  = 2   # bit 1 only
+	# Also mask layer 5 (bit 16) = environment obstacles so shells don't fly through walls
+	collision_layer = 8    # bit 3 only (projectiles)
+	collision_mask  = 2 | 16  # bit 1 (enemies) + bit 4 (environment)
 
 	area_entered.connect(_on_area_entered)
+	body_entered.connect(_on_body_entered)
 
 func _process(delta: float) -> void:
 	position += velocity * delta
@@ -43,10 +42,22 @@ func _on_area_entered(area: Area2D) -> void:
 	elif area.get_parent() != null and area.get_parent().has_method("take_damage"):
 		area.get_parent().take_damage(damage)
 
+	# Defer explosion + free so we're not mutating physics state mid-flush
+	_deferred_explode_and_pierce()
+
+## Called when the shell hits a StaticBody2D (obstacle / wall).
+func _on_body_entered(_body: Node2D) -> void:
+	call_deferred("_deferred_explode_and_die")
+
+func _deferred_explode_and_pierce() -> void:
 	_spawn_explosion()
 	_pierced += 1
 	if _pierced >= pierce:
 		queue_free()
+
+func _deferred_explode_and_die() -> void:
+	_spawn_explosion()
+	queue_free()
 
 func _spawn_explosion() -> void:
 	var explosion: AutocannonExplosion = EXPLOSION_SCENE.instantiate()

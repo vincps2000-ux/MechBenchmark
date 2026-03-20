@@ -10,6 +10,14 @@ enum TorsoType {
 }
 
 @export var torso_type: TorsoType = TorsoType.CARGO
+## How many integrity symbols this torso grants (Stealth=2, Cargo=4, Heavy=8)
+@export var integrity: int = 4
+
+## Apply speed modifier and set integrity from this torso.
+func apply_to_stats(stats: PlayerStats) -> void:
+	super.apply_to_stats(stats)
+	stats.max_integrity = integrity
+	stats.integrity     = integrity
 
 ## Returns the sprite path for this torso type
 func get_sprite_path() -> String:
