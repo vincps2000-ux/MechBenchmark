@@ -30,7 +30,7 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 	body_entered.connect(_on_body_entered)
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	position += velocity * delta
 	_elapsed += delta
 	if _elapsed >= MAX_LIFETIME:
@@ -45,9 +45,13 @@ func _on_area_entered(area: Area2D) -> void:
 	# Defer explosion + free so we're not mutating physics state mid-flush
 	_deferred_explode_and_pierce()
 
-## Called when the shell hits a StaticBody2D (obstacle / wall).
-func _on_body_entered(_body: Node2D) -> void:
-	call_deferred("_deferred_explode_and_die")
+## Called when the shell hits a PhysicsBody2D (enemy or obstacle/wall).
+func _on_body_entered(body: Node2D) -> void:
+	if body.has_method("take_damage"):
+		body.take_damage(damage)
+		call_deferred("_deferred_explode_and_pierce")
+	else:
+		call_deferred("_deferred_explode_and_die")
 
 func _deferred_explode_and_pierce() -> void:
 	_spawn_explosion()

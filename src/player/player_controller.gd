@@ -22,6 +22,7 @@ var _movement_type: LegData.MovementType = LegData.MovementType.LEGS
 var _speed: float = BASE_SPEED
 
 func _ready() -> void:
+	add_to_group("player")
 	# Sprites are drawn facing right (+X); start the robot facing up
 	rotation = -PI / 2.0
 

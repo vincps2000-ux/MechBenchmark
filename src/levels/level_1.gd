@@ -1,18 +1,111 @@
-# level_1.gd — Level 1: first real mission (wasteland)
+# level_1.gd — Level 1: "Urban Surprise"
+# City-block arena with ambush enemy waves, mission objectives,
+# and urban environment obstacles (buildings, cars, dumpsters, barricades).
 extends Node2D
 
-const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
+const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
+const ENEMY_INFANTRY_SCENE := preload("res://scenes/enemies/enemy_infantry.tscn")
 
-@onready var background_rect: ColorRect  = %BackgroundRect
-@onready var integrity_label: Label       = %IntegrityLabel
-@onready var timer_label:     Label       = %TimerLabel
+## Arena boundary (half-size from origin in each direction)
+const ARENA_HALF_SIZE := 1200.0
+const WALL_THICKNESS  := 30.0
+
+# ─── Mission objectives ─────────────────────────────────────────────────────────
+## Total waves in this level
+const TOTAL_WAVES := 3
+
+## Enemy counts per wave (escalating)
+const WAVE_ENEMY_COUNTS: Array[int] = [4, 6, 10]
+
+## Seconds between waves
+const WAVE_DELAY := 3.0
+
+## XP per infantry kill
+const XP_PER_KILL := 5
+
+## Ambush spawn directions per wave — enemies come from unexpected angles
+## Each sub-array contains Vector2 *directions* (normalised) from which the wave spawns.
+const WAVE_SPAWN_DIRS: Array[Array] = [
+	# Wave 1: enemies from the north alley
+	[Vector2(0.5, -1), Vector2(-0.5, -1), Vector2(0, -1), Vector2(0.8, -0.6)],
+	# Wave 2: surprise flank from east + west
+	[Vector2(1, 0.3), Vector2(1, -0.3), Vector2(-1, 0.3), Vector2(-1, -0.3), Vector2(1, 0), Vector2(-1, 0)],
+	# Wave 3: full surround — the big surprise
+	[Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1),
+	 Vector2(0.7, 0.7), Vector2(-0.7, 0.7), Vector2(0.7, -0.7), Vector2(-0.7, -0.7),
+	 Vector2(0.3, 1), Vector2(-0.3, -1)],
+]
+
+## Spawn distance from player (enemies appear from off-screen via streets)
+const SPAWN_DISTANCE_MIN := 500.0
+const SPAWN_DISTANCE_MAX := 800.0
+
+# ─── Urban obstacle layout ──────────────────────────────────────────────────────
+## [position, shape_type (UrbanObstacle.Shape), rect_size, rotation_deg]
+const OBSTACLE_DEFS := [
+	# Buildings (large cover)
+	[Vector2(-500, -500),  0, Vector2(180, 150), 0.0],
+	[Vector2(450, -400),   0, Vector2(140, 200), 0.0],
+	[Vector2(-400,  400),  0, Vector2(160, 130), 0.0],
+	[Vector2(500,  350),   0, Vector2(200, 160), 0.0],
+	[Vector2(0, -650),     0, Vector2(250, 100), 0.0],
+	[Vector2(-750, 0),     0, Vector2(120, 180), 0.0],
+	[Vector2(700, -100),   0, Vector2(130, 170), 0.0],
+	# Parked cars (medium cover, angled)
+	[Vector2(-180, -200),  1, Vector2(80, 40), 15.0],
+	[Vector2(200,  150),   1, Vector2(80, 40), -20.0],
+	[Vector2(-100,  350),  1, Vector2(80, 40), 45.0],
+	[Vector2(350, -150),   1, Vector2(80, 40), 0.0],
+	[Vector2(-300,  100),  1, Vector2(70, 35), 90.0],
+	[Vector2(100, -400),   1, Vector2(75, 38), -10.0],
+	# Dumpsters (small cover near buildings)
+	[Vector2(-380, -400),  2, Vector2(50, 35), 0.0],
+	[Vector2(380,  280),   2, Vector2(50, 35), 0.0],
+	[Vector2(-550,  300),  2, Vector2(45, 30), 10.0],
+	[Vector2(280, -300),   2, Vector2(50, 35), -5.0],
+	# Road barricades (block lanes, force detours)
+	[Vector2(0,   200),    3, Vector2(120, 18), 0.0],
+	[Vector2(-250, -100),  3, Vector2(100, 18), 90.0],
+	[Vector2(300,  50),    3, Vector2(100, 18), 0.0],
+	[Vector2(0, -300),     3, Vector2(140, 18), 0.0],
+	# Bus stops (small cover)
+	[Vector2(-600, -250),  4, Vector2(60, 20), 0.0],
+	[Vector2(600,  200),   4, Vector2(60, 20), 0.0],
+	# Lampposts (tiny obstacles with glow)
+	[Vector2(-200, -450),  5, Vector2.ZERO, 0.0],
+	[Vector2(200,  450),   5, Vector2.ZERO, 0.0],
+	[Vector2(450,  0),     5, Vector2.ZERO, 0.0],
+	[Vector2(-450, 0),     5, Vector2.ZERO, 0.0],
+	[Vector2(0,   500),    5, Vector2.ZERO, 0.0],
+	[Vector2(0,  -500),    5, Vector2.ZERO, 0.0],
+]
+
+# ─── Node refs ───────────────────────────────────────────────────────────────────
+@onready var background_rect: ColorRect    = %BackgroundRect
+@onready var integrity_label: Label         = %IntegrityLabel
+@onready var timer_label:     Label         = %TimerLabel
+@onready var objective_label: Label         = %ObjectiveLabel
+@onready var wave_label:      Label         = %WaveLabel
+@onready var win_panel:       PanelContainer = %WinPanel
 
 var _player: CharacterBody2D
 var _player_camera: Camera2D
 var _bg_material: ShaderMaterial
 var _stats: PlayerStats
+var _enemies_node: Node2D
+var _obstacles_node: Node2D
+
+# ─── State ────────────────────────────────────────────────────────────────────
+var _current_wave: int = 0        # 0 = not started yet
+var _enemies_alive: int = 0
+var _total_killed: int = 0
+var _wave_active: bool = false
+var _level_won: bool = false
+var _wave_delay_timer: float = 0.0
+var _waiting_for_wave: bool = false
 
 func _ready() -> void:
+	# Spawn the player at the world origin
 	_player = PLAYER_SCENE.instantiate() as CharacterBody2D
 	add_child(_player)
 	_player.global_position = Vector2.ZERO
@@ -27,27 +120,254 @@ func _ready() -> void:
 	if _stats:
 		_update_integrity_display()
 
-func _process(_delta: float) -> void:
+	# Urban background decorations
+	var decorations := UrbanDecorations.new()
+	decorations.arena_half_size = ARENA_HALF_SIZE
+	add_child(decorations)
+
+	# Blocking obstacles (buildings, cars, etc.)
+	_obstacles_node = Node2D.new()
+	_obstacles_node.name = "Obstacles"
+	add_child(_obstacles_node)
+	_spawn_obstacles()
+
+	# Enemy container
+	_enemies_node = Node2D.new()
+	_enemies_node.name = "Enemies"
+	add_child(_enemies_node)
+
+	# Arena boundary walls
+	_create_arena_bounds()
+
+	# Hide win panel
+	if win_panel:
+		win_panel.visible = false
+
+	_update_objective_hud()
+
+	# Kick off first wave after brief delay
+	_waiting_for_wave = true
+	_wave_delay_timer = 1.5  # short lead-in
+
+	queue_redraw()
+
+func _process(delta: float) -> void:
 	_scroll_background()
 	_update_hud()
+
+	# Wave progression
+	if _waiting_for_wave:
+		_wave_delay_timer -= delta
+		if _wave_delay_timer <= 0.0:
+			_waiting_for_wave = false
+			_start_next_wave()
 
 func _scroll_background() -> void:
 	if not (_bg_material and _player_camera):
 		return
-	var vp_size  := get_viewport().get_visible_rect().size
-	var zoom     := _player_camera.zoom.x
-	var world_vp := vp_size / zoom
-	var cam_off  := world_vp * 0.5
+	var vp_size: Vector2    = get_viewport().get_visible_rect().size
+	var zoom: float         = _player_camera.zoom.x
+	var world_vp: Vector2   = vp_size / zoom
+	var cam_offset: Vector2 = world_vp * 0.5
 	_bg_material.set_shader_parameter("viewport_size",    world_vp)
-	_bg_material.set_shader_parameter("camera_world_pos", _player.global_position - cam_off)
+	_bg_material.set_shader_parameter("camera_world_pos", _player.global_position - cam_offset)
 
 func _update_hud() -> void:
 	if not _stats:
 		return
 	_update_integrity_display()
 	timer_label.text = GameManager.get_game_time_formatted()
+	_update_objective_hud()
 
 func _update_integrity_display() -> void:
 	var filled  := "◆".repeat(_stats.integrity)
 	var empty   := "◇".repeat(_stats.max_integrity - _stats.integrity)
 	integrity_label.text = filled + empty
+
+func _update_objective_hud() -> void:
+	if objective_label:
+		if _level_won:
+			objective_label.text = "MISSION COMPLETE"
+		elif _current_wave == 0:
+			objective_label.text = "Prepare for contact..."
+		else:
+			objective_label.text = "Hostiles remaining: %d" % _enemies_alive
+	if wave_label:
+		if _level_won:
+			wave_label.text = "All waves cleared!"
+		elif _current_wave > 0:
+			wave_label.text = "WAVE %d / %d" % [_current_wave, TOTAL_WAVES]
+		else:
+			wave_label.text = "URBAN SURPRISE"
+
+# ─── Wave management ────────────────────────────────────────────────────────────
+
+func _start_next_wave() -> void:
+	_current_wave += 1
+	if _current_wave > TOTAL_WAVES:
+		_trigger_win()
+		return
+
+	_wave_active = true
+	var count: int = WAVE_ENEMY_COUNTS[_current_wave - 1] if _current_wave - 1 < WAVE_ENEMY_COUNTS.size() else 8
+	var dirs: Array = WAVE_SPAWN_DIRS[_current_wave - 1] if _current_wave - 1 < WAVE_SPAWN_DIRS.size() else [Vector2(1,0)]
+	_spawn_wave(count, dirs)
+	_update_objective_hud()
+
+	# Flash "SURPRISE!" for ambush waves (wave 2+)
+	if _current_wave >= 2 and wave_label:
+		_flash_surprise()
+
+func _spawn_wave(count: int, directions: Array) -> void:
+	var player_pos := _player.global_position if is_instance_valid(_player) else Vector2.ZERO
+	for i in count:
+		var dir_idx := i % directions.size()
+		var dir: Vector2 = (directions[dir_idx] as Vector2).normalized()
+		var dist := randf_range(SPAWN_DISTANCE_MIN, SPAWN_DISTANCE_MAX)
+		var spread := randf_range(-0.3, 0.3)  # slight random spread
+		var spawn_dir := dir.rotated(spread)
+		var spawn_pos := player_pos + spawn_dir * dist
+
+		# Clamp within arena
+		spawn_pos.x = clampf(spawn_pos.x, -ARENA_HALF_SIZE + 50, ARENA_HALF_SIZE - 50)
+		spawn_pos.y = clampf(spawn_pos.y, -ARENA_HALF_SIZE + 50, ARENA_HALF_SIZE - 50)
+
+		var enemy: CharacterBody2D = ENEMY_INFANTRY_SCENE.instantiate()
+		enemy.global_position = spawn_pos
+		enemy.died.connect(_on_enemy_died)
+		_enemies_node.add_child(enemy)
+		_enemies_alive += 1
+		GameManager.enemies_alive += 1
+
+func _on_enemy_died(_enemy: EnemyInfantry) -> void:
+	_enemies_alive -= 1
+	_total_killed += 1
+	GameManager.on_enemy_killed(XP_PER_KILL)
+
+	if _enemies_alive <= 0 and _wave_active:
+		_wave_active = false
+		if _current_wave >= TOTAL_WAVES:
+			_trigger_win()
+		else:
+			# Queue next wave after delay
+			_waiting_for_wave = true
+			_wave_delay_timer = WAVE_DELAY
+
+func _trigger_win() -> void:
+	_level_won = true
+	GameManager.is_running = false
+	_update_objective_hud()
+	if win_panel:
+		win_panel.visible = true
+
+func _flash_surprise() -> void:
+	if not wave_label:
+		return
+	var original_text := wave_label.text
+	var original_color: Color = wave_label.get("theme_override_colors/font_color")
+	wave_label.text = "!! SURPRISE !!"
+	wave_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.15, 1.0))
+	var tween := create_tween()
+	tween.tween_interval(1.2)
+	tween.tween_callback(func():
+		wave_label.text = original_text
+		if original_color:
+			wave_label.add_theme_color_override("font_color", original_color)
+		else:
+			wave_label.remove_theme_color_override("font_color")
+	)
+
+# ─── External access — for tests ────────────────────────────────────────────────
+func get_enemies_alive() -> int:
+	return _enemies_alive
+
+func get_total_killed() -> int:
+	return _total_killed
+
+func get_current_wave() -> int:
+	return _current_wave
+
+func is_won() -> bool:
+	return _level_won
+
+# ─── Obstacles ───────────────────────────────────────────────────────────────────
+
+func _spawn_obstacles() -> void:
+	for def in OBSTACLE_DEFS:
+		var obstacle := UrbanObstacle.new()
+		obstacle.position   = def[0]
+		obstacle.shape_type = def[1] as UrbanObstacle.Shape
+		if def[1] != 5:  # lampposts don't use rect_size
+			obstacle.rect_size = def[2]
+		obstacle.rotation_degrees = def[3]
+		_obstacles_node.add_child(obstacle)
+
+# ─── Arena bounds ────────────────────────────────────────────────────────────────
+
+func _create_arena_bounds() -> void:
+	var bounds := Node2D.new()
+	bounds.name = "ArenaBounds"
+	add_child(bounds)
+
+	var half := ARENA_HALF_SIZE
+	var t    := WALL_THICKNESS
+	var wall_defs := [
+		[Vector2(0, -(half + t * 0.5)), Vector2((half + t) * 2, t)],
+		[Vector2(0, half + t * 0.5),    Vector2((half + t) * 2, t)],
+		[Vector2(-(half + t * 0.5), 0), Vector2(t, half * 2)],
+		[Vector2(half + t * 0.5, 0),    Vector2(t, half * 2)],
+	]
+
+	for d in wall_defs:
+		var wall := StaticBody2D.new()
+		wall.position        = d[0]
+		wall.collision_layer = 16
+		wall.collision_mask  = 0
+		var col  := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size  = d[1]
+		col.shape  = rect
+		wall.add_child(col)
+		bounds.add_child(wall)
+
+func _draw() -> void:
+	var half := ARENA_HALF_SIZE
+	var arena_rect := Rect2(-half, -half, half * 2, half * 2)
+
+	# Outer glow — urban orange/red
+	var glow := Color(0.8, 0.25, 0.1, 0.08)
+	draw_rect(Rect2(-half - 18, -half - 18, (half + 18) * 2, (half + 18) * 2), glow, false, 36.0)
+
+	# Main boundary — chain-link fence style
+	var boundary := Color(0.5, 0.5, 0.5, 0.5)
+	draw_rect(arena_rect, boundary, false, 3.0)
+	# Inner boundary
+	draw_rect(Rect2(-half + 4, -half + 4, (half - 4) * 2, (half - 4) * 2), Color(0.5, 0.5, 0.5, 0.25), false, 1.5)
+
+	# Danger tape corners
+	var bracket_len   := 90.0
+	var bracket_color := Color(0.9, 0.3, 0.1, 0.75)
+	var corners := [
+		[Vector2(-half, -half), Vector2(1, 0), Vector2(0, 1)],
+		[Vector2( half, -half), Vector2(-1, 0), Vector2(0, 1)],
+		[Vector2(-half,  half), Vector2(1, 0), Vector2(0, -1)],
+		[Vector2( half,  half), Vector2(-1, 0), Vector2(0, -1)],
+	]
+	for c in corners:
+		draw_line(c[0], c[0] + c[1] * bracket_len, bracket_color, 4.0)
+		draw_line(c[0], c[0] + c[2] * bracket_len, bracket_color, 4.0)
+
+	# "RESTRICTED AREA" tick marks along boundary
+	var tick_spacing := 80.0
+	var tick_len     := 10.0
+	var tick_color   := Color(0.7, 0.3, 0.1, 0.3)
+	var x := -half + tick_spacing
+	while x < half:
+		draw_line(Vector2(x, -half), Vector2(x, -half + tick_len), tick_color, 1.5)
+		draw_line(Vector2(x,  half), Vector2(x,  half - tick_len), tick_color, 1.5)
+		x += tick_spacing
+	var y := -half + tick_spacing
+	while y < half:
+		draw_line(Vector2(-half, y), Vector2(-half + tick_len, y), tick_color, 1.5)
+		draw_line(Vector2( half, y), Vector2( half - tick_len, y), tick_color, 1.5)
+		y += tick_spacing
