@@ -17,6 +17,8 @@ var velocity: Vector2 = Vector2.ZERO
 var damage: int = 25
 ## How many enemies this shell can pierce before detonating (1 = no pierce).
 var pierce: int = 1
+## Armour penetration value; set by Autocannon.
+var penetration: int = 4
 
 var _elapsed: float = 0.0
 var _pierced: int   = 0
@@ -38,9 +40,9 @@ func _physics_process(delta: float) -> void:
 
 func _on_area_entered(area: Area2D) -> void:
 	if area.has_method("take_damage"):
-		area.take_damage(damage)
+		area.take_damage(damage, penetration)
 	elif area.get_parent() != null and area.get_parent().has_method("take_damage"):
-		area.get_parent().take_damage(damage)
+		area.get_parent().take_damage(damage, penetration)
 
 	# Defer explosion + free so we're not mutating physics state mid-flush
 	_deferred_explode_and_pierce()
@@ -48,7 +50,7 @@ func _on_area_entered(area: Area2D) -> void:
 ## Called when the shell hits a PhysicsBody2D (enemy or obstacle/wall).
 func _on_body_entered(body: Node2D) -> void:
 	if body.has_method("take_damage"):
-		body.take_damage(damage)
+		body.take_damage(damage, penetration)
 		call_deferred("_deferred_explode_and_pierce")
 	else:
 		call_deferred("_deferred_explode_and_die")
@@ -66,5 +68,6 @@ func _deferred_explode_and_die() -> void:
 func _spawn_explosion() -> void:
 	var explosion: AutocannonExplosion = EXPLOSION_SCENE.instantiate()
 	explosion.damage = damage
+	explosion.penetration = penetration
 	get_tree().root.add_child(explosion)
 	explosion.global_position = global_position

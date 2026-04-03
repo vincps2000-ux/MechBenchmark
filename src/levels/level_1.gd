@@ -5,6 +5,7 @@ extends Node2D
 
 const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
 const ENEMY_INFANTRY_SCENE := preload("res://scenes/enemies/enemy_infantry.tscn")
+const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 
 ## Arena boundary (half-size from origin in each direction)
 const ARENA_HALF_SIZE := 1200.0
@@ -113,6 +114,12 @@ func _ready() -> void:
 
 	_stats = GameManager.player_stats
 
+	# Weapon toggle HUD (bottom-right)
+	var weapon_hud := WeaponHUD.new()
+	$HUD/HUDControl.add_child(weapon_hud)
+	weapon_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	weapon_hud.setup(_player)
+
 	if background_rect and background_rect.material is ShaderMaterial:
 		_bg_material = (background_rect.material as ShaderMaterial).duplicate()
 		background_rect.material = _bg_material
@@ -182,7 +189,7 @@ func _update_hud() -> void:
 func _update_integrity_display() -> void:
 	var filled  := "◆".repeat(_stats.integrity)
 	var empty   := "◇".repeat(_stats.max_integrity - _stats.integrity)
-	integrity_label.text = filled + empty
+	integrity_label.text = filled + empty + "\n" + "▰".repeat(_stats.armor)
 
 func _update_objective_hud() -> void:
 	if objective_label:

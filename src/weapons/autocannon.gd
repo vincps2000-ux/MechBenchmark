@@ -27,6 +27,8 @@ var _weapon_sprite: Sprite2D = null
 var _damage: int   = 25
 ## Pierce count passed to each projectile; configured via setup().
 var _pierce: int   = 1
+## Armour penetration value; configured via setup().
+var _penetration: int = 4
 ## Countdown timer — goes negative to trigger a shot then resets.
 var _cooldown: float = 0.0
 ## Muzzle-flash timer; >0 while flash is showing.
@@ -39,6 +41,7 @@ func _ready() -> void:
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_pierce = data.pierce
+	_penetration = data.penetration
 
 func _process(delta: float) -> void:
 	_cooldown -= delta
@@ -64,6 +67,7 @@ func _shoot() -> void:
 	var proj: AutocannonProjectile = PROJECTILE_SCENE.instantiate()
 	proj.damage   = _damage
 	proj.pierce   = _pierce
+	proj.penetration = _penetration
 	proj.velocity = fire_dir * PROJECTILE_SPEED
 	proj.rotation = fire_dir.angle()
 	proj.global_position = muzzle_pos

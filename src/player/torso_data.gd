@@ -12,6 +12,8 @@ enum TorsoType {
 @export var torso_type: TorsoType = TorsoType.CARGO
 ## How many integrity symbols this torso grants (Stealth=2, Cargo=4, Heavy=8)
 @export var integrity: int = 4
+## Number of weapon mount points this torso supports (Heavy=2, others=1)
+@export var weapon_slots: int = 1
 
 ## Apply speed modifier and set integrity from this torso.
 func apply_to_stats(stats: PlayerStats) -> void:

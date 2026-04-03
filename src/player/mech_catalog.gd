@@ -20,6 +20,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	heavy.tutorial_text  = "Maximum integrity — reduced mobility\nTakes hits the other torsos can't"
 	heavy.speed_modifier  = 0.8
 	heavy.integrity       = 8
+	heavy.weapon_slots    = 2
 
 	var cargo := TorsoData.new()
 	cargo.name           = "Cargo"

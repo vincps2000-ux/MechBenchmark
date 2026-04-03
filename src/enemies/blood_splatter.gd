@@ -8,24 +8,12 @@ extends Node2D
 @export var fade_time: float = 2.0
 
 var _drops: Array[Dictionary] = []
-var _timer: float = 0.0
-var _fading: bool = false
 
 func _ready() -> void:
 	z_index = -1  # Draw below characters
+	add_to_group("blood_splatter")
 	_generate_drops()
 	queue_redraw()
-
-func _process(delta: float) -> void:
-	_timer += delta
-	if not _fading and _timer >= linger_time:
-		_fading = true
-		_timer = 0.0
-	if _fading:
-		var alpha := 1.0 - clampf(_timer / fade_time, 0.0, 1.0)
-		modulate.a = alpha
-		if alpha <= 0.0:
-			queue_free()
 
 func _draw() -> void:
 	for drop: Dictionary in _drops:

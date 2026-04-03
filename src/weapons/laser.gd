@@ -13,10 +13,13 @@ var _beam: Node2D = null
 var _last_hit: Object = null
 ## Damage dealt per hit, configured via setup()
 var _damage: int = 12
+## Armour penetration value, configured via setup()
+var _penetration: int = 3
 
 ## Called by PlayerController right after instantiation to wire up WeaponData.
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
+	_penetration = data.penetration
 
 func _process(_delta: float) -> void:
 	if Input.is_action_pressed("fire"):
@@ -54,7 +57,7 @@ func _fire_continuous() -> void:
 			if collider != _last_hit:
 				_last_hit = collider
 				if collider.has_method("take_damage"):
-					collider.take_damage(_damage)
+					collider.take_damage(_damage, _penetration)
 
 	# Create beam on first frame, then update its endpoints each subsequent frame
 	if _beam == null or not is_instance_valid(_beam):
@@ -69,3 +72,6 @@ func _stop_beam() -> void:
 		(_beam as Node2D).call("stop")
 		_beam = null
 	_last_hit = null
+
+func stop_firing() -> void:
+	_stop_beam()

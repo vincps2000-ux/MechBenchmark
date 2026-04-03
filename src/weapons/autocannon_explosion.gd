@@ -32,6 +32,8 @@ var _ring_poly : Polygon2D = null
 ## Damage dealt to each enemy inside the blast radius.  Set by the projectile
 ## before this node is added to the scene tree.
 var damage: int = 25
+## Armour penetration value; set by the projectile.
+var penetration: int = 4
 
 ## Tracks enemies already damaged so a slow enemy isn't hit twice.
 var _hit_set: Array = []
@@ -54,6 +56,7 @@ func _ready() -> void:
 	add_child(cs)
 
 	area_entered.connect(_on_area_entered)
+	body_entered.connect(_on_body_entered)
 
 	# Build fill disc
 	_fill_poly = Polygon2D.new()
@@ -110,9 +113,16 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	_hit_set.append(area)
 	if area.has_method("take_damage"):
-		area.take_damage(damage)
+		area.take_damage(damage, penetration)
 	elif is_instance_valid(area.get_parent()) and area.get_parent().has_method("take_damage"):
-		area.get_parent().take_damage(damage)
+		area.get_parent().take_damage(damage, penetration)
+
+func _on_body_entered(body: Node2D) -> void:
+	if _hit_set.has(body):
+		return
+	_hit_set.append(body)
+	if body.has_method("take_damage"):
+		body.take_damage(damage, penetration)
 
 func _make_circle(radius: float) -> PackedVector2Array:
 	var pts := PackedVector2Array()

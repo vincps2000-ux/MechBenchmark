@@ -21,6 +21,8 @@ var _firing: bool  = false
 var _time:   float = 0.0
 ## Damage dealt per cone ray hit, configured via setup()
 var _damage: int = 3
+## Armour penetration value, configured via setup()
+var _penetration: int = 2
 
 # ── Per-segment independent noise parameters (set once in _ready) ─────────────
 var _seg_freq_a:  Array[float] = []   # fast oscillation frequency per segment
@@ -69,6 +71,14 @@ func _ready() -> void:
 ## Called by PlayerController right after instantiation to wire up WeaponData.
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
+	_penetration = data.penetration
+
+func stop_firing() -> void:
+	_firing = false
+	_flame_poly.visible  = false
+	_flame_inner.visible = false
+	for poly in _tongues:
+		poly.visible = false
 
 # ─── Per-frame update ─────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
@@ -134,7 +144,7 @@ func _fire_cone() -> void:
 			if is_instance_valid(collider) and not already_hit.has(collider):
 				already_hit.append(collider)
 				if collider.has_method("take_damage"):
-					collider.take_damage(_damage)
+					collider.take_damage(_damage, _penetration)
 
 # ─── Flame visuals ────────────────────────────────────────────────────────────
 func _animate_flame() -> void:

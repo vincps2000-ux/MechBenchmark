@@ -12,7 +12,7 @@ const FLASH_COLOR := Color(2.5, 2.5, 2.5, 1.0)
 var _flashing: bool = false
 
 ## Called externally (e.g. by Laser, Flamethrower) when hit — one-shot kill
-func take_damage(_amount: int) -> void:
+func take_damage(_amount: int, _penetration: int = 10) -> void:
 	if _flashing:   # already dying
 		return
 	_flashing = true

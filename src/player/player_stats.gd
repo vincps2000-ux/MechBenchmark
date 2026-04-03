@@ -4,6 +4,7 @@ extends Resource
 
 @export var max_integrity: int = 4
 @export var integrity: int = 4
+@export var armor: int = 5
 @export var speed: float = 200.0
 @export var experience: int = 0
 @export var level: int = 1

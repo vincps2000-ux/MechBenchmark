@@ -20,6 +20,8 @@ const TORSO_ROTATION_SPEED  := 4.0   # rad/s — torso tracks mouse independentl
 
 var _movement_type: LegData.MovementType = LegData.MovementType.LEGS
 var _speed: float = BASE_SPEED
+var _weapons: Array[Node] = []
+var _weapon_mounts: Array[Node2D] = []
 
 func _ready() -> void:
 	add_to_group("player")
@@ -33,7 +35,7 @@ func _ready() -> void:
 		_apply_leg_texture(_movement_type)
 	if loadout and loadout.selected_torso:
 		_apply_torso_texture(loadout.selected_torso)
-		_mount_weapon(loadout.selected_torso.torso_type)
+		_mount_weapons(loadout.selected_torso.torso_type)
 
 func _apply_torso_texture(torso: TorsoData) -> void:
 	var tex: Texture2D = load(torso.get_sprite_path())
@@ -41,43 +43,69 @@ func _apply_torso_texture(torso: TorsoData) -> void:
 		torso_sprite.texture = tex
 
 # ─── Weapon mounting ──────────────────────────────────────────────────────────
-# Positions the weapon mount in TorsoSprite local space, then spawns the laser.
-#
-# All torso SVGs are 48×48.  With centred=true the sprite origin sits at the
-# texture centre (pixel 24,24).  Local +X = forward (right in sprite space);
-# local +Y = right-flank (down in sprite space).
-#
-# ▸ HEAVY   — half-dome: gun mounts on the RIGHT flank
-# ▸ STEALTH — triangle:  gun sits ON the torso (forward-centre)
-# ▸ CARGO   — trapezoid: gun is bolted to the BACK
-func _mount_weapon(torso_type: TorsoData.TorsoType) -> void:
-	# Offset in TorsoSprite-local pixels
-	var offset: Vector2
-	match torso_type:
-		TorsoData.TorsoType.HEAVY_ARMOUR: offset = Vector2(4.0,  17.0)   # right flank
-		TorsoData.TorsoType.STEALTH:      offset = Vector2(10.0,  0.0)   # on torso
-		TorsoData.TorsoType.CARGO:        offset = Vector2(-17.0, 0.0)   # back
-		_:                                offset = Vector2(0.0,   0.0)
-	weapon_mount.position = offset
-
+# Positions weapon mounts in TorsoSprite local space and spawns weapons.
+# Heavy torso supports two mounts (left + right flank), others have one.
+func _mount_weapons(torso_type: TorsoData.TorsoType) -> void:
+	var offsets := _get_weapon_offsets(torso_type)
 	var loadout: MechLoadout = GameManager.current_loadout
-	var gun_data: WeaponData = loadout.selected_gun if loadout else null
+	var guns: Array[WeaponData] = loadout.selected_guns if loadout else []
 
-	# Dispatch to the correct scene based on the typed enum — no magic strings
-	var weapon: Node
-	if gun_data:
-		match gun_data.weapon_type:
-			WeaponData.WeaponType.AUTOCANNON:   weapon = AUTOCANNON_SCENE.instantiate()
-			WeaponData.WeaponType.LASER:        weapon = LASER_SCENE.instantiate()
-			WeaponData.WeaponType.RAILGUN:      weapon = RAILGUN_SCENE.instantiate()
-			_:                                  weapon = FLAMETHROWER_SCENE.instantiate()
-	else:
-		weapon = FLAMETHROWER_SCENE.instantiate()
+	# Fallback: mount a default flamethrower if no guns
+	if guns.is_empty():
+		var default_gun := WeaponData.new()
+		default_gun.weapon_type = WeaponData.WeaponType.FLAMETHROWER
+		guns = [default_gun]
 
-	# Give the weapon its data so it can read damage / cooldown from the loadout
-	if gun_data:
-		weapon.setup(gun_data)
-	weapon_mount.add_child(weapon)
+	for i in mini(offsets.size(), guns.size()):
+		var mount: Node2D
+		if i == 0:
+			mount = weapon_mount
+		else:
+			mount = Node2D.new()
+			mount.name = "WeaponMount%d" % (i + 1)
+			torso_sprite.add_child(mount)
+		mount.position = offsets[i]
+		_weapon_mounts.append(mount)
+
+		var weapon: Node = _instantiate_weapon(guns[i].weapon_type)
+		weapon.setup(guns[i])
+		mount.add_child(weapon)
+		_weapons.append(weapon)
+
+func _instantiate_weapon(weapon_type: WeaponData.WeaponType) -> Node:
+	match weapon_type:
+		WeaponData.WeaponType.AUTOCANNON:   return AUTOCANNON_SCENE.instantiate()
+		WeaponData.WeaponType.LASER:        return LASER_SCENE.instantiate()
+		WeaponData.WeaponType.RAILGUN:      return RAILGUN_SCENE.instantiate()
+		_:                                  return FLAMETHROWER_SCENE.instantiate()
+
+static func _get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2]:
+	match torso_type:
+		TorsoData.TorsoType.HEAVY_ARMOUR:
+			return [Vector2(4.0, 17.0), Vector2(4.0, -17.0)]
+		TorsoData.TorsoType.STEALTH:
+			return [Vector2(10.0, 0.0)]
+		TorsoData.TorsoType.CARGO:
+			return [Vector2(-17.0, 0.0)]
+		_:
+			return [Vector2.ZERO]
+
+# ─── Weapon management API ────────────────────────────────────────────────────
+func get_weapons() -> Array[Node]:
+	return _weapons
+
+func set_weapon_active(index: int, active: bool) -> void:
+	if index < 0 or index >= _weapons.size():
+		return
+	var weapon := _weapons[index]
+	weapon.set_process(active)
+	if not active and weapon.has_method("stop_firing"):
+		weapon.stop_firing()
+
+func is_weapon_active(index: int) -> bool:
+	if index < 0 or index >= _weapons.size():
+		return false
+	return _weapons[index].is_processing()
 
 func _apply_leg_texture(mtype: LegData.MovementType) -> void:
 	var path: String

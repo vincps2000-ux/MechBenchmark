@@ -55,7 +55,12 @@ var _part_buttons: Array[Button] = []
 
 var _selected_leg_index:   int = -1
 var _selected_torso_index: int = -1
-var _selected_gun_index:   int = -1
+var _selected_gun_indices: Array[int] = []
+
+## Which weapon slot the parts list is currently filling.
+var _editing_weapon_slot: int = 0
+## How many weapon slots the selected torso provides.
+var _weapon_slot_count: int = 1
 
 ## Whether the parts list is showing for the current step.
 ## false = slot-prompt mode (hint label + slot button visible).
@@ -64,15 +69,13 @@ var _parts_list_open: bool = false
 # ── Preview texture layers ────────────────────────────────────────────────────
 var _legs_rect:   TextureRect = null
 var _torso_rect:  TextureRect = null
-var _weapon_rect: TextureRect = null
+var _weapon_rects: Array[TextureRect] = []
 
 # Clickable slot buttons overlayed on the preview
-var _torso_slot_btn:  Button = null
-var _weapon_slot_btn: Button = null
+var _torso_slot_btn: Button = null
+var _weapon_slot_btns: Array[Button] = []
 
-# Per-weapon sprite correction — mirrors rotation_degrees in weapon .tscn scenes.
-var _weapon_sprite_correction: float = 0.0
-var _weapon_mount_offset: Vector2 = Vector2.ZERO
+var _weapon_mount_offsets: Array[Vector2] = []
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -97,7 +100,8 @@ func _process(_delta: float) -> void:
 		return
 	var half := _preview_stack.size * 0.5
 	_torso_rect.pivot_offset = half
-	_weapon_rect.pivot_offset = _weapon_rect.size * 0.5
+	for rect in _weapon_rects:
+		rect.pivot_offset = rect.size * 0.5
 	var center := _preview_stack.global_position + half
 	var mouse  := get_viewport().get_mouse_position()
 	if center.distance_to(mouse) < 20.0:
@@ -111,16 +115,12 @@ func _process(_delta: float) -> void:
 func _build_preview_layers() -> void:
 	_legs_rect   = _make_preview_rect()
 	_torso_rect  = _make_preview_rect()
-	_weapon_rect = _make_preview_rect()
 
 	for rect in [_legs_rect, _torso_rect]:
 		_preview_stack.add_child(rect)
 		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		rect.modulate.a = 0.0
-
-	_torso_rect.add_child(_weapon_rect)
-	_weapon_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_weapon_rect.modulate.a = 0.0
+	# Weapon rects are created dynamically in _rebuild_weapon_slots()
 
 func _make_preview_rect() -> TextureRect:
 	var rect := TextureRect.new()
@@ -137,13 +137,10 @@ func _make_preview_rect() -> TextureRect:
 
 func _build_slot_buttons() -> void:
 	_torso_slot_btn  = _create_slot_button("+ TORSO")
-	_weapon_slot_btn = _create_slot_button("+ WEAPON")
 	_preview_stack.add_child(_torso_slot_btn)
-	_preview_stack.add_child(_weapon_slot_btn)
 	_torso_slot_btn.pressed.connect(_on_slot_clicked.bind(Step.TORSO))
-	_weapon_slot_btn.pressed.connect(_on_slot_clicked.bind(Step.WEAPON))
 	_torso_slot_btn.visible  = false
-	_weapon_slot_btn.visible = false
+	# Weapon slot buttons are created dynamically in _rebuild_weapon_slots()
 
 func _create_slot_button(text: String) -> Button:
 	var btn := Button.new()
@@ -172,9 +169,10 @@ func _update_slot_positions() -> void:
 	var half := _preview_stack.size * 0.5
 	if _torso_slot_btn and _torso_slot_btn.visible:
 		_torso_slot_btn.position = half - _torso_slot_btn.size * 0.5
-	if _weapon_slot_btn and _weapon_slot_btn.visible:
-		var mount := half + _weapon_mount_offset
-		_weapon_slot_btn.position = mount - _weapon_slot_btn.size * 0.5
+	for i in _weapon_slot_btns.size():
+		if _weapon_slot_btns[i].visible:
+			var offset := _weapon_mount_offsets[i] if i < _weapon_mount_offsets.size() else Vector2.ZERO
+			_weapon_slot_btns[i].position = half + offset - _weapon_slot_btns[i].size * 0.5
 
 ## Generic slot-click handler.  Opens the parts list for the given step.
 func _on_slot_clicked(step: Step) -> void:
@@ -207,7 +205,7 @@ func _is_step_complete(step: Step) -> bool:
 	match step:
 		Step.MOVEMENT: return _loadout.selected_legs  != null
 		Step.TORSO:    return _loadout.selected_torso  != null
-		Step.WEAPON:   return _loadout.selected_gun    != null
+		Step.WEAPON:   return _loadout.selected_guns.size() > 0
 	return false
 
 func _on_left_arrow() -> void:
@@ -228,11 +226,13 @@ func _enter_step(step: Step) -> void:
 			# Movement always shows the parts list — no slot button needed.
 			_show_parts_list()
 			_build_leg_parts()
-			_torso_slot_btn.visible  = false
-			_weapon_slot_btn.visible = false
+			_torso_slot_btn.visible = false
+			for btn in _weapon_slot_btns:
+				btn.visible = false
 
 		Step.TORSO:
-			_weapon_slot_btn.visible = false
+			for btn in _weapon_slot_btns:
+				btn.visible = false
 			if _loadout.selected_torso != null:
 				# Already picked — show list so user can re-pick.
 				_show_parts_list()
@@ -246,13 +246,18 @@ func _enter_step(step: Step) -> void:
 
 		Step.WEAPON:
 			_torso_slot_btn.visible = false
-			if _loadout.selected_gun != null:
+			if _loadout.selected_guns.size() > 0:
 				_show_parts_list()
+				_editing_weapon_slot = _get_first_empty_weapon_slot()
+				if _editing_weapon_slot < 0:
+					_editing_weapon_slot = 0
 				_build_weapon_parts()
-				_weapon_slot_btn.visible = false
+				for btn in _weapon_slot_btns:
+					btn.visible = false
 			else:
 				_show_slot_prompt()
-				_weapon_slot_btn.visible = true
+				for btn in _weapon_slot_btns:
+					btn.visible = true
 				_update_slot_positions()
 
 ## Opens the parts list after a slot button is clicked.
@@ -264,9 +269,11 @@ func _open_parts_list(step: Step) -> void:
 			_build_torso_parts()
 			_selection_info.text = "Choose a torso for your mech"
 		Step.WEAPON:
-			_weapon_slot_btn.visible = false
+			for btn in _weapon_slot_btns:
+				btn.visible = false
 			_build_weapon_parts()
-			_selection_info.text = "Choose a weapon to mount"
+			var slot_label := " (slot %d)" % (_editing_weapon_slot + 1) if _weapon_slot_count > 1 else ""
+			_selection_info.text = "Choose a weapon to mount" + slot_label
 
 # ── Parts panel visibility helpers ────────────────────────────────────────────
 
@@ -307,12 +314,14 @@ func _build_torso_parts() -> void:
 
 func _build_weapon_parts() -> void:
 	_clear_parts()
-	_parts_label.text = "WEAPONS"
+	var slot_label := " — SLOT %d" % (_editing_weapon_slot + 1) if _weapon_slot_count > 1 else ""
+	_parts_label.text = "WEAPONS" + slot_label
 	for i in _all_guns.size():
 		var gun := _all_guns[i]
 		var desc := "DMG: %d  |  CD: %.1fs  |  Proj: %d  |  Pierce: %d" % [
 			gun.damage, gun.cooldown, gun.projectile_count, gun.pierce]
-		var btn := _create_part_button(gun.name, desc, i == _selected_gun_index)
+		var is_selected := _editing_weapon_slot < _selected_gun_indices.size() and _selected_gun_indices[_editing_weapon_slot] == i
+		var btn := _create_part_button(gun.name, desc, is_selected)
 		btn.pressed.connect(_on_gun_selected.bind(i))
 		_parts_box.add_child(btn)
 		_part_buttons.append(btn)
@@ -371,26 +380,50 @@ func _on_torso_selected(index: int) -> void:
 	_loadout.selected_torso  = _all_torsos[index]
 	_build_torso_parts()
 	_update_preview_layer(_torso_rect, _loadout.selected_torso.get_sprite_path())
-	_update_weapon_mount_offset()
+	_rebuild_weapon_slots()
 	_torso_slot_btn.visible = false
-	_selection_info.text = _loadout.selected_torso.name + " mounted — press NEXT >"
+	var slots_text := " (%d weapon slots)" % _weapon_slot_count if _weapon_slot_count > 1 else ""
+	_selection_info.text = _loadout.selected_torso.name + " mounted" + slots_text + " — press NEXT >"
 	if _current_step == Step.TORSO:
 		_right_arrow.disabled = false
 	_update_stats_preview()
 
 func _on_gun_selected(index: int) -> void:
-	_selected_gun_index   = index
-	_loadout.selected_gun = _all_guns[index]
+	var slot := _editing_weapon_slot
+	if slot >= _selected_gun_indices.size():
+		return
+	_selected_gun_indices[slot] = index
+
+	# Ensure selected_guns array is large enough
+	while _loadout.selected_guns.size() <= slot:
+		_loadout.selected_guns.append(null)
+	_loadout.selected_guns[slot] = _all_guns[index]
+
+	# Remove trailing nulls
+	while _loadout.selected_guns.size() > 0 and _loadout.selected_guns.back() == null:
+		_loadout.selected_guns.pop_back()
+
 	_build_weapon_parts()
-	_update_preview_layer(_weapon_rect, _loadout.selected_gun.get_sprite_path())
-	match _loadout.selected_gun.weapon_type:
-		WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER:
-			_weapon_sprite_correction = deg_to_rad(-90.0)
-		_:
-			_weapon_sprite_correction = 0.0
-	_weapon_rect.rotation = _weapon_sprite_correction
-	_weapon_slot_btn.visible = false
-	_selection_info.text = _loadout.selected_gun.name + " armed — ready to DEPLOY!"
+
+	# Update preview for this slot
+	if slot < _weapon_rects.size():
+		_update_preview_layer(_weapon_rects[slot], _all_guns[index].get_sprite_path())
+		var correction: float = 0.0
+		match _all_guns[index].weapon_type:
+			WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER:
+				correction = deg_to_rad(-90.0)
+		_weapon_rects[slot].rotation = correction
+
+	# Auto-advance to next empty slot if available
+	var next_empty := _get_first_empty_weapon_slot()
+	if next_empty >= 0 and next_empty != slot:
+		_editing_weapon_slot = next_empty
+		_build_weapon_parts()
+		var slot_label := " (slot %d)" % (next_empty + 1) if _weapon_slot_count > 1 else ""
+		_selection_info.text = _all_guns[index].name + " armed! Now pick weapon" + slot_label
+	else:
+		_selection_info.text = _all_guns[index].name + " armed — ready to DEPLOY!"
+
 	_deploy_button.visible  = true
 	_deploy_button.disabled = not _loadout.is_valid()
 	_update_stats_preview()
@@ -405,19 +438,63 @@ func _update_preview_layer(rect: TextureRect, path: String) -> void:
 	else:
 		rect.modulate.a = 0.0
 
-func _update_weapon_mount_offset() -> void:
-	if _loadout.selected_torso == null:
-		_weapon_mount_offset = Vector2.ZERO
-		return
-	var raw_offset: Vector2
-	match _loadout.selected_torso.torso_type:
-		TorsoData.TorsoType.HEAVY_ARMOUR: raw_offset = Vector2(4.0,  17.0)
-		TorsoData.TorsoType.STEALTH:      raw_offset = Vector2(10.0,  0.0)
-		TorsoData.TorsoType.CARGO:        raw_offset = Vector2(-17.0, 0.0)
-		_:                                raw_offset = Vector2.ZERO
+func _rebuild_weapon_slots() -> void:
+	# Remove old weapon slot buttons
+	for btn in _weapon_slot_btns:
+		btn.queue_free()
+	_weapon_slot_btns.clear()
+
+	# Remove old weapon rects
+	for rect in _weapon_rects:
+		rect.queue_free()
+	_weapon_rects.clear()
+
+	# Clear weapon selections
+	_loadout.selected_guns.clear()
+	_weapon_mount_offsets.clear()
+
+	# Determine slot count from torso
+	_weapon_slot_count = _loadout.selected_torso.weapon_slots if _loadout.selected_torso else 1
+	_selected_gun_indices.clear()
+	for _i in _weapon_slot_count:
+		_selected_gun_indices.append(-1)
+	_editing_weapon_slot = 0
+
+	# Compute mount offsets from torso type
+	var raw_offsets: Array[Vector2] = PlayerController._get_weapon_offsets(
+		_loadout.selected_torso.torso_type) if _loadout.selected_torso else [Vector2.ZERO]
 	var scale_factor := _preview_stack.size.x / 64.0 if _preview_stack.size.x > 0 else 1.0
-	_weapon_mount_offset = raw_offset * scale_factor
-	_weapon_rect.position = _weapon_mount_offset
+	for offset in raw_offsets:
+		_weapon_mount_offsets.append(offset * scale_factor)
+
+	# Create weapon rects as children of torso rect
+	for i in _weapon_slot_count:
+		var rect := _make_preview_rect()
+		_torso_rect.add_child(rect)
+		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rect.modulate.a = 0.0
+		if i < _weapon_mount_offsets.size():
+			rect.position = _weapon_mount_offsets[i]
+		_weapon_rects.append(rect)
+
+	# Create new weapon slot buttons
+	for i in _weapon_slot_count:
+		var label := "+ WEAPON %d" % (i + 1) if _weapon_slot_count > 1 else "+ WEAPON"
+		var btn := _create_slot_button(label)
+		_preview_stack.add_child(btn)
+		btn.pressed.connect(_on_weapon_slot_clicked.bind(i))
+		btn.visible = false
+		_weapon_slot_btns.append(btn)
+
+func _on_weapon_slot_clicked(slot: int) -> void:
+	_editing_weapon_slot = slot
+	_open_parts_list(Step.WEAPON)
+
+func _get_first_empty_weapon_slot() -> int:
+	for i in _selected_gun_indices.size():
+		if _selected_gun_indices[i] < 0:
+			return i
+	return -1
 
 # ── Info / Stats / Deploy ─────────────────────────────────────────────────────
 
@@ -431,19 +508,27 @@ func _update_stats_preview() -> void:
 		var missing: Array[String] = []
 		if _loadout.selected_legs  == null: missing.append("Legs")
 		if _loadout.selected_torso == null: missing.append("Torso")
-		if _loadout.selected_gun   == null: missing.append("Weapon")
+		if _loadout.selected_guns.size() == 0: missing.append("Weapon")
 		_stats_label.text = "Still needed: " + "  ·  ".join(missing)
 		return
 	var preview_stats := PlayerStats.new()
 	_loadout.apply_to_stats(preview_stats)
 	var integrity_str := "◆".repeat(preview_stats.max_integrity)
+	var weapon_names: String = ""
+	var total_dmg: int = 0
+	for gun in _loadout.selected_guns:
+		if gun:
+			if weapon_names.length() > 0:
+				weapon_names += " + "
+			weapon_names += gun.name
+			total_dmg += gun.damage
 	_stats_label.text = "%s  |  Speed: %.0f  |  %s  +  %s  +  %s  (DMG: %d)" % [
 		integrity_str,
 		preview_stats.speed,
 		_loadout.selected_legs.name,
 		_loadout.selected_torso.name,
-		_loadout.selected_gun.name,
-		_loadout.selected_gun.damage,
+		weapon_names,
+		total_dmg,
 	]
 
 func _on_deploy_pressed() -> void:

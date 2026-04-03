@@ -28,11 +28,14 @@ var _charge: float = 0.0
 var _damage: int   = 80
 ## Maximum number of enemies the beam pierces (safety cap on loop iterations).
 var _pierce: int   = 16
+## Base armour penetration; scales with charge (7 base, up to 9 at full).
+var _penetration: int = 7
 
 ## Called by PlayerController immediately after instantiation.
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_pierce = data.pierce
+	_penetration = data.penetration
 
 func _process(delta: float) -> void:
 	if Input.is_action_pressed("fire"):
@@ -88,7 +91,8 @@ func _shoot() -> void:
 			end_pos = result["position"]
 			break
 		if collider.has_method("take_damage"):
-			collider.take_damage(int(_damage * _charge))
+			var pen := _penetration + int(2.0 * _charge)
+			collider.take_damage(int(_damage * _charge), pen)
 		excluded.append(collider.get_rid())
 
 	# Spawn beam visual at the scene root so it renders above everything.
@@ -99,3 +103,7 @@ func _shoot() -> void:
 	# Reset sprite immediately so charge glow vanishes on fire.
 	_weapon_sprite.modulate = COLOR_IDLE
 	_weapon_sprite.scale    = Vector2.ONE
+
+func stop_firing() -> void:
+	_charge = 0.0
+	_update_charge_visual()

@@ -4,6 +4,7 @@ extends Node2D
 
 const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
 const TARGET_SCENE  := preload("res://scenes/enemies/shoot_target.tscn")
+const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 
 ## Total number of targets the player must destroy to win.
 @export var target_count: int = 10
@@ -78,6 +79,12 @@ func _ready() -> void:
 
 	_stats = GameManager.player_stats
 
+	# Weapon toggle HUD (bottom-right)
+	var weapon_hud := WeaponHUD.new()
+	$HUD/HUDControl.add_child(weapon_hud)
+	weapon_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	weapon_hud.setup(_player)
+
 	if background_rect and background_rect.material is ShaderMaterial:
 		_bg_material = (background_rect.material as ShaderMaterial).duplicate()
 		background_rect.material = _bg_material
@@ -136,7 +143,7 @@ func _update_hud() -> void:
 func _update_integrity_display() -> void:
 	var filled  := "◆".repeat(_stats.integrity)
 	var empty   := "◇".repeat(_stats.max_integrity - _stats.integrity)
-	integrity_label.text = filled + empty
+	integrity_label.text = filled + empty + "\n" + "▰".repeat(_stats.armor)
 
 func _update_target_hud() -> void:
 	var destroyed := _total_targets - _alive_targets

@@ -16,6 +16,7 @@ enum WeaponType {
 @export var projectile_speed: float = 300.0
 @export var projectile_count: int = 1
 @export var pierce: int = 1
+@export var penetration: int = 5
 @export var area: float = 1.0
 @export var level: int = 1
 @export var max_level: int = 8
