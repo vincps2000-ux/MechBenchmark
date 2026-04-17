@@ -38,7 +38,17 @@ var penetration: int = 4
 ## Tracks enemies already damaged so a slow enemy isn't hit twice.
 var _hit_set: Array = []
 
+var _audio: AudioStreamPlayer2D
+
 func _ready() -> void:
+	# Procedural explosion boom
+	_audio = AudioStreamPlayer2D.new()
+	_audio.stream = _create_boom_stream()
+	_audio.volume_db = -6.0
+	_audio.max_distance = 800.0
+	add_child(_audio)
+	_audio.play()
+
 	# ── Collision: no layer (we are not an obstacle), mask layer 2 = enemies ──
 	collision_layer = 0
 	collision_mask  = 2
@@ -130,3 +140,29 @@ func _make_circle(radius: float) -> PackedVector2Array:
 		var angle := TAU * float(i) / float(POINT_COUNT)
 		pts.append(Vector2(cos(angle), sin(angle)) * radius)
 	return pts
+
+static func _create_boom_stream() -> AudioStreamWAV:
+	var sample_rate := 22050
+	var duration := 0.18
+	var num_samples := int(sample_rate * duration)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+
+	for i in num_samples:
+		var t := float(i) / float(sample_rate)
+		var envelope := exp(-t * 20.0)
+		# Low-frequency thump with descending pitch
+		var freq := 90.0 + 60.0 * exp(-t * 25.0)
+		var boom := sin(t * freq * TAU) * 0.7
+		# Add crackle noise layer
+		var noise := (randf() * 2.0 - 1.0) * 0.3 * exp(-t * 35.0)
+		var sample := (boom + noise) * envelope
+		var val := clampi(int(sample * 32767.0), -32768, 32767)
+		data[i * 2]     = val & 0xFF
+		data[i * 2 + 1] = (val >> 8) & 0xFF
+
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = sample_rate
+	stream.data = data
+	return stream
