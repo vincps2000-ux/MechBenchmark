@@ -10,6 +10,8 @@ enum MovementType {
 }
 
 @export var movement_type: MovementType = MovementType.LEGS
+## Number of torso mount points these legs support (default 1).
+@export var torso_slots: int = 1
 
 ## Returns the sprite path for this leg type
 func get_sprite_path() -> String:

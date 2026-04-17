@@ -15,6 +15,8 @@ var _last_hit: Object = null
 var _damage: int = 12
 ## Armour penetration value, configured via setup()
 var _penetration: int = 3
+## InputMap action name for firing this weapon.
+var fire_action: String = "fire"
 
 ## Called by PlayerController right after instantiation to wire up WeaponData.
 func setup(data: WeaponData) -> void:
@@ -22,7 +24,7 @@ func setup(data: WeaponData) -> void:
 	_penetration = data.penetration
 
 func _process(_delta: float) -> void:
-	if Input.is_action_pressed("fire"):
+	if Input.is_action_pressed(fire_action):
 		_fire_continuous()
 	else:
 		_stop_beam()

@@ -19,11 +19,20 @@ extends Node2D
 ## Number of street lights
 @export var light_count: int = 12
 
+## Number of trees on sidewalk blocks
+@export var tree_count: int = 8
+
+## Number of grass patches
+@export var grass_count: int = 8
+
 var _puddles: Array = []     # [{pos, radius_x, radius_y, color}]
 var _skids: Array = []       # [{start, end, width}]
 var _trash: Array = []       # [{pos, points, color}]
 var _lights: Array = []      # [{pos, rotation}]
 var _parking_lots: Array = []  # [{pos, size, slot_count}]
+var _trees: Array = []       # [{pos, canopy_radius}]
+var _hedges: Array = []      # [{pos, size}]
+var _grass: Array = []       # [{pos, size}]
 
 func _ready() -> void:
 	z_index = -1   # draw behind everything in the world layer
@@ -97,14 +106,51 @@ func _generate_decorations() -> void:
 	_parking_lots.append({"pos": Vector2(500, 400), "slots": 4, "horizontal": false})
 	_parking_lots.append({"pos": Vector2(-400, 600), "slots": 3, "horizontal": true})
 
+	# Trees — on sidewalk blocks, avoiding building centres
+	var tree_positions := [
+		Vector2(240, 240),
+		Vector2(-240, 240),
+		Vector2(720, -720),
+		Vector2(-720, 720),
+		Vector2(720, -240),
+		Vector2(-240, -720),
+		Vector2(240, -700),
+		Vector2(-720, 240),
+	]
+	for i in mini(tree_count, tree_positions.size()):
+		var pos: Vector2 = tree_positions[i]
+		pos += Vector2(rng.randf_range(-40, 40), rng.randf_range(-40, 40))
+		_trees.append({
+			"pos": pos,
+			"canopy_radius": rng.randf_range(22.0, 38.0)
+		})
+
+	# Hedges — small green rectangles at building edges
+	_hedges = [
+		{"pos": Vector2(-145, -240), "size": Vector2(40, 15)},
+		{"pos": Vector2(315, -240), "size": Vector2(35, 12)},
+		{"pos": Vector2(-720, -165), "size": Vector2(50, 12)},
+		{"pos": Vector2(720, 155), "size": Vector2(55, 12)},
+		{"pos": Vector2(-155, 720), "size": Vector2(40, 12)},
+	]
+
+	# Grass patches — small green areas on sidewalks
+	for i in grass_count:
+		var gpos := Vector2(rng.randf_range(-half, half), rng.randf_range(-half, half))
+		var gsize := Vector2(rng.randf_range(25.0, 70.0), rng.randf_range(12.0, 30.0))
+		_grass.append({"pos": gpos, "size": gsize})
+
 func _draw() -> void:
 	_draw_building_shadows()
 	_draw_parking_lots()
+	_draw_grass()
 	_draw_puddles()
 	_draw_skid_marks()
 	_draw_trash()
+	_draw_hedges()
 	_draw_street_lights()
 	_draw_crosswalk_hints()
+	_draw_trees()
 
 func _draw_building_shadows() -> void:
 	# Faint rectangular shadows suggesting buildings just off-screen
@@ -193,3 +239,33 @@ func _draw_crosswalk_hints() -> void:
 		for i in range(-3, 4):
 			var stripe := Rect2(pos.x - 25 + i * 12, pos.y - 4, 8, 8)
 			draw_rect(stripe, cw_color)
+
+func _draw_trees() -> void:
+	for t in _trees:
+		var pos: Vector2 = t["pos"]
+		var r: float = t["canopy_radius"]
+		# Shadow
+		draw_circle(pos + Vector2(5, 7), r * 1.1, Color(0.0, 0.0, 0.0, 0.06))
+		# Canopy — outer
+		draw_circle(pos, r, Color(0.12, 0.32, 0.10, 0.75))
+		# Canopy — inner highlight
+		draw_circle(pos + Vector2(-2, -2), r * 0.65, Color(0.18, 0.42, 0.14, 0.6))
+		# Trunk
+		draw_circle(pos, 3.5, Color(0.28, 0.18, 0.10, 0.8))
+
+func _draw_hedges() -> void:
+	var hedge_color := Color(0.12, 0.28, 0.08, 0.7)
+	var hedge_border := Color(0.08, 0.20, 0.05, 0.5)
+	for h in _hedges:
+		var pos: Vector2 = h["pos"]
+		var sz: Vector2 = h["size"]
+		var r := Rect2(pos - sz * 0.5, sz)
+		draw_rect(r, hedge_color)
+		draw_rect(r, hedge_border, false, 1.5)
+
+func _draw_grass() -> void:
+	var grass_color := Color(0.15, 0.30, 0.10, 0.2)
+	for g in _grass:
+		var pos: Vector2 = g["pos"]
+		var sz: Vector2 = g["size"]
+		draw_rect(Rect2(pos - sz * 0.5, sz), grass_color)

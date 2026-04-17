@@ -11,6 +11,13 @@ const EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn
 
 const MAX_LIFETIME := 3.0   # seconds before auto-destroy
 
+## Default HE shell colour.
+const COLOR_HE       := Color(1.0, 0.95, 0.3, 1.0)
+## Solid shell colour — dark steel.
+const COLOR_SOLID     := Color(0.55, 0.55, 0.6, 1.0)
+## Canister pellet colour — small blue.
+const COLOR_CANISTER  := Color(0.3, 0.5, 0.9, 1.0)
+
 ## Velocity vector set by Autocannon before adding to tree.
 var velocity: Vector2 = Vector2.ZERO
 ## Damage to deal on impact; set by Autocannon.
@@ -19,6 +26,10 @@ var damage: int = 25
 var pierce: int = 1
 ## Armour penetration value; set by Autocannon.
 var penetration: int = 4
+## Whether this shell spawns an explosion on impact (false for Solid/Canister).
+var explodes: bool = true
+## Visual colour override for the bullet polygon.
+var shell_color: Color = COLOR_HE
 
 var _elapsed: float = 0.0
 var _pierced: int   = 0
@@ -31,6 +42,11 @@ func _ready() -> void:
 
 	area_entered.connect(_on_area_entered)
 	body_entered.connect(_on_body_entered)
+
+	# Apply shell colour to the BulletVisual polygon
+	var bullet_visual := get_node_or_null("BulletVisual") as Polygon2D
+	if bullet_visual:
+		bullet_visual.color = shell_color
 
 func _physics_process(delta: float) -> void:
 	position += velocity * delta
@@ -56,13 +72,15 @@ func _on_body_entered(body: Node2D) -> void:
 		call_deferred("_deferred_explode_and_die")
 
 func _deferred_explode_and_pierce() -> void:
-	_spawn_explosion()
+	if explodes:
+		_spawn_explosion()
 	_pierced += 1
 	if _pierced >= pierce:
 		queue_free()
 
 func _deferred_explode_and_die() -> void:
-	_spawn_explosion()
+	if explodes:
+		_spawn_explosion()
 	queue_free()
 
 func _spawn_explosion() -> void:

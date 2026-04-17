@@ -23,6 +23,8 @@ var _time:   float = 0.0
 var _damage: int = 3
 ## Armour penetration value, configured via setup()
 var _penetration: int = 2
+## InputMap action name for firing this weapon.
+var fire_action: String = "fire"
 
 # ── Per-segment independent noise parameters (set once in _ready) ─────────────
 var _seg_freq_a:  Array[float] = []   # fast oscillation frequency per segment
@@ -83,7 +85,7 @@ func stop_firing() -> void:
 # ─── Per-frame update ─────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
 	_time += delta
-	_firing = Input.is_action_pressed("fire")
+	_firing = Input.is_action_pressed(fire_action)
 
 	if _firing:
 		_fire_cone()

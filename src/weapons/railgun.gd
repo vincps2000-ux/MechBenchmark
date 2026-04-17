@@ -30,6 +30,8 @@ var _damage: int   = 80
 var _pierce: int   = 16
 ## Base armour penetration; scales with charge (7 base, up to 9 at full).
 var _penetration: int = 7
+## InputMap action name for firing this weapon.
+var fire_action: String = "fire"
 
 ## Called by PlayerController immediately after instantiation.
 func setup(data: WeaponData) -> void:
@@ -38,7 +40,7 @@ func setup(data: WeaponData) -> void:
 	_penetration = data.penetration
 
 func _process(delta: float) -> void:
-	if Input.is_action_pressed("fire"):
+	if Input.is_action_pressed(fire_action):
 		_charge = minf(_charge + delta / CHARGE_TIME, 1.0)
 	else:
 		# Release — fire if we have enough charge, then always reset.

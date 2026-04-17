@@ -12,6 +12,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	stealth.tutorial_text  = "Low profile — harder for enemies to track\nSpeed bonus, minimal integrity"
 	stealth.speed_modifier  = 1.2
 	stealth.integrity       = 2
+	stealth.light_weapon_slots = 1
 
 	var heavy := TorsoData.new()
 	heavy.name           = "Heavy Armour"
@@ -21,6 +22,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	heavy.speed_modifier  = 0.8
 	heavy.integrity       = 8
 	heavy.weapon_slots    = 2
+	heavy.light_weapon_slots = 0
 
 	var cargo := TorsoData.new()
 	cargo.name           = "Cargo"
@@ -29,6 +31,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	cargo.tutorial_text  = "Balanced speed and integrity\nExtra pickup radius (passive)"
 	cargo.speed_modifier  = 1.0
 	cargo.integrity       = 4
+	cargo.light_weapon_slots = 2
 
 	return [stealth, heavy, cargo]
 
@@ -105,3 +108,29 @@ static func get_all_guns() -> Array[WeaponData]:
 	laser.area             = 0.5
 
 	return [autocannon, flamethrower, railgun, laser]
+
+## Returns all available light weapon configurations
+static func get_all_light_guns() -> Array[WeaponData]:
+	var rocket_pod := WeaponData.new()
+	rocket_pod.name             = "Rocket Pod"
+	rocket_pod.weapon_type      = WeaponData.WeaponType.ROCKET_POD
+	rocket_pod.slot_size        = WeaponData.SlotSize.LIGHT
+	rocket_pod.damage           = 15
+	rocket_pod.cooldown         = 1.2
+	rocket_pod.projectile_speed = 400.0
+	rocket_pod.projectile_count = 3
+	rocket_pod.pierce           = 1
+	rocket_pod.area             = 1.2
+
+	var machinegun := WeaponData.new()
+	machinegun.name             = "Machinegun"
+	machinegun.weapon_type      = WeaponData.WeaponType.MACHINEGUN
+	machinegun.slot_size        = WeaponData.SlotSize.LIGHT
+	machinegun.damage           = 3
+	machinegun.cooldown         = 0.1
+	machinegun.projectile_speed = 600.0
+	machinegun.projectile_count = 1
+	machinegun.pierce           = 1
+	machinegun.penetration      = 4
+
+	return [rocket_pod, machinegun]

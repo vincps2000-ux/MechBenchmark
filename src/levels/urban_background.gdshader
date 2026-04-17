@@ -96,7 +96,7 @@ void fragment() {
 	// ── Compose final colour ────────────────────────────────────────────
 	vec4 color;
 	if (on_road) {
-		// Darker asphalt for roads
+		// Dark asphalt for roads — contrasts with lighter sidewalk and car obstacles
 		color = vec4(bg_color.rgb * 0.85, 1.0);
 		color.rgb += asphalt * 0.7 + asphalt_fine * 0.5;
 
@@ -108,16 +108,22 @@ void fragment() {
 			color = mix(color, vec4(0.8, 0.8, 0.8, 1.0), 0.3);
 		}
 	} else if (on_accent) {
-		// Sidewalk curb accent
-		color = accent_color * 0.5;
-		color.a = 1.0;
+		// Sidewalk curb — warm tan edge
+		color = vec4(0.40, 0.38, 0.32, 1.0);
 	} else if (on_line) {
-		// Sidewalk tile lines
-		color = grid_color;
+		// Sidewalk tile joints — slightly darker than pavement
+		color = vec4(0.28, 0.27, 0.25, 1.0);
 	} else {
-		// Sidewalk concrete
-		color = vec4(bg_color.rgb * 1.15, 1.0);
-		color.rgb += asphalt + asphalt_fine;
+		// Sidewalk concrete — lighter warm tone for contrast with dark obstacles
+		vec3 sidewalk = vec3(0.35, 0.33, 0.30);
+		float tile_var = hash(cell_index) * 0.04 - 0.02;
+		color = vec4(sidewalk + tile_var, 1.0);
+		color.rgb += asphalt * 0.3 + asphalt_fine * 0.2;
+		// Occasional mossy tiles — subtle green reclaiming the pavement
+		float moss = hash(cell_index * 3.71);
+		if (moss > 0.82) {
+			color.rgb = mix(color.rgb, vec3(0.25, 0.35, 0.18), 0.2);
+		}
 	}
 
 	// Manhole

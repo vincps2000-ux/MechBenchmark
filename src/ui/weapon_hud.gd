@@ -40,12 +40,15 @@ func _build_ui() -> void:
 
 	var weapons: Array = _player.get_weapons()
 	var loadout: MechLoadout = GameManager.current_loadout
+	var all_gun_data: Array[WeaponData] = []
+	if loadout:
+		all_gun_data.append_array(loadout.selected_guns)
+		all_gun_data.append_array(loadout.selected_light_guns)
 
 	for i in weapons.size():
-		var gun_data: WeaponData = null
-		if loadout and i < loadout.selected_guns.size():
-			gun_data = loadout.selected_guns[i]
-		var weapon_name := gun_data.name if gun_data else "Weapon %d" % (i + 1)
+		var weapon_name := "Weapon %d" % (i + 1)
+		if i < all_gun_data.size() and all_gun_data[i]:
+			weapon_name = all_gun_data[i].name
 		var btn := _make_weapon_button(weapon_name, i)
 		vbox.add_child(btn)
 		_buttons.append(btn)
@@ -90,8 +93,12 @@ func _update_button(index: int) -> void:
 	var active: bool = _player.is_weapon_active(index)
 	var loadout: MechLoadout = GameManager.current_loadout
 	var weapon_name := "Weapon"
-	if loadout and index < loadout.selected_guns.size() and loadout.selected_guns[index]:
-		weapon_name = loadout.selected_guns[index].name
+	var all_gun_data: Array[WeaponData] = []
+	if loadout:
+		all_gun_data.append_array(loadout.selected_guns)
+		all_gun_data.append_array(loadout.selected_light_guns)
+	if index < all_gun_data.size() and all_gun_data[index]:
+		weapon_name = all_gun_data[index].name
 
 	if active:
 		_buttons[index].text = weapon_name + "  [ON]"

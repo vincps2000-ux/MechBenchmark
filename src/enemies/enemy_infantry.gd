@@ -30,6 +30,7 @@ var _fire_timer: float = 0.0
 
 func _ready() -> void:
 	health = max_health
+	add_to_group("enemies")
 	# Find the player in the tree (layer 1 / group)
 	_player = _find_player()
 

@@ -55,8 +55,7 @@ const OBSTACLE_DEFS := [
 ]
 
 @onready var background_rect: ColorRect  = %BackgroundRect
-@onready var integrity_label: Label       = %IntegrityLabel
-@onready var timer_label:     Label       = %TimerLabel
+@onready var game_hud:        GameHUD    = %GameHUD
 @onready var target_label:    Label       = %TargetLabel
 @onready var win_panel:       PanelContainer = %WinPanel
 
@@ -90,7 +89,7 @@ func _ready() -> void:
 		background_rect.material = _bg_material
 
 	if _stats:
-		_update_integrity_display()
+		game_hud.update_stats(_stats)
 
 	# Background decorations
 	var decorations := ArenaDecorations.new()
@@ -135,15 +134,7 @@ func _scroll_background() -> void:
 	_bg_material.set_shader_parameter("camera_world_pos", _player.global_position - cam_offset)
 
 func _update_hud() -> void:
-	if not _stats:
-		return
-	_update_integrity_display()
-	timer_label.text = GameManager.get_game_time_formatted()
-
-func _update_integrity_display() -> void:
-	var filled  := "◆".repeat(_stats.integrity)
-	var empty   := "◇".repeat(_stats.max_integrity - _stats.integrity)
-	integrity_label.text = filled + empty + "\n" + "▰".repeat(_stats.armor)
+	game_hud.update_stats(_stats)
 
 func _update_target_hud() -> void:
 	var destroyed := _total_targets - _alive_targets

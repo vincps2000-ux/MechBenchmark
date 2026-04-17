@@ -6,12 +6,16 @@ const AUTOCANNON_SCENE   := preload("res://scenes/weapons/autocannon.tscn")
 const LASER_SCENE        := preload("res://scenes/weapons/laser.tscn")
 const FLAMETHROWER_SCENE := preload("res://scenes/weapons/flamethrower.tscn")
 const RAILGUN_SCENE      := preload("res://scenes/weapons/railgun.tscn")
+const ROCKET_POD_SCENE   := preload("res://scenes/weapons/rocket_pod.tscn")
+const MACHINEGUN_SCENE   := preload("res://scenes/weapons/machinegun.tscn")
+const _DirectionArrow    := preload("res://src/player/direction_arrow.gd")
 
 const BASE_SPEED            := 200.0
 const ROTATION_SPEED_SPIDER := 1.8   # rad/s — spider turns a bit quicker
 const ROTATION_SPEED_TANK   := 1.2   # rad/s — tank turns very slowly
 const TANK_FORWARD_MULT     := 1.3   # extra power in straight-line tank drive
 const TORSO_ROTATION_SPEED  := 4.0   # rad/s — torso tracks mouse independently
+const ROTATION_SPEED_WALKER := 3.0   # rad/s — walker body rotation toward mouse (Q held)
 
 @onready var legs_sprite:    Sprite2D = $LegsSprite
 @onready var torso_sprite:   Sprite2D = $TorsoSprite
@@ -28,6 +32,11 @@ func _ready() -> void:
 	# Sprites are drawn facing right (+X); start the robot facing up
 	rotation = -PI / 2.0
 
+	# Red arrow showing body forward direction
+	var arrow := _DirectionArrow.new()
+	arrow.z_index = 5
+	add_child(arrow)
+
 	var loadout: MechLoadout = GameManager.current_loadout
 	if loadout and loadout.selected_legs:
 		_speed         = loadout.selected_legs.speed_modifier * BASE_SPEED
@@ -36,6 +45,7 @@ func _ready() -> void:
 	if loadout and loadout.selected_torso:
 		_apply_torso_texture(loadout.selected_torso)
 		_mount_weapons(loadout.selected_torso.torso_type)
+		_mount_light_weapons(loadout.selected_torso.torso_type)
 
 func _apply_torso_texture(torso: TorsoData) -> void:
 	var tex: Texture2D = load(torso.get_sprite_path())
@@ -46,7 +56,7 @@ func _apply_torso_texture(torso: TorsoData) -> void:
 # Positions weapon mounts in TorsoSprite local space and spawns weapons.
 # Heavy torso supports two mounts (left + right flank), others have one.
 func _mount_weapons(torso_type: TorsoData.TorsoType) -> void:
-	var offsets := _get_weapon_offsets(torso_type)
+	var offsets := MechAssembler.get_weapon_offsets(torso_type)
 	var loadout: MechLoadout = GameManager.current_loadout
 	var guns: Array[WeaponData] = loadout.selected_guns if loadout else []
 
@@ -69,6 +79,9 @@ func _mount_weapons(torso_type: TorsoData.TorsoType) -> void:
 
 		var weapon: Node = _instantiate_weapon(guns[i].weapon_type)
 		weapon.setup(guns[i])
+		var action_name := "fire_%d" % i
+		if InputMap.has_action(action_name):
+			weapon.fire_action = action_name
 		mount.add_child(weapon)
 		_weapons.append(weapon)
 
@@ -77,18 +90,36 @@ func _instantiate_weapon(weapon_type: WeaponData.WeaponType) -> Node:
 		WeaponData.WeaponType.AUTOCANNON:   return AUTOCANNON_SCENE.instantiate()
 		WeaponData.WeaponType.LASER:        return LASER_SCENE.instantiate()
 		WeaponData.WeaponType.RAILGUN:      return RAILGUN_SCENE.instantiate()
+		WeaponData.WeaponType.ROCKET_POD:   return ROCKET_POD_SCENE.instantiate()
+		WeaponData.WeaponType.MACHINEGUN:   return MACHINEGUN_SCENE.instantiate()
 		_:                                  return FLAMETHROWER_SCENE.instantiate()
 
 static func _get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2]:
-	match torso_type:
-		TorsoData.TorsoType.HEAVY_ARMOUR:
-			return [Vector2(4.0, 17.0), Vector2(4.0, -17.0)]
-		TorsoData.TorsoType.STEALTH:
-			return [Vector2(10.0, 0.0)]
-		TorsoData.TorsoType.CARGO:
-			return [Vector2(-17.0, 0.0)]
-		_:
-			return [Vector2.ZERO]
+	return MechAssembler.get_weapon_offsets(torso_type)
+
+## Mount light weapons on light-slot positions.
+func _mount_light_weapons(torso_type: TorsoData.TorsoType) -> void:
+	var offsets := MechAssembler.get_light_weapon_offsets(torso_type)
+	var loadout: MechLoadout = GameManager.current_loadout
+	var guns: Array[WeaponData] = loadout.selected_light_guns if loadout else []
+
+	if guns.is_empty() or offsets.is_empty():
+		return
+
+	for i in mini(offsets.size(), guns.size()):
+		var mount := Node2D.new()
+		mount.name = "LightWeaponMount%d" % (i + 1)
+		torso_sprite.add_child(mount)
+		mount.position = offsets[i]
+		_weapon_mounts.append(mount)
+
+		var weapon: Node = _instantiate_weapon(guns[i].weapon_type)
+		weapon.setup(guns[i])
+		var light_action := "fire_%d" % (loadout.selected_guns.size() + i)
+		if InputMap.has_action(light_action):
+			weapon.fire_action = light_action
+		mount.add_child(weapon)
+		_weapons.append(weapon)
 
 # ─── Weapon management API ────────────────────────────────────────────────────
 func get_weapons() -> Array[Node]:
@@ -108,21 +139,17 @@ func is_weapon_active(index: int) -> bool:
 	return _weapons[index].is_processing()
 
 func _apply_leg_texture(mtype: LegData.MovementType) -> void:
-	var path: String
-	match mtype:
-		LegData.MovementType.SPIDER: path = "res://assets/sprites/legs_spider.svg"
-		LegData.MovementType.TANK:   path = "res://assets/sprites/legs_tank.svg"
-		LegData.MovementType.LEGS:   path = "res://assets/sprites/legs_bipedal.svg"
-		_:                           path = "res://assets/sprites/legs_bipedal.svg"
-	var tex: Texture2D = load(path)
-	if tex:
-		legs_sprite.texture = tex
+	var loadout: MechLoadout = GameManager.current_loadout
+	if loadout and loadout.selected_legs:
+		var tex: Texture2D = load(loadout.selected_legs.get_sprite_path())
+		if tex:
+			legs_sprite.texture = tex
 
 func _physics_process(delta: float) -> void:
 	match _movement_type:
 		LegData.MovementType.SPIDER: _move_spider(delta)
 		LegData.MovementType.TANK:   _move_tank(delta)
-		LegData.MovementType.LEGS:   _move_legs()
+		LegData.MovementType.LEGS:   _move_legs(delta)
 	_rotate_torso_toward_mouse(delta)
 	move_and_slide()
 
@@ -184,17 +211,21 @@ func _move_tank(delta: float) -> void:
 	rotation += rot_dir * ROTATION_SPEED_TANK * delta
 
 # ─── Legs (Bipedal — Heavy Walker / Light Walker) ─────────────────────────────
-# Auto  →  robot snaps to face the mouse cursor first
-# W / S →  walk forward / backward along that facing direction
-# A / D →  lateral strafe perpendicular to facing
+# Q held →  body slowly rotates toward mouse pointer
+# W / S  →  walk forward / backward along body facing
+# A / D  →  lateral strafe perpendicular to facing
 # (diagonal is normalised so speed is always consistent)
-func _move_legs() -> void:
-	# Rotate to face mouse BEFORE computing velocity so the axes are up to date
-	var mouse_world := get_global_mouse_position()
-	if global_position.distance_squared_to(mouse_world) > 16.0:
-		look_at(mouse_world)
+func _move_legs(delta: float) -> void:
+	# Q held → slowly rotate body toward mouse
+	if Input.is_key_pressed(KEY_Q):
+		var mouse_world := get_global_mouse_position()
+		if global_position.distance_squared_to(mouse_world) > 16.0:
+			var desired_angle := (mouse_world - global_position).angle()
+			var diff := angle_difference(rotation, desired_angle)
+			var step := ROTATION_SPEED_WALKER * delta
+			rotation += clampf(diff, -step, step)
 
-	# transform.x = local forward (toward mouse)
+	# transform.x = local forward (body facing)
 	# transform.y = local right   (perpendicular, clockwise from forward)
 	var fwd    := float(Input.is_action_pressed("move_up"))   - float(Input.is_action_pressed("move_down"))
 	var strafe := float(Input.is_action_pressed("move_right")) - float(Input.is_action_pressed("move_left"))

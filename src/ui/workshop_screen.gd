@@ -1,37 +1,14 @@
-# workshop_screen.gd — Flow-based Workshop: Movement → Torso → Weapon
-# Step 1 shows the movement parts list.  Steps 2+ start with a clickable [+]
-# slot on the mech preview.  Clicking the slot opens the parts list.
-# Left / Right arrows navigate steps.
-#
-# ARCHITECTURE NOTE — Slot-driven design, future multi-weapon support:
-# Each slot-based step (torso, weapon, …) follows the same pattern:
-#   1. Enter step → parts list HIDDEN, slot button VISIBLE on preview
-#   2. Click slot  → parts list VISIBLE, slot button HIDDEN
-#   3. Pick part   → slot filled, parts list stays for re-pick
-# To add more weapon slots, duplicate the weapon slot logic and give each
-# slot its own position callback and selection index.
+# workshop_screen.gd — Drag-and-drop Workshop.
+# All parts are displayed in a scrollable catalog on the left.
+# The right panel shows the mech preview with drop zones at mount points.
+# Drag a part from the catalog onto the matching slot to equip it.
+# Slot capacity is MODULAR: legs define torso_slots, torsos define weapon_slots.
 extends Control
 
 signal deploy_pressed(loadout: MechLoadout)
 
-# ── Flow steps ────────────────────────────────────────────────────────────────
-enum Step { MOVEMENT, TORSO, WEAPON }
-
-const STEP_COUNT := 3
-const STEP_TITLES: Array[String] = [
-	"STEP 1: CHOOSE MOVEMENT",
-	"STEP 2: CHOOSE TORSO",
-	"STEP 3: CHOOSE WEAPON",
-]
-const STEP_HINTS: Array[String] = [
-	"Select a movement system for your mech",
-	"Click the [+] slot on the mech to choose a torso",
-	"Click the [+] slot on the mech to mount a weapon",
-]
-
-# ── Node refs ─────────────────────────────────────────────────────────────────
+# ── Node refs (from scene) ────────────────────────────────────────────────────
 @onready var _step_label:     Label            = %StepLabel
-@onready var _parts_panel:    VBoxContainer     = %PartsPanel
 @onready var _parts_label:    Label            = %PartsLabel
 @onready var _parts_scroll:   ScrollContainer  = %PartsScroll
 @onready var _parts_box:      VBoxContainer     = %PartsBox
@@ -49,33 +26,32 @@ var _loadout := MechLoadout.new()
 var _all_legs:   Array[LegData]    = []
 var _all_torsos: Array[TorsoData]  = []
 var _all_guns:   Array[WeaponData] = []
-
-var _current_step: Step = Step.MOVEMENT
-var _part_buttons: Array[Button] = []
-
-var _selected_leg_index:   int = -1
-var _selected_torso_index: int = -1
-var _selected_gun_indices: Array[int] = []
-
-## Which weapon slot the parts list is currently filling.
-var _editing_weapon_slot: int = 0
-## How many weapon slots the selected torso provides.
-var _weapon_slot_count: int = 1
-
-## Whether the parts list is showing for the current step.
-## false = slot-prompt mode (hint label + slot button visible).
-var _parts_list_open: bool = false
+var _all_light_guns: Array[WeaponData] = []
 
 # ── Preview texture layers ────────────────────────────────────────────────────
-var _legs_rect:   TextureRect = null
-var _torso_rect:  TextureRect = null
-var _weapon_rects: Array[TextureRect] = []
+var _legs_rect:     TextureRect = null
+var _torso_rects:   Array[TextureRect] = []
+var _weapon_rects:  Array[TextureRect] = []
+var _light_weapon_rects: Array[TextureRect] = []
 
-# Clickable slot buttons overlayed on the preview
-var _torso_slot_btn: Button = null
-var _weapon_slot_btns: Array[Button] = []
+# ── Drop zones ────────────────────────────────────────────────────────────────
+var _legs_zone:     PartDropZone = null
+var _torso_zones:   Array[PartDropZone] = []
+var _weapon_zones:  Array[PartDropZone] = []
+var _light_weapon_zones: Array[PartDropZone] = []
 
-var _weapon_mount_offsets: Array[Vector2] = []
+# ── Catalog cards (for selection highlighting) ────────────────────────────────
+var _leg_cards:    Array[DragPartCard] = []
+var _torso_cards:  Array[DragPartCard] = []
+var _weapon_cards: Array[DragPartCard] = []
+var _light_weapon_cards: Array[DragPartCard] = []
+
+# ── Modify modal ──────────────────────────────────────────────────────────────
+var _modal_overlay: ColorRect = null
+var _modal_panel:   PanelContainer = null
+var _sub_modal_overlay: ColorRect = null
+var _sub_modal_panel:   PanelContainer = null
+var _sub_modal_open_frame: int = -1
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -83,44 +59,96 @@ func _ready() -> void:
 	_all_legs   = MechCatalog.get_all_legs()
 	_all_torsos = MechCatalog.get_all_torsos()
 	_all_guns   = MechCatalog.get_all_guns()
+	_all_light_guns = MechCatalog.get_all_light_guns()
 
+	# Hide step-navigation elements (no longer needed for drag-and-drop)
+	_left_arrow.visible     = false
+	_right_arrow.visible    = false
+	_step_indicator.visible = false
+	_slot_hint.visible      = false
+	_parts_scroll.visible   = true
+
+	# Repurpose left arrow as UNDO button; hide other step-nav elements
+	_right_arrow.visible = false
+	_step_indicator.visible = false
+	_left_arrow.visible = false
+	_left_arrow.pressed.connect(_on_undo_pressed)
+
+	_step_label.text     = "DRAG PARTS ONTO THE MECH"
+	_selection_info.text = "Drag a part from the catalog and drop it on a slot"
+
+	_build_parts_catalog()
 	_build_preview_layers()
-	_build_slot_buttons()
+	_build_drop_zones()
 
-	_left_arrow.pressed.connect(_on_left_arrow)
-	_right_arrow.pressed.connect(_on_right_arrow)
 	_deploy_button.pressed.connect(_on_deploy_pressed)
 	_deploy_button.disabled = true
-	_deploy_button.visible  = false
+	_deploy_button.visible  = true
 
-	_go_to_step(Step.MOVEMENT)
+	_build_modify_modal()
+	_build_sub_modal()
+	_update_stats_preview()
 
-func _process(_delta: float) -> void:
-	if _preview_stack == null or _torso_rect == null:
-		return
-	var half := _preview_stack.size * 0.5
-	_torso_rect.pivot_offset = half
-	for rect in _weapon_rects:
-		rect.pivot_offset = rect.size * 0.5
-	var center := _preview_stack.global_position + half
-	var mouse  := get_viewport().get_mouse_position()
-	if center.distance_to(mouse) < 20.0:
-		return
-	var angle := (mouse - center).angle()
-	_torso_rect.rotation = angle
-	_update_slot_positions()
+# ── Parts catalog (left panel) ────────────────────────────────────────────────
 
-# ── Preview layer construction ────────────────────────────────────────────────
+func _build_parts_catalog() -> void:
+	for child in _parts_box.get_children():
+		child.queue_free()
+	_parts_label.text = "PARTS CATALOG"
+	_leg_cards.clear()
+	_torso_cards.clear()
+	_weapon_cards.clear()
+	_light_weapon_cards.clear()
+
+	_add_section_header("── MOVEMENT ──")
+	for i in _all_legs.size():
+		var card := DragPartCard.new()
+		card.setup(_all_legs[i], "legs", i)
+		_parts_box.add_child(card)
+		_leg_cards.append(card)
+
+	_add_section_header("── TORSO ──")
+	for i in _all_torsos.size():
+		var card := DragPartCard.new()
+		card.setup(_all_torsos[i], "torso", i)
+		_parts_box.add_child(card)
+		_torso_cards.append(card)
+
+	_add_section_header("── WEAPONS ──")
+	for i in _all_guns.size():
+		var card := DragPartCard.new()
+		card.setup(_all_guns[i], "weapon", i)
+		card.modify_pressed.connect(_on_modify_weapon)
+		_parts_box.add_child(card)
+		_weapon_cards.append(card)
+
+	_add_section_header("── LIGHT WEAPONS ──")
+	for i in _all_light_guns.size():
+		var card := DragPartCard.new()
+		card.setup(_all_light_guns[i], "light_weapon", i)
+		card.modify_pressed.connect(_on_modify_weapon)
+		_parts_box.add_child(card)
+		_light_weapon_cards.append(card)
+
+
+func _add_section_header(text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_color_override("font_color", Color(0.6, 0.8, 0.75, 0.65))
+	lbl.custom_minimum_size = Vector2(0, 30)
+	_parts_box.add_child(lbl)
+
+# ── Preview sprite layers ────────────────────────────────────────────────────
 
 func _build_preview_layers() -> void:
-	_legs_rect   = _make_preview_rect()
-	_torso_rect  = _make_preview_rect()
+	_legs_rect = _make_preview_rect()
+	_preview_stack.add_child(_legs_rect)
+	_legs_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_legs_rect.modulate.a = 0.0
+	# Torso/weapon rects are created dynamically in _rebuild_torso_zones / _rebuild_weapon_zones
 
-	for rect in [_legs_rect, _torso_rect]:
-		_preview_stack.add_child(rect)
-		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		rect.modulate.a = 0.0
-	# Weapon rects are created dynamically in _rebuild_weapon_slots()
 
 func _make_preview_rect() -> TextureRect:
 	var rect := TextureRect.new()
@@ -129,306 +157,6 @@ func _make_preview_rect() -> TextureRect:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return rect
 
-# ── Clickable slot buttons on the preview ─────────────────────────────────────
-# Each slot is a Button overlayed on the mech preview.  Slots appear when the
-# user reaches a step whose part hasn't been picked yet, prompting them to
-# "click to equip".  This pattern is intentionally easy to duplicate — adding
-# a second weapon slot only requires another Button + position callback.
-
-func _build_slot_buttons() -> void:
-	_torso_slot_btn  = _create_slot_button("+ TORSO")
-	_preview_stack.add_child(_torso_slot_btn)
-	_torso_slot_btn.pressed.connect(_on_slot_clicked.bind(Step.TORSO))
-	_torso_slot_btn.visible  = false
-	# Weapon slot buttons are created dynamically in _rebuild_weapon_slots()
-
-func _create_slot_button(text: String) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.custom_minimum_size = Vector2(90, 44)
-	btn.add_theme_font_size_override("font_size", 15)
-	btn.add_theme_color_override("font_color", Color(0.95, 0.75, 0.2, 1.0))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.5, 1.0))
-	btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.12, 0.1, 0.9)
-	style.set_border_width_all(2)
-	style.border_color = Color(0.95, 0.7, 0.2, 0.8)
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(4)
-	btn.add_theme_stylebox_override("normal", style)
-	var hover_style: StyleBoxFlat = style.duplicate()
-	hover_style.bg_color = Color(0.25, 0.18, 0.1, 0.95)
-	hover_style.border_color = Color(1.0, 0.85, 0.3, 1.0)
-	hover_style.shadow_color = Color(0.95, 0.7, 0.2, 0.4)
-	hover_style.shadow_size = 6
-	btn.add_theme_stylebox_override("hover", hover_style)
-	return btn
-
-func _update_slot_positions() -> void:
-	var half := _preview_stack.size * 0.5
-	if _torso_slot_btn and _torso_slot_btn.visible:
-		_torso_slot_btn.position = half - _torso_slot_btn.size * 0.5
-	for i in _weapon_slot_btns.size():
-		if _weapon_slot_btns[i].visible:
-			var offset := _weapon_mount_offsets[i] if i < _weapon_mount_offsets.size() else Vector2.ZERO
-			_weapon_slot_btns[i].position = half + offset - _weapon_slot_btns[i].size * 0.5
-
-## Generic slot-click handler.  Opens the parts list for the given step.
-func _on_slot_clicked(step: Step) -> void:
-	_open_parts_list(step)
-
-# ── Flow navigation ───────────────────────────────────────────────────────────
-
-func _go_to_step(step: Step) -> void:
-	_current_step = step
-	var step_num := step + 1
-	_step_label.text     = STEP_TITLES[step]
-	_step_indicator.text = "%d / %d" % [step_num, STEP_COUNT]
-
-	# Arrow visibility / enabled state
-	_left_arrow.visible  = step > Step.MOVEMENT
-	_left_arrow.disabled = step == Step.MOVEMENT
-	_right_arrow.visible  = step < Step.WEAPON
-	_right_arrow.disabled = not _is_step_complete(step)
-
-	# Deploy button — only on last step when loadout is complete
-	_deploy_button.visible  = step == Step.WEAPON and _loadout.is_valid()
-	_deploy_button.disabled = not _loadout.is_valid()
-
-	# Decide whether to show the parts list or the slot prompt
-	_enter_step(step)
-	_update_selection_info()
-	_update_stats_preview()
-
-func _is_step_complete(step: Step) -> bool:
-	match step:
-		Step.MOVEMENT: return _loadout.selected_legs  != null
-		Step.TORSO:    return _loadout.selected_torso  != null
-		Step.WEAPON:   return _loadout.selected_guns.size() > 0
-	return false
-
-func _on_left_arrow() -> void:
-	if _current_step > Step.MOVEMENT:
-		_go_to_step((_current_step - 1) as Step)
-
-func _on_right_arrow() -> void:
-	if _current_step < Step.WEAPON and _is_step_complete(_current_step):
-		_go_to_step((_current_step + 1) as Step)
-
-# ── Step entry logic — slot vs. parts list ────────────────────────────────────
-
-## Called when navigating to a step.  Decides between showing the slot prompt
-## (part not yet picked) or the parts list (already picked / movement step).
-func _enter_step(step: Step) -> void:
-	match step:
-		Step.MOVEMENT:
-			# Movement always shows the parts list — no slot button needed.
-			_show_parts_list()
-			_build_leg_parts()
-			_torso_slot_btn.visible = false
-			for btn in _weapon_slot_btns:
-				btn.visible = false
-
-		Step.TORSO:
-			for btn in _weapon_slot_btns:
-				btn.visible = false
-			if _loadout.selected_torso != null:
-				# Already picked — show list so user can re-pick.
-				_show_parts_list()
-				_build_torso_parts()
-				_torso_slot_btn.visible = false
-			else:
-				# Not picked — show slot button, hide parts list.
-				_show_slot_prompt()
-				_torso_slot_btn.visible = true
-				_update_slot_positions()
-
-		Step.WEAPON:
-			_torso_slot_btn.visible = false
-			if _loadout.selected_guns.size() > 0:
-				_show_parts_list()
-				_editing_weapon_slot = _get_first_empty_weapon_slot()
-				if _editing_weapon_slot < 0:
-					_editing_weapon_slot = 0
-				_build_weapon_parts()
-				for btn in _weapon_slot_btns:
-					btn.visible = false
-			else:
-				_show_slot_prompt()
-				for btn in _weapon_slot_btns:
-					btn.visible = true
-				_update_slot_positions()
-
-## Opens the parts list after a slot button is clicked.
-func _open_parts_list(step: Step) -> void:
-	_show_parts_list()
-	match step:
-		Step.TORSO:
-			_torso_slot_btn.visible = false
-			_build_torso_parts()
-			_selection_info.text = "Choose a torso for your mech"
-		Step.WEAPON:
-			for btn in _weapon_slot_btns:
-				btn.visible = false
-			_build_weapon_parts()
-			var slot_label := " (slot %d)" % (_editing_weapon_slot + 1) if _weapon_slot_count > 1 else ""
-			_selection_info.text = "Choose a weapon to mount" + slot_label
-
-# ── Parts panel visibility helpers ────────────────────────────────────────────
-
-## Show the scrollable parts list, hide the "click the slot" hint.
-func _show_parts_list() -> void:
-	_parts_list_open   = true
-	_parts_scroll.visible = true
-	_slot_hint.visible    = false
-
-## Hide the parts list and show the slot-click hint.
-func _show_slot_prompt() -> void:
-	_parts_list_open   = false
-	_clear_parts()
-	_parts_scroll.visible = false
-	_slot_hint.visible    = true
-
-# ── Build parts lists ─────────────────────────────────────────────────────────
-
-func _build_leg_parts() -> void:
-	_clear_parts()
-	_parts_label.text = "MOVEMENT"
-	for i in _all_legs.size():
-		var leg := _all_legs[i]
-		var btn := _create_part_button(leg.name, leg.tutorial_text, i == _selected_leg_index)
-		btn.pressed.connect(_on_leg_selected.bind(i))
-		_parts_box.add_child(btn)
-		_part_buttons.append(btn)
-
-func _build_torso_parts() -> void:
-	_clear_parts()
-	_parts_label.text = "TORSOS"
-	for i in _all_torsos.size():
-		var torso := _all_torsos[i]
-		var btn := _create_part_button(torso.name, torso.tutorial_text, i == _selected_torso_index)
-		btn.pressed.connect(_on_torso_selected.bind(i))
-		_parts_box.add_child(btn)
-		_part_buttons.append(btn)
-
-func _build_weapon_parts() -> void:
-	_clear_parts()
-	var slot_label := " — SLOT %d" % (_editing_weapon_slot + 1) if _weapon_slot_count > 1 else ""
-	_parts_label.text = "WEAPONS" + slot_label
-	for i in _all_guns.size():
-		var gun := _all_guns[i]
-		var desc := "DMG: %d  |  CD: %.1fs  |  Proj: %d  |  Pierce: %d" % [
-			gun.damage, gun.cooldown, gun.projectile_count, gun.pierce]
-		var is_selected := _editing_weapon_slot < _selected_gun_indices.size() and _selected_gun_indices[_editing_weapon_slot] == i
-		var btn := _create_part_button(gun.name, desc, is_selected)
-		btn.pressed.connect(_on_gun_selected.bind(i))
-		_parts_box.add_child(btn)
-		_part_buttons.append(btn)
-
-func _clear_parts() -> void:
-	for child in _parts_box.get_children():
-		child.queue_free()
-	_part_buttons.clear()
-
-# ── Part button factory ───────────────────────────────────────────────────────
-
-func _create_part_button(title: String, desc: String, is_selected: bool) -> Button:
-	var btn := Button.new()
-	btn.custom_minimum_size    = Vector2(0, 80)
-	btn.size_flags_horizontal  = Control.SIZE_EXPAND_FILL
-	btn.text                   = title + "\n" + desc
-	btn.autowrap_mode          = TextServer.AUTOWRAP_WORD_SMART
-	btn.add_theme_font_size_override("font_size", 16)
-	btn.add_theme_color_override("font_color",       Color(0.85, 0.8, 0.7, 1.0))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.7, 1.0))
-	btn.add_theme_stylebox_override("normal", _selected_stylebox() if is_selected else _normal_stylebox())
-	btn.add_theme_stylebox_override("hover",  _selected_stylebox())
-	return btn
-
-func _normal_stylebox() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.1, 0.15, 0.9)
-	style.set_border_width_all(2)
-	style.border_color = Color(0.4, 0.35, 0.3, 0.6)
-	style.set_corner_radius_all(8)
-	return style
-
-func _selected_stylebox() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.2, 0.15, 0.1, 0.95)
-	style.set_border_width_all(3)
-	style.border_color = Color(0.95, 0.7, 0.2, 1.0)
-	style.set_corner_radius_all(8)
-	style.shadow_color = Color(0.95, 0.7, 0.2, 0.3)
-	style.shadow_size  = 4
-	return style
-
-# ── Part selection handlers ────────────────────────────────────────────────────
-
-func _on_leg_selected(index: int) -> void:
-	_selected_leg_index    = index
-	_loadout.selected_legs = _all_legs[index]
-	_build_leg_parts()
-	_update_preview_layer(_legs_rect, _loadout.selected_legs.get_sprite_path())
-	_selection_info.text = _loadout.selected_legs.name + " selected — press NEXT >"
-	_right_arrow.disabled = false
-	_update_stats_preview()
-
-func _on_torso_selected(index: int) -> void:
-	_selected_torso_index    = index
-	_loadout.selected_torso  = _all_torsos[index]
-	_build_torso_parts()
-	_update_preview_layer(_torso_rect, _loadout.selected_torso.get_sprite_path())
-	_rebuild_weapon_slots()
-	_torso_slot_btn.visible = false
-	var slots_text := " (%d weapon slots)" % _weapon_slot_count if _weapon_slot_count > 1 else ""
-	_selection_info.text = _loadout.selected_torso.name + " mounted" + slots_text + " — press NEXT >"
-	if _current_step == Step.TORSO:
-		_right_arrow.disabled = false
-	_update_stats_preview()
-
-func _on_gun_selected(index: int) -> void:
-	var slot := _editing_weapon_slot
-	if slot >= _selected_gun_indices.size():
-		return
-	_selected_gun_indices[slot] = index
-
-	# Ensure selected_guns array is large enough
-	while _loadout.selected_guns.size() <= slot:
-		_loadout.selected_guns.append(null)
-	_loadout.selected_guns[slot] = _all_guns[index]
-
-	# Remove trailing nulls
-	while _loadout.selected_guns.size() > 0 and _loadout.selected_guns.back() == null:
-		_loadout.selected_guns.pop_back()
-
-	_build_weapon_parts()
-
-	# Update preview for this slot
-	if slot < _weapon_rects.size():
-		_update_preview_layer(_weapon_rects[slot], _all_guns[index].get_sprite_path())
-		var correction: float = 0.0
-		match _all_guns[index].weapon_type:
-			WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER:
-				correction = deg_to_rad(-90.0)
-		_weapon_rects[slot].rotation = correction
-
-	# Auto-advance to next empty slot if available
-	var next_empty := _get_first_empty_weapon_slot()
-	if next_empty >= 0 and next_empty != slot:
-		_editing_weapon_slot = next_empty
-		_build_weapon_parts()
-		var slot_label := " (slot %d)" % (next_empty + 1) if _weapon_slot_count > 1 else ""
-		_selection_info.text = _all_guns[index].name + " armed! Now pick weapon" + slot_label
-	else:
-		_selection_info.text = _all_guns[index].name + " armed — ready to DEPLOY!"
-
-	_deploy_button.visible  = true
-	_deploy_button.disabled = not _loadout.is_valid()
-	_update_stats_preview()
-
-# ── Preview helpers ────────────────────────────────────────────────────────────
 
 func _update_preview_layer(rect: TextureRect, path: String) -> void:
 	var tex: Texture2D = load(path)
@@ -438,68 +166,321 @@ func _update_preview_layer(rect: TextureRect, path: String) -> void:
 	else:
 		rect.modulate.a = 0.0
 
-func _rebuild_weapon_slots() -> void:
-	# Remove old weapon slot buttons
-	for btn in _weapon_slot_btns:
-		btn.queue_free()
-	_weapon_slot_btns.clear()
+# ── Drop zones on mech preview ───────────────────────────────────────────────
 
-	# Remove old weapon rects
+func _build_drop_zones() -> void:
+	var pw := _preview_stack.custom_minimum_size.x  # 220
+	var ph := _preview_stack.custom_minimum_size.y  # 220
+
+	# Legs zone — always visible at the bottom of the mech
+	_legs_zone = PartDropZone.new()
+	_legs_zone.setup("legs", "LEGS", Vector2(150, 42))
+	_preview_stack.add_child(_legs_zone)
+	_legs_zone.position = Vector2((pw - 150) * 0.5, ph - 48)
+	_legs_zone.part_equipped.connect(_on_legs_equipped)
+
+	# Torso and weapon zones only appear once their prerequisite part is equipped
+
+# ── Torso zones (driven by LegData.torso_slots) ─────────────────────────────
+
+func _rebuild_torso_zones() -> void:
+	for zone in _torso_zones:
+		zone.queue_free()
+	_torso_zones.clear()
+	for rect in _torso_rects:
+		rect.queue_free()
+	_torso_rects.clear()
+
+	_loadout.selected_torsos.clear()
+	_loadout.selected_torso = null
+
+	# Don't show torso zones until legs are equipped
+	if _loadout.selected_legs == null:
+		_rebuild_weapon_zones()
+		return
+
+	var slot_count: int = _loadout.selected_legs.torso_slots
+	var pw := _preview_stack.custom_minimum_size.x
+	var zone_w := 130 if slot_count > 1 else 150
+	var spacing := 10
+
+	for i in slot_count:
+		# Preview rect
+		var rect := _make_preview_rect()
+		_preview_stack.add_child(rect)
+		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rect.modulate.a = 0.0
+		_torso_rects.append(rect)
+
+		# Drop zone
+		var label := "TORSO %d" % (i + 1) if slot_count > 1 else "TORSO"
+		var zone := PartDropZone.new()
+		zone.setup("torso", label, Vector2(zone_w, 42), i)
+		_preview_stack.add_child(zone)
+
+		if slot_count == 1:
+			zone.position = Vector2((pw - zone_w) * 0.5, 6)
+		else:
+			var total_w: float = slot_count * zone_w + (slot_count - 1) * spacing
+			var start_x: float = (pw - total_w) * 0.5
+			zone.position = Vector2(start_x + i * (zone_w + spacing), 6)
+
+		zone.part_equipped.connect(_on_torso_equipped.bind(i))
+		_torso_zones.append(zone)
+
+	_rebuild_weapon_zones()
+
+# ── Weapon zones (driven by total weapon_slots across all equipped torsos) ───
+
+func _rebuild_weapon_zones() -> void:
+	for zone in _weapon_zones:
+		zone.queue_free()
+	_weapon_zones.clear()
 	for rect in _weapon_rects:
 		rect.queue_free()
 	_weapon_rects.clear()
 
-	# Clear weapon selections
 	_loadout.selected_guns.clear()
-	_weapon_mount_offsets.clear()
 
-	# Determine slot count from torso
-	_weapon_slot_count = _loadout.selected_torso.weapon_slots if _loadout.selected_torso else 1
-	_selected_gun_indices.clear()
-	for _i in _weapon_slot_count:
-		_selected_gun_indices.append(-1)
-	_editing_weapon_slot = 0
+	# Also clear light weapon zones
+	for zone in _light_weapon_zones:
+		zone.queue_free()
+	_light_weapon_zones.clear()
+	for rect in _light_weapon_rects:
+		rect.queue_free()
+	_light_weapon_rects.clear()
+	_loadout.selected_light_guns.clear()
 
-	# Compute mount offsets from torso type
-	var raw_offsets: Array[Vector2] = PlayerController._get_weapon_offsets(
-		_loadout.selected_torso.torso_type) if _loadout.selected_torso else [Vector2.ZERO]
-	var scale_factor := _preview_stack.size.x / 64.0 if _preview_stack.size.x > 0 else 1.0
-	for offset in raw_offsets:
-		_weapon_mount_offsets.append(offset * scale_factor)
+	# Don't show weapon zones until at least one torso is equipped
+	var has_torso := false
+	for torso in _loadout.selected_torsos:
+		if torso:
+			has_torso = true
+			break
+	if not has_torso and _loadout.selected_torso != null:
+		has_torso = true
+	if not has_torso:
+		return
 
-	# Create weapon rects as children of torso rect
-	for i in _weapon_slot_count:
+	# Gather weapon mount offsets from all equipped torsos (via MechAssembler)
+	var raw_offsets: Array[Vector2] = []
+	for torso in _loadout.selected_torsos:
+		if torso:
+			raw_offsets.append_array(MechAssembler.get_weapon_offsets(torso.torso_type))
+	if raw_offsets.is_empty() and _loadout.selected_torso:
+		raw_offsets = MechAssembler.get_weapon_offsets(_loadout.selected_torso.torso_type)
+
+	var slot_count: int = raw_offsets.size()
+	if slot_count == 0:
+		slot_count = 1
+		raw_offsets.append(Vector2.ZERO)
+
+	var pw := _preview_stack.custom_minimum_size.x   # 220
+	var ph := _preview_stack.custom_minimum_size.y   # 220
+	var center := Vector2(pw * 0.5, ph * 0.5)
+
+	# Scale offsets from game pixels (64px torso) to preview pixels (220px)
+	var scaled: Array[Vector2] = MechAssembler.scale_offsets(raw_offsets, pw)
+	# Proportional weapon rect size (48/64 of container)
+	var wpn_sz := MechAssembler.weapon_rect_size(pw)
+
+	for i in slot_count:
+		var mount_offset := scaled[i] if i < scaled.size() else Vector2.ZERO
+		var mount_center := center + mount_offset
+
+		# Weapon preview TextureRect — sized proportionally, centered on mount
 		var rect := _make_preview_rect()
-		_torso_rect.add_child(rect)
-		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_preview_stack.add_child(rect)
+		var sz := Vector2(wpn_sz, wpn_sz)
+		rect.custom_minimum_size = sz
+		rect.size = sz
+		rect.position = mount_center - sz * 0.5
+		rect.pivot_offset = sz * 0.5   # rotate around own center
 		rect.modulate.a = 0.0
-		if i < _weapon_mount_offsets.size():
-			rect.position = _weapon_mount_offsets[i]
 		_weapon_rects.append(rect)
 
-	# Create new weapon slot buttons
-	for i in _weapon_slot_count:
-		var label := "+ WEAPON %d" % (i + 1) if _weapon_slot_count > 1 else "+ WEAPON"
-		var btn := _create_slot_button(label)
-		_preview_stack.add_child(btn)
-		btn.pressed.connect(_on_weapon_slot_clicked.bind(i))
-		btn.visible = false
-		_weapon_slot_btns.append(btn)
+		# Drop zone — centered on the same mount point
+		var label := "WPN %d" % (i + 1) if slot_count > 1 else "WEAPON"
+		var zone_w := 90 if slot_count > 1 else 100
+		var zone_h := 40
+		var zone := PartDropZone.new()
+		zone.setup("weapon", label, Vector2(zone_w, zone_h), i)
+		_preview_stack.add_child(zone)
+		zone.position = mount_center - Vector2(zone_w * 0.5, zone_h * 0.5)
+		zone.part_equipped.connect(_on_weapon_equipped.bind(i))
+		_weapon_zones.append(zone)
 
-func _on_weapon_slot_clicked(slot: int) -> void:
-	_editing_weapon_slot = slot
-	_open_parts_list(Step.WEAPON)
+	# ── Light weapon zones ────────────────────────────────────────────────
+	var light_offsets: Array[Vector2] = []
+	for torso in _loadout.selected_torsos:
+		if torso:
+			light_offsets.append_array(MechAssembler.get_light_weapon_offsets(torso.torso_type))
+	if light_offsets.is_empty() and _loadout.selected_torso:
+		light_offsets = MechAssembler.get_light_weapon_offsets(_loadout.selected_torso.torso_type)
 
-func _get_first_empty_weapon_slot() -> int:
-	for i in _selected_gun_indices.size():
-		if _selected_gun_indices[i] < 0:
-			return i
-	return -1
+	if light_offsets.size() > 0:
+		var light_scaled: Array[Vector2] = MechAssembler.scale_offsets(light_offsets, pw)
+		var light_sz := MechAssembler.light_weapon_rect_size(pw)
 
-# ── Info / Stats / Deploy ─────────────────────────────────────────────────────
+		for i in light_offsets.size():
+			var mount_offset := light_scaled[i]
+			var mount_center := center + mount_offset
 
-func _update_selection_info() -> void:
-	_selection_info.text = STEP_HINTS[_current_step]
+			var rect := _make_preview_rect()
+			_preview_stack.add_child(rect)
+			var sz := Vector2(light_sz, light_sz)
+			rect.custom_minimum_size = sz
+			rect.size = sz
+			rect.position = mount_center - sz * 0.5
+			rect.pivot_offset = sz * 0.5
+			rect.modulate.a = 0.0
+			_light_weapon_rects.append(rect)
+
+			var label := "S.WPN %d" % (i + 1) if light_offsets.size() > 1 else "S.WPN"
+			var zone_w2 := 72
+			var zone_h2 := 32
+			var zone := PartDropZone.new()
+			zone.setup("light_weapon", label, Vector2(zone_w2, zone_h2), i)
+			_preview_stack.add_child(zone)
+			zone.position = mount_center - Vector2(zone_w2 * 0.5, zone_h2 * 0.5)
+			zone.part_equipped.connect(_on_light_weapon_equipped.bind(i))
+			_light_weapon_zones.append(zone)
+
+# ── Equip handlers ────────────────────────────────────────────────────────────
+
+func _on_legs_equipped(data: Variant) -> void:
+	_loadout.selected_legs = data as LegData
+	_update_preview_layer(_legs_rect, _loadout.selected_legs.get_sprite_path())
+	_legs_zone.visible = false
+	_rebuild_torso_zones()
+	_refresh_ui()
+
+
+func _on_torso_equipped(data: Variant, slot: int) -> void:
+	var torso := data as TorsoData
+	while _loadout.selected_torsos.size() <= slot:
+		_loadout.selected_torsos.append(null)
+	_loadout.selected_torsos[slot] = torso
+
+	# Keep legacy selected_torso in sync (primary = first)
+	_loadout.selected_torso = _loadout.selected_torsos[0] if _loadout.selected_torsos.size() > 0 else null
+
+	# Update preview sprite for this slot
+	if slot < _torso_rects.size():
+		_update_preview_layer(_torso_rects[slot], torso.get_sprite_path())
+	if slot < _torso_zones.size():
+		_torso_zones[slot].visible = false
+
+	_rebuild_weapon_zones()
+	_refresh_ui()
+
+
+func _on_weapon_equipped(data: Variant, slot: int) -> void:
+	while _loadout.selected_guns.size() <= slot:
+		_loadout.selected_guns.append(null)
+	# Duplicate so each slot has its own independent WeaponData copy
+	_loadout.selected_guns[slot] = (data as WeaponData).duplicate()
+
+	# Trim trailing nulls
+	while _loadout.selected_guns.size() > 0 and _loadout.selected_guns.back() == null:
+		_loadout.selected_guns.pop_back()
+
+	# Update weapon preview sprite
+	if slot < _weapon_rects.size():
+		var gun := data as WeaponData
+		_update_preview_layer(_weapon_rects[slot], gun.get_sprite_path())
+		_weapon_rects[slot].rotation = _weapon_preview_rotation(gun)
+	if slot < _weapon_zones.size():
+		_weapon_zones[slot].visible = false
+
+	_refresh_ui()
+
+
+func _on_light_weapon_equipped(data: Variant, slot: int) -> void:
+	while _loadout.selected_light_guns.size() <= slot:
+		_loadout.selected_light_guns.append(null)
+	_loadout.selected_light_guns[slot] = (data as WeaponData).duplicate()
+
+	while _loadout.selected_light_guns.size() > 0 and _loadout.selected_light_guns.back() == null:
+		_loadout.selected_light_guns.pop_back()
+
+	if slot < _light_weapon_rects.size():
+		var gun := data as WeaponData
+		_update_preview_layer(_light_weapon_rects[slot], gun.get_sprite_path())
+		_light_weapon_rects[slot].rotation = _weapon_preview_rotation(gun)
+	if slot < _light_weapon_zones.size():
+		_light_weapon_zones[slot].visible = false
+
+	_refresh_ui()
+
+
+## Returns the rotation correction for a weapon's workshop preview sprite.
+## Weapons whose scene sprites are rotated -90° need the same correction here.
+static func _weapon_preview_rotation(gun: WeaponData) -> float:
+	match gun.weapon_type:
+		WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER, \
+		WeaponData.WeaponType.ROCKET_POD, WeaponData.WeaponType.MACHINEGUN:
+			return deg_to_rad(-90.0)
+	return 0.0
+
+# ── UI refresh ────────────────────────────────────────────────────────────────
+
+func _refresh_ui() -> void:
+	_update_card_highlights()
+	_deploy_button.disabled = not _loadout.is_valid()
+	_update_info_text()
+	_update_stats_preview()
+	_update_undo_button()
+
+
+func _update_card_highlights() -> void:
+	for card in _leg_cards:
+		card.set_selected(card.part_data == _loadout.selected_legs)
+	for card in _torso_cards:
+		var equipped := false
+		for torso in _loadout.selected_torsos:
+			if torso == card.part_data:
+				equipped = true
+				break
+		if not equipped and card.part_data == _loadout.selected_torso:
+			equipped = true
+		card.set_selected(equipped)
+	for card in _weapon_cards:
+		var equipped := false
+		for gun in _loadout.selected_guns:
+			if gun and gun.name == card.part_data.name:
+				equipped = true
+				break
+		card.set_selected(equipped)
+	for card in _light_weapon_cards:
+		var equipped := false
+		for gun in _loadout.selected_light_guns:
+			if gun and gun.name == card.part_data.name:
+				equipped = true
+				break
+		card.set_selected(equipped)
+
+
+func _update_info_text() -> void:
+	var parts: Array[String] = []
+	if _loadout.selected_legs:
+		parts.append(_loadout.selected_legs.name)
+	for torso in _loadout.selected_torsos:
+		if torso:
+			parts.append(torso.name)
+	if parts.size() == 1 and _loadout.selected_torso and _loadout.selected_torsos.is_empty():
+		parts.append(_loadout.selected_torso.name)
+	for gun in _loadout.selected_guns:
+		if gun:
+			parts.append(gun.name)
+	for gun in _loadout.selected_light_guns:
+		if gun:
+			parts.append(gun.name)
+	if parts.is_empty():
+		_selection_info.text = "Drag a part from the catalog and drop it on a slot"
+	else:
+		_selection_info.text = " + ".join(parts)
+
 
 func _update_stats_preview() -> void:
 	if not _stats_label:
@@ -507,29 +488,73 @@ func _update_stats_preview() -> void:
 	if not _loadout.is_valid():
 		var missing: Array[String] = []
 		if _loadout.selected_legs  == null: missing.append("Legs")
-		if _loadout.selected_torso == null: missing.append("Torso")
+		var has_torso: bool = _loadout.selected_torso != null or _loadout.selected_torsos.size() > 0
+		if not has_torso: missing.append("Torso")
 		if _loadout.selected_guns.size() == 0: missing.append("Weapon")
 		_stats_label.text = "Still needed: " + "  ·  ".join(missing)
 		return
 	var preview_stats := PlayerStats.new()
 	_loadout.apply_to_stats(preview_stats)
 	var integrity_str := "◆".repeat(preview_stats.max_integrity)
-	var weapon_names: String = ""
-	var total_dmg: int = 0
+	var weapon_names := ""
+	var total_dmg := 0
 	for gun in _loadout.selected_guns:
 		if gun:
 			if weapon_names.length() > 0:
 				weapon_names += " + "
 			weapon_names += gun.name
 			total_dmg += gun.damage
+	for gun in _loadout.selected_light_guns:
+		if gun:
+			if weapon_names.length() > 0:
+				weapon_names += " + "
+			weapon_names += gun.name
+			total_dmg += gun.damage
+	var torso_name := ""
+	if _loadout.selected_torsos.size() > 0:
+		var names: Array[String] = []
+		for t in _loadout.selected_torsos:
+			if t:
+				names.append(t.name)
+		torso_name = " + ".join(names)
+	elif _loadout.selected_torso:
+		torso_name = _loadout.selected_torso.name
 	_stats_label.text = "%s  |  Speed: %.0f  |  %s  +  %s  +  %s  (DMG: %d)" % [
 		integrity_str,
 		preview_stats.speed,
 		_loadout.selected_legs.name,
-		_loadout.selected_torso.name,
+		torso_name,
 		weapon_names,
 		total_dmg,
 	]
+
+# ── Undo ──────────────────────────────────────────────────────────────────────
+
+func _on_undo_pressed() -> void:
+	if _loadout.selected_light_guns.size() > 0 or _loadout.selected_guns.size() > 0:
+		_rebuild_weapon_zones()
+	elif _has_any_torso():
+		_rebuild_torso_zones()
+	elif _loadout.selected_legs != null:
+		_loadout.selected_legs = null
+		_legs_rect.modulate.a = 0.0
+		_legs_zone.clear()
+		_legs_zone.visible = true
+		_rebuild_torso_zones()
+	_refresh_ui()
+
+
+func _has_any_torso() -> bool:
+	for t in _loadout.selected_torsos:
+		if t:
+			return true
+	return _loadout.selected_torso != null
+
+
+func _update_undo_button() -> void:
+	_left_arrow.visible = _loadout.selected_legs != null
+
+# ── Deploy ────────────────────────────────────────────────────────────────────
 
 func _on_deploy_pressed() -> void:
 	_deploy_button.disabled = true
@@ -538,5 +563,429 @@ func _on_deploy_pressed() -> void:
 	tween.tween_property(self, "modulate:a", 0.0, 0.5).set_ease(Tween.EASE_IN)
 	tween.tween_callback(_go_to_game)
 
+
 func _go_to_game() -> void:
-	get_tree().change_scene_to_file("res://scenes/ui/level_select_screen.tscn")
+	get_tree().change_scene_to_file("res://scenes/ui/software_screen.tscn")
+
+# ── Modify modal ──────────────────────────────────────────────────────────────
+
+func _build_modify_modal() -> void:
+	# Dimmed overlay behind the panel
+	_modal_overlay = ColorRect.new()
+	_modal_overlay.color = Color(0.0, 0.0, 0.0, 0.6)
+	_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_modal_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modal_overlay.visible = false
+	_modal_overlay.gui_input.connect(_on_modal_overlay_input)
+	add_child(_modal_overlay)
+
+	# Center wrapper
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modal_overlay.add_child(center)
+
+	# Panel
+	_modal_panel = PanelContainer.new()
+	_modal_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modal_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_modal_panel.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.1, 0.08, 0.12, 0.97)
+	panel_style.set_border_width_all(2)
+	panel_style.border_color = Color(0.95, 0.7, 0.2, 0.9)
+	panel_style.set_corner_radius_all(10)
+	panel_style.set_content_margin_all(24)
+	_modal_panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(_modal_panel)
+
+
+## Weapon types that support the Modify button.
+const _MODIFIABLE_TYPES := [
+	WeaponData.WeaponType.AUTOCANNON,
+	WeaponData.WeaponType.ROCKET_POD,
+]
+
+## Show the modification modal for the first equipped copy of this weapon.
+func _on_modify_weapon(data: Variant) -> void:
+	var catalog_gun := data as WeaponData
+	if catalog_gun == null or catalog_gun.weapon_type not in _MODIFIABLE_TYPES:
+		return
+	# Find all equipped copies of this weapon type in the loadout
+	var equipped_copies: Array[WeaponData] = []
+	for gun in _loadout.selected_guns:
+		if gun and gun.name == catalog_gun.name:
+			equipped_copies.append(gun)
+	for gun in _loadout.selected_light_guns:
+		if gun and gun.name == catalog_gun.name:
+			equipped_copies.append(gun)
+	if equipped_copies.is_empty():
+		return
+	if equipped_copies.size() == 1:
+		_show_modify_modal(equipped_copies[0])
+	else:
+		_show_slot_picker(equipped_copies)
+
+
+func _show_slot_picker(guns: Array[WeaponData]) -> void:
+	for child in _modal_panel.get_children():
+		_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Which slot to modify?"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	for i in guns.size():
+		var gun := guns[i]
+		var slot_idx := _loadout.selected_guns.find(gun)
+		var ammo_label := _ammo_type_label(gun.ammo_type)
+		var btn := Button.new()
+		btn.text = "Slot %d  —  %s  (%s)" % [slot_idx + 1, gun.name, ammo_label]
+		btn.custom_minimum_size = Vector2(300, 40)
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		btn.pressed.connect(call_deferred.bind("_show_modify_modal", gun))
+		vbox.add_child(btn)
+
+	var close_btn := Button.new()
+	close_btn.text = "CANCEL"
+	close_btn.custom_minimum_size = Vector2(120, 36)
+	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close_btn.pressed.connect(_hide_modify_modal)
+	vbox.add_child(close_btn)
+
+	_modal_overlay.visible = true
+
+
+static func _ammo_type_label(ammo: WeaponData.AmmoType) -> String:
+	match ammo:
+		WeaponData.AmmoType.HE: return "HE"
+		WeaponData.AmmoType.SOLID: return "Solid"
+		WeaponData.AmmoType.CANISTER: return "Canister"
+	return "Unknown"
+
+
+func _show_modify_modal(gun: WeaponData) -> void:
+	# Clear previous content immediately to avoid stale signal connections
+	for child in _modal_panel.get_children():
+		_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	_modal_panel.add_child(vbox)
+
+	# Title
+	var title := Label.new()
+	title.text = "⚙  MODIFY — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 20)
+	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	# Separator
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.4, 0.35, 0.25, 0.5))
+	vbox.add_child(sep)
+
+	# Weapon-specific options
+	match gun.weapon_type:
+		WeaponData.WeaponType.AUTOCANNON:
+			_add_autocannon_options(vbox, gun)
+		WeaponData.WeaponType.ROCKET_POD:
+			_add_rocket_pod_options(vbox, gun)
+
+	# Spacer
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer)
+
+	# Close button
+	var close_btn := Button.new()
+	close_btn.text = "CLOSE"
+	close_btn.custom_minimum_size = Vector2(120, 36)
+	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close_btn.pressed.connect(_hide_modify_modal)
+	vbox.add_child(close_btn)
+
+	_modal_overlay.visible = true
+
+
+func _add_autocannon_options(vbox: VBoxContainer, gun: WeaponData) -> void:
+	var ammo_btn := Button.new()
+	ammo_btn.text = "🔫  Ammo Type"
+	ammo_btn.custom_minimum_size = Vector2(280, 44)
+	ammo_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ammo_btn.pressed.connect(_show_ammo_type_modal.bind(gun))
+	vbox.add_child(ammo_btn)
+
+	var barrel_btn := Button.new()
+	barrel_btn.text = "📏  Barrel Length"
+	barrel_btn.custom_minimum_size = Vector2(280, 44)
+	barrel_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	barrel_btn.pressed.connect(_show_barrel_length_modal.bind(gun))
+	vbox.add_child(barrel_btn)
+
+
+func _add_rocket_pod_options(vbox: VBoxContainer, gun: WeaponData) -> void:
+	var targeting_btn := Button.new()
+	targeting_btn.text = "🎯  Targeting"
+	targeting_btn.custom_minimum_size = Vector2(280, 44)
+	targeting_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	targeting_btn.pressed.connect(_show_targeting_type_modal.bind(gun))
+	vbox.add_child(targeting_btn)
+
+
+func _hide_modify_modal() -> void:
+	_sub_modal_overlay.visible = false
+	_modal_overlay.visible = false
+
+
+func _on_modal_overlay_input(event: InputEvent) -> void:
+	if _sub_modal_overlay.visible:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		_hide_modify_modal()
+		get_viewport().set_input_as_handled()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		if _sub_modal_overlay.visible:
+			_hide_sub_modal()
+			get_viewport().set_input_as_handled()
+		elif _modal_overlay.visible:
+			_hide_modify_modal()
+			get_viewport().set_input_as_handled()
+
+
+# ── Sub-modal infrastructure ──────────────────────────────────────────────────
+
+func _build_sub_modal() -> void:
+	_sub_modal_overlay = ColorRect.new()
+	_sub_modal_overlay.color = Color(0.0, 0.0, 0.0, 0.4)
+	_sub_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_sub_modal_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_sub_modal_overlay.visible = false
+	_sub_modal_overlay.gui_input.connect(_on_sub_modal_overlay_input)
+	add_child(_sub_modal_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sub_modal_overlay.add_child(center)
+
+	_sub_modal_panel = PanelContainer.new()
+	_sub_modal_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_sub_modal_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_sub_modal_panel.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.12, 0.1, 0.14, 0.98)
+	panel_style.set_border_width_all(2)
+	panel_style.border_color = Color(0.7, 0.85, 0.95, 0.9)
+	panel_style.set_corner_radius_all(10)
+	panel_style.set_content_margin_all(24)
+	_sub_modal_panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(_sub_modal_panel)
+
+
+func _show_sub_modal(title_text: String, body_text: String) -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = title_text
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	var body := Label.new()
+	body.text = body_text
+	body.add_theme_font_size_override("font_size", 14)
+	body.add_theme_color_override("font_color", Color(0.6, 0.55, 0.5))
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(body)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer)
+
+	var back_btn := Button.new()
+	back_btn.text = "BACK"
+	back_btn.custom_minimum_size = Vector2(120, 36)
+	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back_btn.pressed.connect(_hide_sub_modal)
+	vbox.add_child(back_btn)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _hide_sub_modal() -> void:
+	_sub_modal_overlay.visible = false
+
+
+func _on_sub_modal_overlay_input(event: InputEvent) -> void:
+	if not _sub_modal_overlay.visible:
+		return
+	if Engine.get_process_frames() == _sub_modal_open_frame:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		_hide_sub_modal()
+		get_viewport().set_input_as_handled()
+
+
+func _show_ammo_type_modal(gun: WeaponData) -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	# Title
+	var title := Label.new()
+	title.text = "🔫  AMMO TYPE — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	# Shell row
+	var shell_row := HBoxContainer.new()
+	shell_row.add_theme_constant_override("separation", 24)
+	shell_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(shell_row)
+
+	var types: Array[Dictionary] = [
+		{"type": WeaponData.AmmoType.HE,       "label": "HE"},
+		{"type": WeaponData.AmmoType.SOLID,     "label": "SOLID"},
+		{"type": WeaponData.AmmoType.CANISTER,  "label": "CANISTER"},
+	]
+
+	for entry in types:
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 4)
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		shell_row.add_child(col)
+
+		var shell := AmmoShell.new()
+		shell.setup(entry["type"], gun.ammo_type == entry["type"])
+		shell.shell_clicked.connect(_on_ammo_selected.bind(gun))
+		col.add_child(shell)
+
+		var lbl := Label.new()
+		lbl.text = entry["label"]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color(0.65, 0.6, 0.55))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(lbl)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_ammo_selected(selected_type: WeaponData.AmmoType, gun: WeaponData) -> void:
+	gun.ammo_type = selected_type
+	_hide_sub_modal()
+
+
+func _show_targeting_type_modal(gun: WeaponData) -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "🎯  TARGETING — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 16)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btn_row)
+
+	var types: Array[Dictionary] = [
+		{"type": WeaponData.TargetingType.UNGUIDED,     "label": "UNGUIDED",\
+			"desc": "Rockets fly straight"},
+		{"type": WeaponData.TargetingType.SEEKING,      "label": "SEEKING",\
+			"desc": "Rockets track enemies"},
+		{"type": WeaponData.TargetingType.WIRE_GUIDED,  "label": "WIRE GUIDED",\
+			"desc": "Rockets track cursor"},
+	]
+
+	for entry in types:
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 6)
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		btn_row.add_child(col)
+
+		var btn := Button.new()
+		btn.text = entry["label"]
+		btn.custom_minimum_size = Vector2(120, 40)
+		btn.pressed.connect(_on_targeting_selected.bind(entry["type"], gun))
+		col.add_child(btn)
+
+		var desc := Label.new()
+		desc.text = entry["desc"]
+		desc.add_theme_font_size_override("font_size", 11)
+		desc.add_theme_color_override("font_color", Color(0.55, 0.5, 0.45))
+		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(desc)
+
+		# Highlight currently selected
+		if gun.targeting_type == entry["type"]:
+			var indicator := Label.new()
+			indicator.text = "▼ EQUIPPED"
+			indicator.add_theme_font_size_override("font_size", 10)
+			indicator.add_theme_color_override("font_color", Color(0.95, 0.15, 0.15))
+			indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			col.add_child(indicator)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_targeting_selected(selected_type: WeaponData.TargetingType, gun: WeaponData) -> void:
+	gun.targeting_type = selected_type
+	_hide_sub_modal()
+
+
+func _show_barrel_length_modal(gun: WeaponData) -> void:
+	_show_sub_modal(
+		"📏  BARREL LENGTH — %s" % gun.name,
+		"Barrel length tuning coming soon.\n\nAdjust barrel length to trade between\naccuracy, range, and fire rate."
+	)

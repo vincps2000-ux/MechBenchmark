@@ -42,49 +42,63 @@ const SPAWN_DISTANCE_MIN := 500.0
 const SPAWN_DISTANCE_MAX := 800.0
 
 # ─── Urban obstacle layout ──────────────────────────────────────────────────────
+## Road grid: block_size = 480, road_width = 90.  Roads are 180px bands centered
+## at multiples of 480 in both axes.  Sidewalk blocks sit between them.
+## Cars are placed on road shoulders; everything else lives on the sidewalk.
 ## [position, shape_type (UrbanObstacle.Shape), rect_size, rotation_deg]
 const OBSTACLE_DEFS := [
-	# Buildings (large cover)
-	[Vector2(-500, -500),  0, Vector2(180, 150), 0.0],
-	[Vector2(450, -400),   0, Vector2(140, 200), 0.0],
-	[Vector2(-400,  400),  0, Vector2(160, 130), 0.0],
-	[Vector2(500,  350),   0, Vector2(200, 160), 0.0],
-	[Vector2(0, -650),     0, Vector2(250, 100), 0.0],
-	[Vector2(-750, 0),     0, Vector2(120, 180), 0.0],
-	[Vector2(700, -100),   0, Vector2(130, 170), 0.0],
-	# Parked cars (medium cover, angled)
-	[Vector2(-180, -200),  1, Vector2(80, 40), 15.0],
-	[Vector2(200,  150),   1, Vector2(80, 40), -20.0],
-	[Vector2(-100,  350),  1, Vector2(80, 40), 45.0],
-	[Vector2(350, -150),   1, Vector2(80, 40), 0.0],
-	[Vector2(-300,  100),  1, Vector2(70, 35), 90.0],
-	[Vector2(100, -400),   1, Vector2(75, 38), -10.0],
-	# Dumpsters (small cover near buildings)
-	[Vector2(-380, -400),  2, Vector2(50, 35), 0.0],
-	[Vector2(380,  280),   2, Vector2(50, 35), 0.0],
-	[Vector2(-550,  300),  2, Vector2(45, 30), 10.0],
-	[Vector2(280, -300),   2, Vector2(50, 35), -5.0],
-	# Road barricades (block lanes, force detours)
-	[Vector2(0,   200),    3, Vector2(120, 18), 0.0],
-	[Vector2(-250, -100),  3, Vector2(100, 18), 90.0],
-	[Vector2(300,  50),    3, Vector2(100, 18), 0.0],
-	[Vector2(0, -300),     3, Vector2(140, 18), 0.0],
-	# Bus stops (small cover)
-	[Vector2(-600, -250),  4, Vector2(60, 20), 0.0],
-	[Vector2(600,  200),   4, Vector2(60, 20), 0.0],
-	# Lampposts (tiny obstacles with glow)
-	[Vector2(-200, -450),  5, Vector2.ZERO, 0.0],
-	[Vector2(200,  450),   5, Vector2.ZERO, 0.0],
-	[Vector2(450,  0),     5, Vector2.ZERO, 0.0],
-	[Vector2(-450, 0),     5, Vector2.ZERO, 0.0],
-	[Vector2(0,   500),    5, Vector2.ZERO, 0.0],
-	[Vector2(0,  -500),    5, Vector2.ZERO, 0.0],
+	# ── Buildings (sidewalk blocks, between road bands) ────────────────────────
+	[Vector2(-240, -240),  0, Vector2(160, 140), 0.0],
+	[Vector2(240, -240),   0, Vector2(130, 170), 0.0],
+	[Vector2(-720, -240),  0, Vector2(140, 130), 0.0],
+	[Vector2(720, 240),    0, Vector2(180, 150), 0.0],
+	[Vector2(-240, 720),   0, Vector2(140, 160), 0.0],
+	[Vector2(240, 720),    0, Vector2(200, 120), 0.0],
+	[Vector2(-720, -720),  0, Vector2(120, 180), 0.0],
+	# ── Cars (parked on road shoulders, within ±90 of road centre lines) ──────
+	# Horizontal road y ≈ 0
+	[Vector2(-300, -55),   1, Vector2(80, 40), 0.0],
+	[Vector2(350, 55),     1, Vector2(80, 40), 5.0],
+	# Vertical road x ≈ 0
+	[Vector2(55, -350),    1, Vector2(80, 40), 90.0],
+	[Vector2(-55, 300),    1, Vector2(75, 38), 90.0],
+	# Horizontal road y ≈ -480
+	[Vector2(-600, -535),  1, Vector2(80, 40), 0.0],
+	[Vector2(550, -430),   1, Vector2(80, 40), -5.0],
+	# Horizontal road y ≈ 480
+	[Vector2(200, 530),    1, Vector2(80, 40), 10.0],
+	[Vector2(-550, 435),   1, Vector2(70, 35), 0.0],
+	# Vertical road x ≈ -480
+	[Vector2(-535, 200),   1, Vector2(80, 40), 90.0],
+	[Vector2(-430, -600),  1, Vector2(75, 38), 85.0],
+	# Vertical road x ≈ 480
+	[Vector2(535, -200),   1, Vector2(80, 40), 90.0],
+	[Vector2(430, 600),    1, Vector2(80, 40), 90.0],
+	# ── Dumpsters (sidewalk, near buildings) ──────────────────────────────────
+	[Vector2(-340, -170),  2, Vector2(50, 35), 0.0],
+	[Vector2(340, -330),   2, Vector2(50, 35), 0.0],
+	[Vector2(-630, -320),  2, Vector2(45, 30), 10.0],
+	[Vector2(830, 340),    2, Vector2(50, 35), -5.0],
+	# ── Barricades (on roads, blocking lanes) ─────────────────────────────────
+	[Vector2(0, 20),       3, Vector2(120, 18), 90.0],
+	[Vector2(-200, 0),     3, Vector2(100, 18), 0.0],
+	[Vector2(480, -300),   3, Vector2(100, 18), 0.0],
+	[Vector2(100, -480),   3, Vector2(140, 18), 90.0],
+	# ── Bus stops (sidewalk edge, near road) ──────────────────────────────────
+	[Vector2(-150, -100),  4, Vector2(60, 20), 0.0],
+	[Vector2(150, 380),    4, Vector2(60, 20), 0.0],
+	# ── Lampposts (sidewalk side of road edges) ──────────────────────────────
+	[Vector2(-120, -100),  5, Vector2.ZERO, 0.0],
+	[Vector2(110, 100),    5, Vector2.ZERO, 0.0],
+	[Vector2(-90, 383),    5, Vector2.ZERO, 0.0],
+	[Vector2(105, -385),   5, Vector2.ZERO, 0.0],
+	[Vector2(383, 95),     5, Vector2.ZERO, 0.0],
+	[Vector2(-385, -110),  5, Vector2.ZERO, 0.0],
 ]
 
 # ─── Node refs ───────────────────────────────────────────────────────────────────
 @onready var background_rect: ColorRect    = %BackgroundRect
-@onready var integrity_label: Label         = %IntegrityLabel
-@onready var timer_label:     Label         = %TimerLabel
+@onready var game_hud:        GameHUD      = %GameHUD
 @onready var objective_label: Label         = %ObjectiveLabel
 @onready var wave_label:      Label         = %WaveLabel
 @onready var win_panel:       PanelContainer = %WinPanel
@@ -125,7 +139,7 @@ func _ready() -> void:
 		background_rect.material = _bg_material
 
 	if _stats:
-		_update_integrity_display()
+		game_hud.update_stats(_stats)
 
 	# Urban background decorations
 	var decorations := UrbanDecorations.new()
@@ -180,16 +194,8 @@ func _scroll_background() -> void:
 	_bg_material.set_shader_parameter("camera_world_pos", _player.global_position - cam_offset)
 
 func _update_hud() -> void:
-	if not _stats:
-		return
-	_update_integrity_display()
-	timer_label.text = GameManager.get_game_time_formatted()
+	game_hud.update_stats(_stats)
 	_update_objective_hud()
-
-func _update_integrity_display() -> void:
-	var filled  := "◆".repeat(_stats.integrity)
-	var empty   := "◇".repeat(_stats.max_integrity - _stats.integrity)
-	integrity_label.text = filled + empty + "\n" + "▰".repeat(_stats.armor)
 
 func _update_objective_hud() -> void:
 	if objective_label:

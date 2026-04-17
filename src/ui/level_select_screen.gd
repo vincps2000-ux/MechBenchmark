@@ -159,5 +159,5 @@ func _on_back_pressed() -> void:
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 0.35).set_ease(Tween.EASE_IN)
 	tween.tween_callback(func():
-		get_tree().change_scene_to_file("res://scenes/ui/workshop_screen.tscn")
+		get_tree().change_scene_to_file("res://scenes/ui/software_screen.tscn")
 	)
