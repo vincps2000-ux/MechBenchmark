@@ -56,6 +56,7 @@ func setup(data: WeaponData) -> void:
 	_pierce = data.pierce
 	_penetration = data.penetration
 	_ammo_type = data.ammo_type
+	WeaponAttachment.mount_from_data(self, data)
 
 func _process(delta: float) -> void:
 	_cooldown -= delta

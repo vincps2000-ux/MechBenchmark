@@ -38,6 +38,7 @@ func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_pierce = data.pierce
 	_penetration = data.penetration
+	WeaponAttachment.mount_from_data(self, data)
 
 func _process(delta: float) -> void:
 	if Input.is_action_pressed(fire_action):

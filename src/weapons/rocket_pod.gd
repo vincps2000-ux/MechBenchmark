@@ -36,6 +36,7 @@ func setup(data: WeaponData) -> void:
 	_pierce         = data.pierce
 	_penetration    = data.penetration
 	_targeting_type = data.targeting_type
+	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
 	_burst_remaining = 0

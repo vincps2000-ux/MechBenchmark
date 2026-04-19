@@ -45,6 +45,7 @@ func setup(data: WeaponData) -> void:
 	_damage      = data.damage
 	_pierce      = data.pierce
 	_penetration = data.penetration
+	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
 	pass

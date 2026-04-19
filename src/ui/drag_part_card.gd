@@ -38,10 +38,6 @@ func setup(data: Variant, type: String, index: int) -> void:
 		modify_btn.add_theme_font_size_override("font_size", 14)
 		modify_btn.custom_minimum_size = Vector2(28, 28)
 		modify_btn.tooltip_text = "Modify " + data.name
-		var gun := data as WeaponData
-		if gun.weapon_type not in [WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.ROCKET_POD]:
-			modify_btn.disabled = true
-			modify_btn.tooltip_text = "No modifications available"
 		modify_btn.pressed.connect(func(): modify_pressed.emit(part_data))
 		title_row.add_child(modify_btn)
 

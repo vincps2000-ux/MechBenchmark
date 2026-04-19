@@ -42,6 +42,7 @@ enum TargetingType {
 @export var ammo_type: AmmoType = AmmoType.HE
 @export var targeting_type: TargetingType = TargetingType.UNGUIDED
 @export var slot_size: SlotSize = SlotSize.MEDIUM
+@export var attachments: Array[AttachmentData] = []
 
 ## Returns true if this weapon can be placed in the given slot size.
 func fits_slot(slot: SlotSize) -> bool:

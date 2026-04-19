@@ -22,6 +22,7 @@ var fire_action: String = "fire"
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_penetration = data.penetration
+	WeaponAttachment.mount_from_data(self, data)
 
 func _process(_delta: float) -> void:
 	if Input.is_action_pressed(fire_action):

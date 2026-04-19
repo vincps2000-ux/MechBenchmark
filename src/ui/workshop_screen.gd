@@ -378,8 +378,8 @@ func _on_torso_equipped(data: Variant, slot: int) -> void:
 func _on_weapon_equipped(data: Variant, slot: int) -> void:
 	while _loadout.selected_guns.size() <= slot:
 		_loadout.selected_guns.append(null)
-	# Duplicate so each slot has its own independent WeaponData copy
-	_loadout.selected_guns[slot] = (data as WeaponData).duplicate()
+	# Deep-duplicate so each slot has its own independent WeaponData copy
+	_loadout.selected_guns[slot] = (data as WeaponData).duplicate(true)
 
 	# Trim trailing nulls
 	while _loadout.selected_guns.size() > 0 and _loadout.selected_guns.back() == null:
@@ -399,7 +399,7 @@ func _on_weapon_equipped(data: Variant, slot: int) -> void:
 func _on_light_weapon_equipped(data: Variant, slot: int) -> void:
 	while _loadout.selected_light_guns.size() <= slot:
 		_loadout.selected_light_guns.append(null)
-	_loadout.selected_light_guns[slot] = (data as WeaponData).duplicate()
+	_loadout.selected_light_guns[slot] = (data as WeaponData).duplicate(true)
 
 	while _loadout.selected_light_guns.size() > 0 and _loadout.selected_light_guns.back() == null:
 		_loadout.selected_light_guns.pop_back()
@@ -604,6 +604,10 @@ func _build_modify_modal() -> void:
 const _MODIFIABLE_TYPES := [
 	WeaponData.WeaponType.AUTOCANNON,
 	WeaponData.WeaponType.ROCKET_POD,
+	WeaponData.WeaponType.FLAMETHROWER,
+	WeaponData.WeaponType.RAILGUN,
+	WeaponData.WeaponType.LASER,
+	WeaponData.WeaponType.MACHINEGUN,
 ]
 
 ## Show the modification modal for the first equipped copy of this weapon.
@@ -701,6 +705,9 @@ func _show_modify_modal(gun: WeaponData) -> void:
 			_add_autocannon_options(vbox, gun)
 		WeaponData.WeaponType.ROCKET_POD:
 			_add_rocket_pod_options(vbox, gun)
+
+	# Attachments (available for all weapons)
+	_add_attachment_options(vbox, gun)
 
 	# Spacer
 	var spacer := Control.new()
@@ -989,3 +996,78 @@ func _show_barrel_length_modal(gun: WeaponData) -> void:
 		"📏  BARREL LENGTH — %s" % gun.name,
 		"Barrel length tuning coming soon.\n\nAdjust barrel length to trade between\naccuracy, range, and fire rate."
 	)
+
+
+func _add_attachment_options(vbox: VBoxContainer, gun: WeaponData) -> void:
+	var attach_btn := Button.new()
+	attach_btn.text = "🔦  Attachments"
+	attach_btn.custom_minimum_size = Vector2(280, 44)
+	attach_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	attach_btn.pressed.connect(_show_attachment_modal.bind(gun))
+	vbox.add_child(attach_btn)
+
+
+func _show_attachment_modal(gun: WeaponData) -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "🔦  ATTACHMENTS — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	# Laser Pointer toggle
+	var has_laser := _has_attachment(gun, AttachmentData.AttachmentType.LASER_POINTER)
+
+	var laser_row := HBoxContainer.new()
+	laser_row.add_theme_constant_override("separation", 12)
+	laser_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(laser_row)
+
+	var laser_label := Label.new()
+	laser_label.text = "Laser Pointer"
+	laser_label.add_theme_font_size_override("font_size", 14)
+	laser_label.add_theme_color_override("font_color", Color(0.85, 0.8, 0.75))
+	laser_row.add_child(laser_label)
+
+	var laser_btn := Button.new()
+	laser_btn.text = "REMOVE" if has_laser else "EQUIP"
+	laser_btn.custom_minimum_size = Vector2(100, 36)
+	laser_btn.pressed.connect(_on_toggle_laser_pointer.bind(gun))
+	laser_row.add_child(laser_btn)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _has_attachment(gun: WeaponData, type: AttachmentData.AttachmentType) -> bool:
+	for att in gun.attachments:
+		if att != null and att.attachment_type == type:
+			return true
+	return false
+
+
+func _on_toggle_laser_pointer(gun: WeaponData) -> void:
+	var idx := -1
+	for i in gun.attachments.size():
+		if gun.attachments[i] != null and gun.attachments[i].attachment_type == AttachmentData.AttachmentType.LASER_POINTER:
+			idx = i
+			break
+	if idx >= 0:
+		gun.attachments.remove_at(idx)
+	else:
+		var att := AttachmentData.new()
+		att.attachment_type = AttachmentData.AttachmentType.LASER_POINTER
+		gun.attachments.append(att)
+	call_deferred("_show_attachment_modal", gun)
