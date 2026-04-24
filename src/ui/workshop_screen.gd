@@ -100,45 +100,55 @@ func _build_parts_catalog() -> void:
 	_weapon_cards.clear()
 	_light_weapon_cards.clear()
 
-	_add_section_header("── MOVEMENT ──")
+	var legs_body := _add_section_header("── MOVEMENT ──")
 	for i in _all_legs.size():
 		var card := DragPartCard.new()
 		card.setup(_all_legs[i], "legs", i)
-		_parts_box.add_child(card)
+		legs_body.add_child(card)
 		_leg_cards.append(card)
 
-	_add_section_header("── TORSO ──")
+	var torsos_body := _add_section_header("── TORSO ──")
 	for i in _all_torsos.size():
 		var card := DragPartCard.new()
 		card.setup(_all_torsos[i], "torso", i)
-		_parts_box.add_child(card)
+		torsos_body.add_child(card)
 		_torso_cards.append(card)
 
-	_add_section_header("── WEAPONS ──")
+	var weapons_body := _add_section_header("── WEAPONS ──")
 	for i in _all_guns.size():
 		var card := DragPartCard.new()
 		card.setup(_all_guns[i], "weapon", i)
 		card.modify_pressed.connect(_on_modify_weapon)
-		_parts_box.add_child(card)
+		weapons_body.add_child(card)
 		_weapon_cards.append(card)
 
-	_add_section_header("── LIGHT WEAPONS ──")
+	var light_body := _add_section_header("── LIGHT WEAPONS ──")
 	for i in _all_light_guns.size():
 		var card := DragPartCard.new()
 		card.setup(_all_light_guns[i], "light_weapon", i)
 		card.modify_pressed.connect(_on_modify_weapon)
-		_parts_box.add_child(card)
+		light_body.add_child(card)
 		_light_weapon_cards.append(card)
 
 
-func _add_section_header(text: String) -> void:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 14)
-	lbl.add_theme_color_override("font_color", Color(0.6, 0.8, 0.75, 0.65))
-	lbl.custom_minimum_size = Vector2(0, 30)
-	_parts_box.add_child(lbl)
+func _add_section_header(text: String) -> VBoxContainer:
+	var btn := Button.new()
+	btn.text = "▼ " + text
+	btn.flat = true
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_color_override("font_color", Color(0.6, 0.8, 0.75, 0.65))
+	btn.custom_minimum_size = Vector2(0, 30)
+	_parts_box.add_child(btn)
+
+	var body := VBoxContainer.new()
+	_parts_box.add_child(body)
+
+	btn.pressed.connect(func():
+		body.visible = !body.visible
+		btn.text = ("▼ " if body.visible else "▶ ") + text
+	)
+	return body
 
 # ── Preview sprite layers ────────────────────────────────────────────────────
 

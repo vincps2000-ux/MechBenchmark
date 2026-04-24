@@ -5,6 +5,10 @@ extends Node2D
 const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
 const TARGET_SCENE  := preload("res://scenes/enemies/shoot_target.tscn")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
+const VictoryScreen := preload("res://src/ui/victory_screen.gd")
+const WIN_RETURN_DELAY := 2.0
+const VICTORY_TITLE := "COURSE CLEAR"
+const VICTORY_MESSAGE := "All targets destroyed. Returning to the workshop."
 
 ## Total number of targets the player must destroy to win.
 @export var target_count: int = 10
@@ -57,13 +61,13 @@ const OBSTACLE_DEFS := [
 @onready var background_rect: ColorRect  = %BackgroundRect
 @onready var game_hud:        GameHUD    = %GameHUD
 @onready var target_label:    Label       = %TargetLabel
-@onready var win_panel:       PanelContainer = %WinPanel
 
 var _player: CharacterBody2D
 var _player_camera: Camera2D
 var _bg_material: ShaderMaterial
 var _targets_node: Node2D
 var _obstacles_node: Node2D
+var _victory_screen: VictoryScreen
 var _alive_targets: int = 0
 var _total_targets: int = 0
 var _level_won: bool = false
@@ -112,9 +116,10 @@ func _ready() -> void:
 	# Arena boundary walls and visuals
 	_create_arena_bounds()
 
-	# Hide win panel at start
-	if win_panel:
-		win_panel.visible = false
+	_victory_screen = VictoryScreen.new()
+	$HUD/HUDControl.add_child(_victory_screen)
+	_victory_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_victory_screen.configure(VICTORY_TITLE, VICTORY_MESSAGE, WIN_RETURN_DELAY)
 
 	_update_target_hud()
 	queue_redraw()
@@ -169,8 +174,8 @@ func _on_target_destroyed(_target: Node) -> void:
 func _trigger_win() -> void:
 	_level_won = true
 	GameManager.is_running = false
-	if win_panel:
-		win_panel.visible = true
+	if _victory_screen:
+		_victory_screen.show_victory()
 
 ## External access — e.g. for tests
 func get_alive_targets() -> int:

@@ -17,6 +17,12 @@ const LEVELS := [
 		"scene":       "res://scenes/levels/level_1.tscn",
 		"color":       Color(0.3, 0.7, 0.5),
 	},
+	{
+		"name":        "LEVEL 2",
+		"description": "Storm the trenches.\nPush from the south line and reach the northern edge while enemies reinforce from above.",
+		"scene":       "res://scenes/levels/level_2.tscn",
+		"color":       Color(0.55, 0.72, 0.34),
+	},
 ]
 
 # ─── Lifecycle ──────────────────────────────────────────────────────────────────

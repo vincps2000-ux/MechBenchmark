@@ -6,6 +6,10 @@ extends Node2D
 const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
 const ENEMY_INFANTRY_SCENE := preload("res://scenes/enemies/enemy_infantry.tscn")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
+const VictoryScreen := preload("res://src/ui/victory_screen.gd")
+const WIN_RETURN_DELAY := 2.0
+const VICTORY_TITLE := "AREA SECURED"
+const VICTORY_MESSAGE := "All hostiles eliminated. Returning to workshop."
 
 ## Arena boundary (half-size from origin in each direction)
 const ARENA_HALF_SIZE := 1200.0
@@ -101,7 +105,6 @@ const OBSTACLE_DEFS := [
 @onready var game_hud:        GameHUD      = %GameHUD
 @onready var objective_label: Label         = %ObjectiveLabel
 @onready var wave_label:      Label         = %WaveLabel
-@onready var win_panel:       PanelContainer = %WinPanel
 
 var _player: CharacterBody2D
 var _player_camera: Camera2D
@@ -109,6 +112,7 @@ var _bg_material: ShaderMaterial
 var _stats: PlayerStats
 var _enemies_node: Node2D
 var _obstacles_node: Node2D
+var _victory_screen: VictoryScreen
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _current_wave: int = 0        # 0 = not started yet
@@ -160,9 +164,10 @@ func _ready() -> void:
 	# Arena boundary walls
 	_create_arena_bounds()
 
-	# Hide win panel
-	if win_panel:
-		win_panel.visible = false
+	_victory_screen = VictoryScreen.new()
+	$HUD/HUDControl.add_child(_victory_screen)
+	_victory_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_victory_screen.configure(VICTORY_TITLE, VICTORY_MESSAGE, WIN_RETURN_DELAY)
 
 	_update_objective_hud()
 
@@ -270,8 +275,8 @@ func _trigger_win() -> void:
 	_level_won = true
 	GameManager.is_running = false
 	_update_objective_hud()
-	if win_panel:
-		win_panel.visible = true
+	if _victory_screen:
+		_victory_screen.show_victory()
 
 func _flash_surprise() -> void:
 	if not wave_label:

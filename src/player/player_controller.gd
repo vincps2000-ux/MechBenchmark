@@ -24,8 +24,17 @@ const ROTATION_SPEED_WALKER := 3.0   # rad/s — walker body rotation toward mou
 
 var _movement_type: LegData.MovementType = LegData.MovementType.LEGS
 var _speed: float = BASE_SPEED
+var _mud_zone_count: int = 0
 var _weapons: Array[Node] = []
 var _weapon_mounts: Array[Node2D] = []
+
+const MUD_SLOW_FACTOR := 0.4
+
+func enter_mud_zone() -> void:
+	_mud_zone_count += 1
+
+func exit_mud_zone() -> void:
+	_mud_zone_count = max(0, _mud_zone_count - 1)
 
 func _ready() -> void:
 	add_to_group("player")
@@ -185,7 +194,8 @@ func _move_spider(delta: float) -> void:
 	# move_up(W) → -raw.y = forward, move_right(D) → +raw.x = strafe right
 	var local_fwd    := -raw.y  # W forward / S backward
 	var local_strafe :=  raw.x  # D right   / A left
-	velocity = (transform.x * local_fwd + transform.y * local_strafe) * _speed
+	var speed_mod := MUD_SLOW_FACTOR if _mud_zone_count > 0 else 1.0
+	velocity = (transform.x * local_fwd + transform.y * local_strafe) * _speed * speed_mod
 
 	var rot_dir := (
 		float(Input.is_key_pressed(KEY_E)) -
@@ -202,7 +212,8 @@ func _move_tank(delta: float) -> void:
 		float(Input.is_action_pressed("move_up")) -
 		float(Input.is_action_pressed("move_down"))
 	)
-	velocity = transform.x * fwd * _speed * TANK_FORWARD_MULT
+	var speed_mod := MUD_SLOW_FACTOR if _mud_zone_count > 0 else 1.0
+	velocity = transform.x * fwd * _speed * TANK_FORWARD_MULT * speed_mod
 
 	var rot_dir := (
 		float(Input.is_key_pressed(KEY_E)) -
@@ -232,4 +243,5 @@ func _move_legs(delta: float) -> void:
 	var move_dir := transform.x * fwd + transform.y * strafe
 	if move_dir.length_squared() > 0.01:
 		move_dir = move_dir.normalized()
-	velocity = move_dir * _speed
+	var speed_mod := MUD_SLOW_FACTOR if _mud_zone_count > 0 else 1.0
+	velocity = move_dir * _speed * speed_mod
