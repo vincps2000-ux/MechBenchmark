@@ -42,6 +42,10 @@ func test_weapon_data_max_level():
 	w.max_level = 8
 	assert_false(w.can_level_up())
 
+func test_weapon_data_thrower_element_defaults_to_fuel():
+	var w := WeaponData.new()
+	assert_eq(w.thrower_element, WeaponData.ThrowerElement.FUEL)
+
 # ── TorsoData ─────────────────────────────────────────────────────────────────
 
 func test_torso_heavy_has_two_weapon_slots():
@@ -148,6 +152,20 @@ func test_catalog_returns_parts():
 	assert_gt(MechCatalog.get_all_torsos().size(), 0)
 	assert_gt(MechCatalog.get_all_guns().size(), 0)
 
+func test_catalog_has_landship_with_two_torso_slots():
+	for leg in MechCatalog.get_all_legs():
+		if leg.movement_type == LegData.MovementType.LANDSHIP:
+			assert_eq(leg.torso_slots, 2)
+			return
+	fail_test("No LANDSHIP leg type found in catalog")
+
+func test_catalog_has_chemical_thrower_name():
+	for gun in MechCatalog.get_all_guns():
+		if gun.weapon_type == WeaponData.WeaponType.FLAMETHROWER:
+			assert_eq(gun.name, "Chemical thrower")
+			return
+	fail_test("No FLAMETHROWER weapon found in catalog")
+
 func test_catalog_heavy_torso_has_two_slots():
 	for t in MechCatalog.get_all_torsos():
 		if t.torso_type == TorsoData.TorsoType.HEAVY_ARMOUR:
@@ -168,6 +186,19 @@ func test_stealth_has_one_offset():
 func test_cargo_has_one_offset():
 	var offsets := MechAssembler.get_weapon_offsets(TorsoData.TorsoType.CARGO)
 	assert_eq(offsets.size(), 1)
+
+func test_single_torso_offset_is_centered():
+	var offsets := MechAssembler.get_torso_offsets(1)
+	assert_eq(offsets.size(), 1)
+	assert_eq(offsets[0], Vector2.ZERO)
+
+func test_dual_torso_offsets_are_split():
+	var offsets := MechAssembler.get_torso_offsets(2)
+	assert_eq(offsets.size(), 2)
+	assert_ne(offsets[0], offsets[1])
+	assert_gt(absf(offsets[0].x), 0.0)
+	assert_eq(offsets[0].y, 0.0)
+	assert_eq(offsets[1].y, 0.0)
 
 func test_scale_offsets_doubles_at_128():
 	var raw: Array[Vector2] = [Vector2(4.0, 17.0)]

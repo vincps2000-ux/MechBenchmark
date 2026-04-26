@@ -6,6 +6,7 @@ extends MechPartData
 enum MovementType {
 	SPIDER,  # WASD world-space strafe; Q/E rotate slowly
 	TANK,    # W/S forward/back (fast); Q/E rotate slowly
+	LANDSHIP, # Tank controls, but much slower and supports dual torsos
 	LEGS,    # WASD world-space; robot always faces mouse
 }
 
@@ -18,5 +19,6 @@ func get_sprite_path() -> String:
 	match movement_type:
 		MovementType.SPIDER: return "res://assets/sprites/legs_spider.svg"
 		MovementType.TANK:   return "res://assets/sprites/legs_tank.svg"
+		MovementType.LANDSHIP: return "res://assets/sprites/legs_landship.svg"
 		MovementType.LEGS:   return "res://assets/sprites/legs_bipedal.svg"
 		_:                   return "res://assets/sprites/mech_legs.svg"

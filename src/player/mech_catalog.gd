@@ -44,6 +44,14 @@ static func get_all_legs() -> Array[LegData]:
 	tank.tutorial_text  = "[W/S]  Drive forward / reverse\n[Q/E]  Rotate hull slowly\nSlow but tough — wide turning circle"
 	tank.speed_modifier  = 0.6
 
+	var landship := LegData.new()
+	landship.name           = "Landship"
+	landship.description    = "Massive treaded behemoth. Extremely slow, built for dual-torso broadsides."
+	landship.movement_type  = LegData.MovementType.LANDSHIP
+	landship.tutorial_text  = "[W/S]  Drive forward / reverse\n[Q/E]  Rotate hull very slowly\nTwin torso hardpoints with blocked inward arcs"
+	landship.speed_modifier = 0.35
+	landship.torso_slots    = 2
+
 	var heavy_walker := LegData.new()
 	heavy_walker.name           = "Heavy Walker"
 	heavy_walker.description    = "Bipedal heavy frame. Good armor, moderate speed."
@@ -65,7 +73,7 @@ static func get_all_legs() -> Array[LegData]:
 	spider.tutorial_text  = "[WASD]  Strafe any direction\n[Q/E]  Rotate hull slowly\nBlinding speed — lightweight"
 	spider.speed_modifier  = 1.5
 
-	return [tank, heavy_walker, light_walker, spider]
+	return [tank, landship, heavy_walker, light_walker, spider]
 
 ## Returns all available weapon configurations
 static func get_all_guns() -> Array[WeaponData]:
@@ -79,7 +87,7 @@ static func get_all_guns() -> Array[WeaponData]:
 	autocannon.pierce           = 1
 
 	var flamethrower := WeaponData.new()
-	flamethrower.name             = "Flamethrower"
+	flamethrower.name             = "Chemical thrower"
 	flamethrower.weapon_type      = WeaponData.WeaponType.FLAMETHROWER
 	flamethrower.damage           = 3
 	flamethrower.cooldown         = 0.1

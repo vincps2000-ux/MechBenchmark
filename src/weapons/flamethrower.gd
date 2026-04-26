@@ -23,6 +23,8 @@ var _time:   float = 0.0
 var _damage: int = 3
 ## Armour penetration value, configured via setup()
 var _penetration: int = 2
+## Element profile used to color the flame visuals.
+var _thrower_element: WeaponData.ThrowerElement = WeaponData.ThrowerElement.FUEL
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -74,6 +76,7 @@ func _ready() -> void:
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_penetration = data.penetration
+	_thrower_element = data.thrower_element
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -86,7 +89,7 @@ func stop_firing() -> void:
 # ─── Per-frame update ─────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
 	_time += delta
-	_firing = Input.is_action_pressed(fire_action)
+	_firing = InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
 
 	if _firing:
 		_fire_cone()
@@ -146,8 +149,21 @@ func _fire_cone() -> void:
 				continue
 			if is_instance_valid(collider) and not already_hit.has(collider):
 				already_hit.append(collider)
-				if collider.has_method("take_damage"):
-					collider.take_damage(_damage, _penetration)
+				match _thrower_element:
+					WeaponData.ThrowerElement.FUEL:
+						if collider.has_method("apply_burn"):
+							collider.apply_burn()
+					WeaponData.ThrowerElement.ACID:
+						# Low damage, always bypasses armour
+						if collider.has_method("take_damage"):
+							collider.take_damage(maxi(1, _damage / 2), 999)
+					WeaponData.ThrowerElement.CRYOGENICS:
+						# No damage — freeze the target in place
+						if collider.has_method("apply_freeze"):
+							collider.apply_freeze()
+					_:
+						if collider.has_method("take_damage"):
+							collider.take_damage(_damage, _penetration)
 
 # ─── Flame visuals ────────────────────────────────────────────────────────────
 func _animate_flame() -> void:
@@ -237,16 +253,59 @@ func _animate_flame() -> void:
 		# Colour: shorter tongues are more orange; longer ones bleed into yellow
 		var heat     : float = len_frac                 # 0 = cool/short, 1 = hot/long
 		var flicker  : float = 0.5 + 0.5 * sin(_time * _tongue_freq[i] * 2.0 + _tongue_phase[i])
+		var tongue_base := _get_tongue_base_color()
 		poly.color = Color(
-			1.0,
-			0.35 + 0.40 * heat + 0.10 * flicker,
-			0.02 + 0.10 * heat,
+			clampf(tongue_base.r + 0.08 * heat + 0.06 * flicker, 0.0, 1.0),
+			clampf(tongue_base.g + 0.10 * heat + 0.08 * flicker, 0.0, 1.0),
+			clampf(tongue_base.b + 0.07 * heat, 0.0, 1.0),
 			0.35 + 0.20 * flicker
 		)
 
 	# ── Global base-cone colour flicker ──────────────────────────────────────
 	var f_outer : float = 0.5 + 0.5 * sin(_time * 19.0)
-	_flame_poly.color = Color(1.0, 0.26 + 0.28 * f_outer, 0.0, 0.42 + 0.13 * f_outer)
+	var outer_base := _get_outer_base_color()
+	_flame_poly.color = Color(
+		clampf(outer_base.r + 0.10 * f_outer, 0.0, 1.0),
+		clampf(outer_base.g + 0.18 * f_outer, 0.0, 1.0),
+		clampf(outer_base.b + 0.06 * f_outer, 0.0, 1.0),
+		0.42 + 0.13 * f_outer
+	)
 
 	var f_inner : float = 0.5 + 0.5 * sin(_time * 34.0 + 0.8)
-	_flame_inner.color = Color(1.0, 0.72 + 0.18 * f_inner, 0.08, 0.65 + 0.14 * f_inner)
+	var inner_base := _get_inner_base_color()
+	_flame_inner.color = Color(
+		clampf(inner_base.r + 0.07 * f_inner, 0.0, 1.0),
+		clampf(inner_base.g + 0.11 * f_inner, 0.0, 1.0),
+		clampf(inner_base.b + 0.07 * f_inner, 0.0, 1.0),
+		0.65 + 0.14 * f_inner
+	)
+
+
+func _get_outer_base_color() -> Color:
+	match _thrower_element:
+		WeaponData.ThrowerElement.ACID:
+			return Color(0.22, 0.64, 0.18)
+		WeaponData.ThrowerElement.CRYOGENICS:
+			return Color(0.20, 0.46, 0.72)
+		_:
+			return Color(1.0, 0.26, 0.0)
+
+
+func _get_inner_base_color() -> Color:
+	match _thrower_element:
+		WeaponData.ThrowerElement.ACID:
+			return Color(0.56, 0.92, 0.32)
+		WeaponData.ThrowerElement.CRYOGENICS:
+			return Color(0.52, 0.86, 1.0)
+		_:
+			return Color(1.0, 0.72, 0.08)
+
+
+func _get_tongue_base_color() -> Color:
+	match _thrower_element:
+		WeaponData.ThrowerElement.ACID:
+			return Color(0.34, 0.70, 0.24)
+		WeaponData.ThrowerElement.CRYOGENICS:
+			return Color(0.36, 0.66, 0.92)
+		_:
+			return Color(1.0, 0.35, 0.02)

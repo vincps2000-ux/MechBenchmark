@@ -23,6 +23,12 @@ const LEVELS := [
 		"scene":       "res://scenes/levels/level_2.tscn",
 		"color":       Color(0.55, 0.72, 0.34),
 	},
+	{
+		"name":        "LEVEL 3",
+		"description": "The Duel.\nFace a single enemy in a forest clearing. One on one.",
+		"scene":       "res://scenes/levels/level_3.tscn",
+		"color":       Color(0.30, 0.58, 0.22),
+	},
 ]
 
 # ─── Lifecycle ──────────────────────────────────────────────────────────────────
@@ -48,7 +54,7 @@ func _create_level_card(data: Dictionary) -> PanelContainer:
 	# ── Panel ────────────────────────────────────────────────────────────
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(380, 0)
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	panel.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 
 	var style := StyleBoxFlat.new()

@@ -9,6 +9,21 @@ const TORSO_NATIVE_PX  := 64.0
 const WEAPON_NATIVE_PX := 48.0
 const LIGHT_WEAPON_NATIVE_PX := 32.0
 
+## Torso mount offsets in sprite-local space.
+## For dual-torso setups, torsos sit side-by-side along the hull length.
+static func get_torso_offsets(slot_count: int) -> Array[Vector2]:
+	if slot_count <= 1:
+		return [Vector2.ZERO]
+	if slot_count == 2:
+		return [Vector2(-18.0, 0.0), Vector2(18.0, 0.0)]
+
+	var offsets: Array[Vector2] = []
+	for i in slot_count:
+		var denom := maxf(float(slot_count - 1), 1.0)
+		var t := float(i) / denom
+		offsets.append(Vector2(lerpf(-18.0, 18.0, t), 0.0))
+	return offsets
+
 ## Weapon mount offsets in sprite-local space (sprites face +X).
 ## X = forward (right), Y = lateral (positive Y = right flank).
 static func get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2]:

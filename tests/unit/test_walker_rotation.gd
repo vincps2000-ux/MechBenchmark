@@ -81,10 +81,16 @@ func test_walker_faster_than_spider():
 func test_torso_rotation_fastest():
 	assert_gt(PlayerController.TORSO_ROTATION_SPEED, PlayerController.ROTATION_SPEED_WALKER,
 		"Torso tracking mouse should be fastest rotation")
+	assert_gt(PlayerController.TORSO_ROTATION_SPEED, PlayerController.ROTATION_SPEED_LANDSHIP,
+		"Torso tracking mouse should also be faster than landship hull turning")
 
 func test_spider_faster_than_tank():
 	assert_gt(PlayerController.ROTATION_SPEED_SPIDER, PlayerController.ROTATION_SPEED_TANK,
 		"Spider legs should turn faster than tank treads")
+
+func test_landship_slower_than_tank():
+	assert_lt(PlayerController.ROTATION_SPEED_LANDSHIP, PlayerController.ROTATION_SPEED_TANK,
+		"Landship should rotate slower than tank")
 
 # ── All PlayerController movement constants ───────────────────────────────────
 
@@ -117,6 +123,11 @@ func test_legs_sprite_path_tank():
 	leg.movement_type = LegData.MovementType.TANK
 	assert_eq(leg.get_sprite_path(), "res://assets/sprites/legs_tank.svg")
 
+func test_legs_sprite_path_landship():
+	var leg := LegData.new()
+	leg.movement_type = LegData.MovementType.LANDSHIP
+	assert_eq(leg.get_sprite_path(), "res://assets/sprites/legs_landship.svg")
+
 func test_each_movement_type_has_unique_sprite():
 	var paths := {}
 	for mt in [LegData.MovementType.SPIDER, LegData.MovementType.TANK, LegData.MovementType.LEGS]:
@@ -133,3 +144,46 @@ func test_leg_default_torso_slots():
 func test_leg_speed_modifier_default():
 	var leg := LegData.new()
 	assert_eq(leg.speed_modifier, 1.0, "Default speed modifier should be 1.0")
+
+# - Torso deadspot clamping -
+
+func test_torso_deadspot_half_angle_is_reasonable():
+	assert_gt(PlayerController.TORSO_DEADSPOT_HALF_ANGLE, 0.0)
+	assert_lt(PlayerController.TORSO_DEADSPOT_HALF_ANGLE, PI * 0.5)
+
+func test_apply_torso_deadspot_none_keeps_angle():
+	var desired := deg_to_rad(90.0)
+	var out := PlayerController.apply_torso_deadspot(
+		desired,
+		PlayerController.TorsoDeadspotSide.NONE
+	)
+	assert_eq(out, desired, "No deadspot should not modify desired angle")
+
+func test_apply_torso_deadspot_front_blocks_forward_arc():
+	var desired := deg_to_rad(0.0)
+	var out := PlayerController.apply_torso_deadspot(
+		desired,
+		PlayerController.TorsoDeadspotSide.FRONT,
+		deg_to_rad(30.0)
+	)
+	assert_true(absf(out - deg_to_rad(-30.0)) < 0.0001,
+		"Front deadspot should clamp to boundary")
+
+func test_apply_torso_deadspot_rear_blocks_rear_arc():
+	var desired := PI
+	var out := PlayerController.apply_torso_deadspot(
+		desired,
+		PlayerController.TorsoDeadspotSide.REAR,
+		deg_to_rad(30.0)
+	)
+	assert_true(absf(absf(out) - deg_to_rad(150.0)) < 0.0001,
+		"Rear deadspot should clamp to boundary")
+
+func test_apply_torso_deadspot_does_not_affect_side_arc():
+	var desired := deg_to_rad(90.0)
+	var out := PlayerController.apply_torso_deadspot(
+		desired,
+		PlayerController.TorsoDeadspotSide.FRONT,
+		deg_to_rad(30.0)
+	)
+	assert_eq(out, desired, "Deadspot should not affect side aiming")

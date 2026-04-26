@@ -7,6 +7,7 @@
 # through the fading visual are not hit a second time.
 class_name AutocannonExplosion
 extends Area2D
+const ENEMY_DAMAGE_SYSTEM := preload("res://src/combat/enemy_damage_system.gd")
 
 ## Radius the explosion ring grows to at full expansion.
 const MAX_RADIUS  := 40.0
@@ -34,6 +35,10 @@ var _ring_poly : Polygon2D = null
 var damage: int = 25
 ## Armour penetration value; set by the projectile.
 var penetration: int = 4
+## External AOE scaler. 1.0 = default blast radius.
+var blast_scale: float = 1.0
+## Actors this explosion should damage (2 = enemies, 1 = player).
+var target_collision_mask: int = 2
 
 ## Tracks enemies already damaged so a slow enemy isn't hit twice.
 var _hit_set: Array = []
@@ -49,18 +54,19 @@ func _ready() -> void:
 	add_child(_audio)
 	_audio.play()
 
-	# ── Collision: no layer (we are not an obstacle), mask layer 2 = enemies ──
+	# ── Collision: no layer (we are not an obstacle), configurable target mask ──
 	collision_layer = 0
-	collision_mask  = 2
+	collision_mask  = target_collision_mask
 	monitorable      = false   # nothing needs to detect us
 	# Defer monitoring enable to avoid "Can't change state while flushing queries"
 	# when spawned from inside an area_entered callback.
 	monitoring       = false
 	set_deferred("monitoring", true)
 
-	# Circle hitbox matching the full blast radius
+	# Circle hitbox matching the scaled full blast radius
+	var effective_radius := _effective_max_radius()
 	var shape := CircleShape2D.new()
-	shape.radius = MAX_RADIUS
+	shape.radius = effective_radius
 	var cs := CollisionShape2D.new()
 	cs.shape = shape
 	add_child(cs)
@@ -104,18 +110,19 @@ func _process(delta: float) -> void:
 			_update_visuals(1.0, 1.0 - t)
 
 func _update_visuals(expand_t: float, alpha: float) -> void:
-	# Ease-out expansion so it snaps fast then slows
-	var radius := MAX_RADIUS * (1.0 - pow(1.0 - expand_t, 2.0))
+	# Ease-out expansion so it snaps fast then slows.
+	var max_radius := _effective_max_radius()
+	var radius := max_radius * (1.0 - pow(1.0 - expand_t, 2.0))
 
 	_fill_poly.polygon  = _make_circle(radius * 0.80)
 	_ring_poly.polygon  = _make_circle(radius)
 
-	var fill_c  := COLOR_FILL
-	fill_c.a    = COLOR_FILL.a  * alpha
+	var fill_c := COLOR_FILL
+	fill_c.a = COLOR_FILL.a * alpha
 	_fill_poly.color = fill_c
 
-	var ring_c  := COLOR_RING
-	ring_c.a    = COLOR_RING.a  * alpha
+	var ring_c := COLOR_RING
+	ring_c.a = COLOR_RING.a * alpha
 	_ring_poly.color = ring_c
 
 func _on_area_entered(area: Area2D) -> void:
@@ -124,8 +131,12 @@ func _on_area_entered(area: Area2D) -> void:
 	_hit_set.append(area)
 	if area.has_method("take_damage"):
 		area.take_damage(damage, penetration)
+	elif area.is_in_group("player"):
+		ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, area)
 	elif is_instance_valid(area.get_parent()) and area.get_parent().has_method("take_damage"):
 		area.get_parent().take_damage(damage, penetration)
+	elif is_instance_valid(area.get_parent()) and area.get_parent().is_in_group("player"):
+		ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, area.get_parent())
 
 func _on_body_entered(body: Node2D) -> void:
 	if _hit_set.has(body):
@@ -133,6 +144,13 @@ func _on_body_entered(body: Node2D) -> void:
 	_hit_set.append(body)
 	if body.has_method("take_damage"):
 		body.take_damage(damage, penetration)
+	elif body.is_in_group("player"):
+		ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, body)
+
+
+func _effective_max_radius() -> float:
+	return MAX_RADIUS * maxf(0.2, blast_scale)
+
 
 func _make_circle(radius: float) -> PackedVector2Array:
 	var pts := PackedVector2Array()

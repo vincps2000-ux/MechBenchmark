@@ -25,7 +25,7 @@ func setup(data: WeaponData) -> void:
 	WeaponAttachment.mount_from_data(self, data)
 
 func _process(_delta: float) -> void:
-	if Input.is_action_pressed(fire_action):
+	if InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action):
 		_fire_continuous()
 	else:
 		_stop_beam()

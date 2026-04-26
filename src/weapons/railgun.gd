@@ -41,7 +41,7 @@ func setup(data: WeaponData) -> void:
 	WeaponAttachment.mount_from_data(self, data)
 
 func _process(delta: float) -> void:
-	if Input.is_action_pressed(fire_action):
+	if InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action):
 		_charge = minf(_charge + delta / CHARGE_TIME, 1.0)
 	else:
 		# Release — fire if we have enough charge, then always reset.
@@ -110,3 +110,6 @@ func _shoot() -> void:
 func stop_firing() -> void:
 	_charge = 0.0
 	_update_charge_visual()
+
+func get_charge_ratio() -> float:
+	return _charge

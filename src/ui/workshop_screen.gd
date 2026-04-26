@@ -7,6 +7,10 @@ extends Control
 
 signal deploy_pressed(loadout: MechLoadout)
 
+const _MISSILE_BUILDER_PART_CARD_SCRIPT := preload("res://src/ui/missile_builder_part_card.gd")
+const _MISSILE_BUILDER_SLOT_SCRIPT := preload("res://src/ui/missile_builder_slot.gd")
+const _THROWER_TANK_SCRIPT := preload("res://src/ui/thrower_tank.gd")
+
 # ── Node refs (from scene) ────────────────────────────────────────────────────
 @onready var _step_label:     Label            = %StepLabel
 @onready var _parts_label:    Label            = %PartsLabel
@@ -52,6 +56,37 @@ var _modal_panel:   PanelContainer = null
 var _sub_modal_overlay: ColorRect = null
 var _sub_modal_panel:   PanelContainer = null
 var _sub_modal_open_frame: int = -1
+
+# ── Missile builder (Rocket Pod) ────────────────────────────────────────────
+const _MISSILE_SLOT_COUNT := 6
+const _MISSILE_PART_DEFS := {
+	"fuel": {
+		"title": "Fuel Part",
+		"desc": "+Range (longer rocket lifetime)",
+		"cost": 1,
+	},
+	"explosive": {
+		"title": "Explosive Part",
+		"desc": "+Damage and +AOE",
+		"cost": 1,
+	},
+	"wire_guided": {
+		"title": "Wire Guided",
+		"desc": "Guidance module (exclusive)",
+		"cost": 1,
+	},
+	"homing": {
+		"title": "Homing",
+		"desc": "Guidance module (exclusive, takes 3 slots)",
+		"cost": 3,
+	},
+}
+
+var _missile_builder_weapon: WeaponData = null
+var _missile_builder_layout: Array[String] = []
+var _missile_slot_zones: Array = []
+var _missile_builder_status_label: Label = null
+var _missile_builder_stats_label: Label = null
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -211,14 +246,21 @@ func _rebuild_torso_zones() -> void:
 
 	var slot_count: int = _loadout.selected_legs.torso_slots
 	var pw := _preview_stack.custom_minimum_size.x
+	var ph := _preview_stack.custom_minimum_size.y
+	var center := Vector2(pw * 0.5, ph * 0.5)
 	var zone_w := 130 if slot_count > 1 else 150
 	var spacing := 10
+	var torso_size := Vector2(pw, ph) if slot_count <= 1 else Vector2(150.0, 150.0)
+	var torso_offsets := MechAssembler.scale_offsets(MechAssembler.get_torso_offsets(slot_count), pw)
 
 	for i in slot_count:
 		# Preview rect
 		var rect := _make_preview_rect()
 		_preview_stack.add_child(rect)
-		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rect.custom_minimum_size = torso_size
+		rect.size = torso_size
+		var offset := torso_offsets[i] if i < torso_offsets.size() else Vector2.ZERO
+		rect.position = center + offset - torso_size * 0.5
 		rect.modulate.a = 0.0
 		_torso_rects.append(rect)
 
@@ -243,14 +285,15 @@ func _rebuild_torso_zones() -> void:
 # ── Weapon zones (driven by total weapon_slots across all equipped torsos) ───
 
 func _rebuild_weapon_zones() -> void:
+	var previous_guns := _loadout.selected_guns.duplicate(true)
+	var previous_light_guns := _loadout.selected_light_guns.duplicate(true)
+
 	for zone in _weapon_zones:
 		zone.queue_free()
 	_weapon_zones.clear()
 	for rect in _weapon_rects:
 		rect.queue_free()
 	_weapon_rects.clear()
-
-	_loadout.selected_guns.clear()
 
 	# Also clear light weapon zones
 	for zone in _light_weapon_zones:
@@ -259,7 +302,6 @@ func _rebuild_weapon_zones() -> void:
 	for rect in _light_weapon_rects:
 		rect.queue_free()
 	_light_weapon_rects.clear()
-	_loadout.selected_light_guns.clear()
 
 	# Don't show weapon zones until at least one torso is equipped
 	var has_torso := false
@@ -270,20 +312,38 @@ func _rebuild_weapon_zones() -> void:
 	if not has_torso and _loadout.selected_torso != null:
 		has_torso = true
 	if not has_torso:
+		_loadout.selected_guns.clear()
+		_loadout.selected_light_guns.clear()
 		return
+
+	# Build a compact torso list and matching torso base offsets.
+	var equipped_torsos: Array[TorsoData] = []
+	for torso in _loadout.selected_torsos:
+		if torso:
+			equipped_torsos.append(torso)
+	if equipped_torsos.is_empty() and _loadout.selected_torso:
+		equipped_torsos.append(_loadout.selected_torso)
+
+	var torso_offsets := MechAssembler.get_torso_offsets(equipped_torsos.size())
 
 	# Gather weapon mount offsets from all equipped torsos (via MechAssembler)
 	var raw_offsets: Array[Vector2] = []
-	for torso in _loadout.selected_torsos:
-		if torso:
-			raw_offsets.append_array(MechAssembler.get_weapon_offsets(torso.torso_type))
-	if raw_offsets.is_empty() and _loadout.selected_torso:
-		raw_offsets = MechAssembler.get_weapon_offsets(_loadout.selected_torso.torso_type)
+	for i in equipped_torsos.size():
+		var torso := equipped_torsos[i]
+		var torso_base := torso_offsets[i] if i < torso_offsets.size() else Vector2.ZERO
+		for mount in MechAssembler.get_weapon_offsets(torso.torso_type):
+			raw_offsets.append(torso_base + mount)
 
 	var slot_count: int = raw_offsets.size()
 	if slot_count == 0:
 		slot_count = 1
 		raw_offsets.append(Vector2.ZERO)
+
+	_loadout.selected_guns.clear()
+	for i in mini(previous_guns.size(), slot_count):
+		_loadout.selected_guns.append(previous_guns[i])
+	while _loadout.selected_guns.size() > 0 and _loadout.selected_guns.back() == null:
+		_loadout.selected_guns.pop_back()
 
 	var pw := _preview_stack.custom_minimum_size.x   # 220
 	var ph := _preview_stack.custom_minimum_size.y   # 220
@@ -307,6 +367,10 @@ func _rebuild_weapon_zones() -> void:
 		rect.position = mount_center - sz * 0.5
 		rect.pivot_offset = sz * 0.5   # rotate around own center
 		rect.modulate.a = 0.0
+		if i < _loadout.selected_guns.size() and _loadout.selected_guns[i]:
+			var gun := _loadout.selected_guns[i]
+			_update_preview_layer(rect, gun.get_sprite_path())
+			rect.rotation = _weapon_preview_rotation(gun)
 		_weapon_rects.append(rect)
 
 		# Drop zone — centered on the same mount point
@@ -318,15 +382,23 @@ func _rebuild_weapon_zones() -> void:
 		_preview_stack.add_child(zone)
 		zone.position = mount_center - Vector2(zone_w * 0.5, zone_h * 0.5)
 		zone.part_equipped.connect(_on_weapon_equipped.bind(i))
+		if i < _loadout.selected_guns.size() and _loadout.selected_guns[i]:
+			zone.visible = false
 		_weapon_zones.append(zone)
 
 	# ── Light weapon zones ────────────────────────────────────────────────
 	var light_offsets: Array[Vector2] = []
-	for torso in _loadout.selected_torsos:
-		if torso:
-			light_offsets.append_array(MechAssembler.get_light_weapon_offsets(torso.torso_type))
-	if light_offsets.is_empty() and _loadout.selected_torso:
-		light_offsets = MechAssembler.get_light_weapon_offsets(_loadout.selected_torso.torso_type)
+	for i in equipped_torsos.size():
+		var torso := equipped_torsos[i]
+		var torso_base := torso_offsets[i] if i < torso_offsets.size() else Vector2.ZERO
+		for mount in MechAssembler.get_light_weapon_offsets(torso.torso_type):
+			light_offsets.append(torso_base + mount)
+
+	_loadout.selected_light_guns.clear()
+	for i in mini(previous_light_guns.size(), light_offsets.size()):
+		_loadout.selected_light_guns.append(previous_light_guns[i])
+	while _loadout.selected_light_guns.size() > 0 and _loadout.selected_light_guns.back() == null:
+		_loadout.selected_light_guns.pop_back()
 
 	if light_offsets.size() > 0:
 		var light_scaled: Array[Vector2] = MechAssembler.scale_offsets(light_offsets, pw)
@@ -344,6 +416,10 @@ func _rebuild_weapon_zones() -> void:
 			rect.position = mount_center - sz * 0.5
 			rect.pivot_offset = sz * 0.5
 			rect.modulate.a = 0.0
+			if i < _loadout.selected_light_guns.size() and _loadout.selected_light_guns[i]:
+				var gun := _loadout.selected_light_guns[i]
+				_update_preview_layer(rect, gun.get_sprite_path())
+				rect.rotation = _weapon_preview_rotation(gun)
 			_light_weapon_rects.append(rect)
 
 			var label := "S.WPN %d" % (i + 1) if light_offsets.size() > 1 else "S.WPN"
@@ -354,6 +430,8 @@ func _rebuild_weapon_zones() -> void:
 			_preview_stack.add_child(zone)
 			zone.position = mount_center - Vector2(zone_w2 * 0.5, zone_h2 * 0.5)
 			zone.part_equipped.connect(_on_light_weapon_equipped.bind(i))
+			if i < _loadout.selected_light_guns.size() and _loadout.selected_light_guns[i]:
+				zone.visible = false
 			_light_weapon_zones.append(zone)
 
 # ── Equip handlers ────────────────────────────────────────────────────────────
@@ -660,7 +738,7 @@ func _show_slot_picker(guns: Array[WeaponData]) -> void:
 	for i in guns.size():
 		var gun := guns[i]
 		var slot_idx := _loadout.selected_guns.find(gun)
-		var ammo_label := _ammo_type_label(gun.ammo_type)
+		var ammo_label := _weapon_variant_label(gun)
 		var btn := Button.new()
 		btn.text = "Slot %d  —  %s  (%s)" % [slot_idx + 1, gun.name, ammo_label]
 		btn.custom_minimum_size = Vector2(300, 40)
@@ -684,6 +762,20 @@ static func _ammo_type_label(ammo: WeaponData.AmmoType) -> String:
 		WeaponData.AmmoType.SOLID: return "Solid"
 		WeaponData.AmmoType.CANISTER: return "Canister"
 	return "Unknown"
+
+
+static func _thrower_element_label(element: WeaponData.ThrowerElement) -> String:
+	match element:
+		WeaponData.ThrowerElement.FUEL: return "Fuel"
+		WeaponData.ThrowerElement.ACID: return "Acid"
+		WeaponData.ThrowerElement.CRYOGENICS: return "Cryogenics"
+	return "Unknown"
+
+
+static func _weapon_variant_label(gun: WeaponData) -> String:
+	if gun.weapon_type == WeaponData.WeaponType.FLAMETHROWER:
+		return "Element: %s" % _thrower_element_label(gun.thrower_element)
+	return _ammo_type_label(gun.ammo_type)
 
 
 func _show_modify_modal(gun: WeaponData) -> void:
@@ -713,6 +805,10 @@ func _show_modify_modal(gun: WeaponData) -> void:
 	match gun.weapon_type:
 		WeaponData.WeaponType.AUTOCANNON:
 			_add_autocannon_options(vbox, gun)
+		WeaponData.WeaponType.MACHINEGUN:
+			_add_machinegun_options(vbox, gun)
+		WeaponData.WeaponType.FLAMETHROWER:
+			_add_chemical_thrower_options(vbox, gun)
 		WeaponData.WeaponType.ROCKET_POD:
 			_add_rocket_pod_options(vbox, gun)
 
@@ -742,22 +838,29 @@ func _add_autocannon_options(vbox: VBoxContainer, gun: WeaponData) -> void:
 	ammo_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ammo_btn.pressed.connect(_show_ammo_type_modal.bind(gun))
 	vbox.add_child(ammo_btn)
+	_add_barrel_length_button(vbox, gun)
 
-	var barrel_btn := Button.new()
-	barrel_btn.text = "📏  Barrel Length"
-	barrel_btn.custom_minimum_size = Vector2(280, 44)
-	barrel_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	barrel_btn.pressed.connect(_show_barrel_length_modal.bind(gun))
-	vbox.add_child(barrel_btn)
+
+func _add_machinegun_options(vbox: VBoxContainer, gun: WeaponData) -> void:
+	_add_barrel_length_button(vbox, gun)
+
+
+func _add_chemical_thrower_options(vbox: VBoxContainer, gun: WeaponData) -> void:
+	var element_btn := Button.new()
+	element_btn.text = "Tank  Thrower Element"
+	element_btn.custom_minimum_size = Vector2(280, 44)
+	element_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	element_btn.pressed.connect(_show_thrower_element_modal.bind(gun))
+	vbox.add_child(element_btn)
 
 
 func _add_rocket_pod_options(vbox: VBoxContainer, gun: WeaponData) -> void:
-	var targeting_btn := Button.new()
-	targeting_btn.text = "🎯  Targeting"
-	targeting_btn.custom_minimum_size = Vector2(280, 44)
-	targeting_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	targeting_btn.pressed.connect(_show_targeting_type_modal.bind(gun))
-	vbox.add_child(targeting_btn)
+	var missile_builder_btn := Button.new()
+	missile_builder_btn.text = "🚀  Missile Builder"
+	missile_builder_btn.custom_minimum_size = Vector2(280, 44)
+	missile_builder_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	missile_builder_btn.pressed.connect(_show_missile_builder_modal.bind(gun))
+	vbox.add_child(missile_builder_btn)
 
 
 func _hide_modify_modal() -> void:
@@ -930,6 +1033,64 @@ func _on_ammo_selected(selected_type: WeaponData.AmmoType, gun: WeaponData) -> v
 	_hide_sub_modal()
 
 
+func _show_thrower_element_modal(gun: WeaponData) -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "THROWER ELEMENT - %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 24)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(row)
+
+	var elements: Array[Dictionary] = [
+		{"type": WeaponData.ThrowerElement.FUEL, "label": "FUEL"},
+		{"type": WeaponData.ThrowerElement.ACID, "label": "ACID"},
+		{"type": WeaponData.ThrowerElement.CRYOGENICS, "label": "CRYOGENICS"},
+	]
+
+	for entry in elements:
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 4)
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_child(col)
+
+		var tank = _THROWER_TANK_SCRIPT.new()
+		tank.setup(entry["type"], gun.thrower_element == entry["type"])
+		tank.tank_clicked.connect(_on_thrower_element_selected.bind(gun))
+		col.add_child(tank)
+
+		var lbl := Label.new()
+		lbl.text = entry["label"]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color(0.65, 0.6, 0.55))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(lbl)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_thrower_element_selected(selected_element: WeaponData.ThrowerElement, gun: WeaponData) -> void:
+	gun.thrower_element = selected_element
+	_hide_sub_modal()
+
+
 func _show_targeting_type_modal(gun: WeaponData) -> void:
 	for child in _sub_modal_panel.get_children():
 		_sub_modal_panel.remove_child(child)
@@ -1001,11 +1162,516 @@ func _on_targeting_selected(selected_type: WeaponData.TargetingType, gun: Weapon
 	_hide_sub_modal()
 
 
+func _add_barrel_length_button(vbox: VBoxContainer, gun: WeaponData) -> void:
+	gun.barrel_length = WeaponData.clamp_barrel_length(gun.barrel_length)
+	var barrel_btn := Button.new()
+	barrel_btn.text = "📏  Barrel Length (%s/%d)" % [WeaponData.get_barrel_length_label(gun.barrel_length), WeaponData.BARREL_LENGTH_COUNT]
+	barrel_btn.custom_minimum_size = Vector2(280, 44)
+	barrel_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	barrel_btn.pressed.connect(_show_barrel_length_modal.bind(gun))
+	vbox.add_child(barrel_btn)
+
+
 func _show_barrel_length_modal(gun: WeaponData) -> void:
-	_show_sub_modal(
-		"📏  BARREL LENGTH — %s" % gun.name,
-		"Barrel length tuning coming soon.\n\nAdjust barrel length to trade between\naccuracy, range, and fire rate."
-	)
+	gun.barrel_length = WeaponData.clamp_barrel_length(gun.barrel_length)
+
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "📏  BARREL LENGTH — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	var controls := HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 12)
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(controls)
+
+	var decrease_btn := Button.new()
+	decrease_btn.text = "◀"
+	decrease_btn.custom_minimum_size = Vector2(44, 44)
+	decrease_btn.disabled = gun.barrel_length <= WeaponData.BarrelLength.VERY_SHORT
+	decrease_btn.pressed.connect(_on_barrel_length_adjusted.bind(-1, gun))
+	controls.add_child(decrease_btn)
+
+	var preview_panel := PanelContainer.new()
+	preview_panel.custom_minimum_size = Vector2(220, 80)
+	preview_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var preview_style := StyleBoxFlat.new()
+	preview_style.bg_color = Color(0.14, 0.12, 0.1, 0.9)
+	preview_style.border_color = Color(0.42, 0.34, 0.22, 0.8)
+	preview_style.set_border_width_all(1)
+	preview_style.set_corner_radius_all(8)
+	preview_style.set_content_margin_all(10)
+	preview_panel.add_theme_stylebox_override("panel", preview_style)
+	controls.add_child(preview_panel)
+
+	var preview_box := VBoxContainer.new()
+	preview_box.add_theme_constant_override("separation", 8)
+	preview_panel.add_child(preview_box)
+
+	var barrel_row := HBoxContainer.new()
+	barrel_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	barrel_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_box.add_child(barrel_row)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	barrel_row.add_child(spacer)
+
+	var breech := ColorRect.new()
+	breech.color = Color(0.56, 0.53, 0.5, 1.0)
+	breech.custom_minimum_size = Vector2(24, 22)
+	barrel_row.add_child(breech)
+
+	var barrel := ColorRect.new()
+	barrel.color = Color(0.82, 0.78, 0.72, 1.0)
+	barrel.custom_minimum_size = Vector2(_barrel_preview_width(gun.barrel_length), 10)
+	barrel_row.add_child(barrel)
+
+	var muzzle := ColorRect.new()
+	muzzle.color = Color(0.95, 0.76, 0.28, 1.0)
+	muzzle.custom_minimum_size = Vector2(8, 16)
+	barrel_row.add_child(muzzle)
+
+	var spacer_right := Control.new()
+	spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	barrel_row.add_child(spacer_right)
+
+	var level_label := Label.new()
+	level_label.text = "SIZE %s / %d" % [WeaponData.get_barrel_length_label(gun.barrel_length), WeaponData.BARREL_LENGTH_COUNT]
+	level_label.add_theme_font_size_override("font_size", 12)
+	level_label.add_theme_color_override("font_color", Color(0.73, 0.77, 0.8))
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	preview_box.add_child(level_label)
+
+	var increase_btn := Button.new()
+	increase_btn.text = "▶"
+	increase_btn.custom_minimum_size = Vector2(44, 44)
+	increase_btn.disabled = gun.barrel_length >= WeaponData.BarrelLength.VERY_LONG
+	increase_btn.pressed.connect(_on_barrel_length_adjusted.bind(1, gun))
+	controls.add_child(increase_btn)
+
+	var desc := Label.new()
+	desc.text = _barrel_length_description(gun.barrel_length)
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.add_theme_color_override("font_color", Color(0.65, 0.61, 0.56))
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(desc)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_barrel_length_adjusted(delta: int, gun: WeaponData) -> void:
+	gun.barrel_length = WeaponData.clamp_barrel_length(gun.barrel_length + delta)
+	call_deferred("_show_barrel_length_modal", gun)
+
+
+func _barrel_preview_width(length_level: int) -> float:
+	return 42.0 + float(WeaponData.clamp_barrel_length(length_level)) * 18.0
+
+
+func _barrel_length_description(length_level: int) -> String:
+	match WeaponData.clamp_barrel_length(length_level):
+		WeaponData.BarrelLength.VERY_SHORT:
+			return "Very short: fastest cycling, shortest reach, widest shot spread."
+		WeaponData.BarrelLength.SHORT:
+			return "Short: quick handling with reduced range and loose grouping."
+		WeaponData.BarrelLength.STANDARD:
+			return "Standard: balanced fire rate, reach, and accuracy."
+		WeaponData.BarrelLength.LONG:
+			return "Long: slower cycling, stronger reach, and tighter grouping."
+		WeaponData.BarrelLength.VERY_LONG:
+			return "Very long: slowest cycling, longest reach, and best accuracy."
+	return "Standard: balanced fire rate, reach, and accuracy."
+
+
+func _show_missile_builder_modal(gun: WeaponData) -> void:
+	_missile_builder_weapon = gun
+	_missile_builder_layout = _normalize_missile_layout(gun.missile_builder_layout)
+
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var root := VBoxContainer.new()
+	root.custom_minimum_size = Vector2(760, 420)
+	root.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(root)
+
+	var title := Label.new()
+	title.text = "🚀  MISSILE BUILDER — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	root.add_child(sep)
+
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 16)
+	root.add_child(body)
+
+	var parts_panel := PanelContainer.new()
+	parts_panel.custom_minimum_size = Vector2(300, 0)
+	body.add_child(parts_panel)
+
+	var parts_style := StyleBoxFlat.new()
+	parts_style.bg_color = Color(0.1, 0.09, 0.13, 0.8)
+	parts_style.set_border_width_all(1)
+	parts_style.border_color = Color(0.35, 0.31, 0.28, 0.55)
+	parts_style.set_corner_radius_all(8)
+	parts_style.set_content_margin_all(12)
+	parts_panel.add_theme_stylebox_override("panel", parts_style)
+
+	var parts_vbox := VBoxContainer.new()
+	parts_vbox.add_theme_constant_override("separation", 8)
+	parts_panel.add_child(parts_vbox)
+
+	var parts_title := Label.new()
+	parts_title.text = "MISSILE PARTS"
+	parts_title.add_theme_font_size_override("font_size", 14)
+	parts_title.add_theme_color_override("font_color", Color(0.95, 0.78, 0.3))
+	parts_vbox.add_child(parts_title)
+
+	for part_id in ["fuel", "explosive", "wire_guided", "homing"]:
+		var def: Dictionary = _MISSILE_PART_DEFS[part_id]
+		var card: Control = _MISSILE_BUILDER_PART_CARD_SCRIPT.new()
+		card.setup(part_id, def.get("title", "Part"), def.get("desc", ""), int(def.get("cost", 1)))
+		parts_vbox.add_child(card)
+
+	var parts_hint := Label.new()
+	parts_hint.text = "Drag parts into the 6 missile slots.\nClick a filled slot to remove that module."
+	parts_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parts_hint.add_theme_font_size_override("font_size", 11)
+	parts_hint.add_theme_color_override("font_color", Color(0.58, 0.54, 0.5))
+	parts_vbox.add_child(parts_hint)
+
+	var builder_panel := PanelContainer.new()
+	builder_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	builder_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(builder_panel)
+
+	var builder_style := StyleBoxFlat.new()
+	builder_style.bg_color = Color(0.09, 0.1, 0.12, 0.85)
+	builder_style.set_border_width_all(1)
+	builder_style.border_color = Color(0.35, 0.4, 0.45, 0.55)
+	builder_style.set_corner_radius_all(8)
+	builder_style.set_content_margin_all(16)
+	builder_panel.add_theme_stylebox_override("panel", builder_style)
+
+	var builder_vbox := VBoxContainer.new()
+	builder_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	builder_vbox.add_theme_constant_override("separation", 12)
+	builder_panel.add_child(builder_vbox)
+
+	var missile_title := Label.new()
+	missile_title.text = "MISSILE CORE (6 SLOTS)"
+	missile_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	missile_title.add_theme_font_size_override("font_size", 14)
+	missile_title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	builder_vbox.add_child(missile_title)
+
+	var frame_wrap := CenterContainer.new()
+	frame_wrap.custom_minimum_size = Vector2(0, 40)
+	builder_vbox.add_child(frame_wrap)
+
+	var frame_bar := HBoxContainer.new()
+	frame_bar.custom_minimum_size = Vector2(180, 30)
+	frame_bar.add_theme_constant_override("separation", 0)
+	frame_wrap.add_child(frame_bar)
+
+	var frame_nose := ColorRect.new()
+	frame_nose.custom_minimum_size = Vector2(18, 30)
+	frame_nose.color = Color(0.15, 0.2, 0.25, 0.9)
+	frame_bar.add_child(frame_nose)
+
+	var frame_body := PanelContainer.new()
+	frame_body.custom_minimum_size = Vector2(142, 30)
+	frame_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var body_style := StyleBoxFlat.new()
+	body_style.bg_color = Color(0.08, 0.1, 0.12, 0.92)
+	body_style.set_border_width_all(2)
+	body_style.border_color = Color(0.95, 0.76, 0.3, 0.65)
+	body_style.set_corner_radius_all(6)
+	frame_body.add_theme_stylebox_override("panel", body_style)
+	frame_bar.add_child(frame_body)
+
+	var tail := ColorRect.new()
+	tail.custom_minimum_size = Vector2(20, 30)
+	tail.color = Color(0.2, 0.16, 0.1, 0.9)
+	frame_bar.add_child(tail)
+
+	var rocket_visual := HBoxContainer.new()
+	rocket_visual.alignment = BoxContainer.ALIGNMENT_CENTER
+	rocket_visual.add_theme_constant_override("separation", 6)
+	builder_vbox.add_child(rocket_visual)
+
+	var nose := Label.new()
+	nose.text = "◀"
+	nose.add_theme_font_size_override("font_size", 20)
+	nose.add_theme_color_override("font_color", Color(0.95, 0.8, 0.35))
+	rocket_visual.add_child(nose)
+
+	_missile_slot_zones.clear()
+	for i in _MISSILE_SLOT_COUNT:
+		var zone: Control = _MISSILE_BUILDER_SLOT_SCRIPT.new()
+		zone.setup(i, Vector2(46, 46))
+		zone.part_dropped.connect(_on_missile_part_dropped)
+		zone.slot_clicked.connect(_on_missile_slot_clicked)
+		rocket_visual.add_child(zone)
+		_missile_slot_zones.append(zone)
+
+	var thruster := Label.new()
+	thruster.text = "▶"
+	thruster.add_theme_font_size_override("font_size", 20)
+	thruster.add_theme_color_override("font_color", Color(0.95, 0.8, 0.35))
+	rocket_visual.add_child(thruster)
+
+	_missile_builder_status_label = Label.new()
+	_missile_builder_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_missile_builder_status_label.add_theme_font_size_override("font_size", 12)
+	builder_vbox.add_child(_missile_builder_status_label)
+
+	_missile_builder_stats_label = Label.new()
+	_missile_builder_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_missile_builder_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_missile_builder_stats_label.add_theme_font_size_override("font_size", 12)
+	_missile_builder_stats_label.add_theme_color_override("font_color", Color(0.8, 0.76, 0.68))
+	builder_vbox.add_child(_missile_builder_stats_label)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	builder_vbox.add_child(spacer)
+
+	var controls := HBoxContainer.new()
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	controls.add_theme_constant_override("separation", 10)
+	builder_vbox.add_child(controls)
+
+	var clear_btn := Button.new()
+	clear_btn.text = "CLEAR"
+	clear_btn.custom_minimum_size = Vector2(120, 36)
+	clear_btn.pressed.connect(_on_missile_builder_clear)
+	controls.add_child(clear_btn)
+
+	var done_btn := Button.new()
+	done_btn.text = "DONE"
+	done_btn.custom_minimum_size = Vector2(120, 36)
+	done_btn.pressed.connect(_hide_sub_modal)
+	controls.add_child(done_btn)
+
+	_refresh_missile_builder_view()
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_missile_part_dropped(part_id: String, slot_index: int) -> void:
+	if _missile_builder_weapon == null:
+		return
+	if not _MISSILE_PART_DEFS.has(part_id):
+		return
+
+	var before_layout: Array[String] = _missile_builder_layout.duplicate()
+	var guidance_part := part_id == "wire_guided" or part_id == "homing"
+	if guidance_part:
+		_clear_guidance_modules()
+
+	if not _can_place_missile_part(part_id, slot_index):
+		_missile_builder_layout = before_layout
+		_missile_builder_status_label.text = "Cannot place %s there" % _MISSILE_PART_DEFS[part_id].get("title", "part")
+		_missile_builder_status_label.add_theme_color_override("font_color", Color(0.95, 0.45, 0.35))
+		_refresh_missile_builder_view()
+		return
+
+	_place_missile_part(part_id, slot_index)
+	_apply_missile_builder_to_weapon()
+	_refresh_missile_builder_view()
+
+
+func _on_missile_slot_clicked(slot_index: int) -> void:
+	if _missile_builder_weapon == null:
+		return
+	if slot_index < 0 or slot_index >= _missile_builder_layout.size():
+		return
+	if _missile_builder_layout[slot_index] == "":
+		return
+
+	_remove_missile_module_at(slot_index)
+	_apply_missile_builder_to_weapon()
+	_refresh_missile_builder_view()
+
+
+func _on_missile_builder_clear() -> void:
+	if _missile_builder_weapon == null:
+		return
+	_missile_builder_layout = _normalize_missile_layout([])
+	_apply_missile_builder_to_weapon()
+	_refresh_missile_builder_view()
+
+
+func _refresh_missile_builder_view() -> void:
+	_missile_builder_layout = _normalize_missile_layout(_missile_builder_layout)
+	if _missile_slot_zones.is_empty():
+		return
+
+	for i in mini(_missile_slot_zones.size(), _MISSILE_SLOT_COUNT):
+		var value := _missile_builder_layout[i]
+		var zone: Control = _missile_slot_zones[i]
+		if value == "":
+			zone.set_display("%d" % (i + 1), Color(0.66, 0.62, 0.56), false, false)
+			continue
+
+		match value:
+			"fuel":
+				zone.set_display("F", Color(0.94, 0.86, 0.5), true, false)
+			"explosive":
+				zone.set_display("E", Color(0.97, 0.56, 0.34), true, false)
+			"wire_guided":
+				zone.set_display("W", Color(0.54, 0.83, 0.94), true, false)
+			"homing":
+				zone.set_display("H", Color(0.65, 0.95, 0.7), true, false)
+			"homing_tail":
+				zone.set_display("·", Color(0.58, 0.82, 0.6), true, true)
+			_:
+				zone.set_display("?", Color(0.85, 0.5, 0.45), true, false)
+
+	if _missile_builder_weapon:
+		var summary := _get_missile_layout_summary(_missile_builder_layout)
+		_missile_builder_status_label.text = "Slots used: %d / %d  |  %s" % [
+			summary.get("used", 0),
+			_MISSILE_SLOT_COUNT,
+			summary.get("guidance_label", "Unguided"),
+		]
+		_missile_builder_status_label.add_theme_color_override("font_color", Color(0.72, 0.84, 0.95))
+		var speed := _missile_builder_weapon.projectile_speed
+		var range_px := speed * _missile_builder_weapon.projectile_lifetime
+		var explosive_text := "LIVE WARHEAD" if _missile_builder_weapon.missile_has_explosive else "INERT (NO DAMAGE/NO EXPLOSION)"
+		_missile_builder_stats_label.text = "Speed %.0f  |  Range %.0f px  |  Damage %d  |  AOE %.2f\n%s" % [
+			speed,
+			range_px,
+			_missile_builder_weapon.damage,
+			_missile_builder_weapon.area,
+			explosive_text,
+		]
+
+
+func _apply_missile_builder_to_weapon() -> void:
+	if _missile_builder_weapon == null:
+		return
+	_missile_builder_layout = _normalize_missile_layout(_missile_builder_layout)
+	_missile_builder_weapon.apply_missile_builder(_missile_builder_layout)
+	_refresh_ui()
+
+
+func _can_place_missile_part(part_id: String, slot_index: int) -> bool:
+	if slot_index < 0:
+		return false
+	if slot_index >= _MISSILE_SLOT_COUNT:
+		return false
+	if not _MISSILE_PART_DEFS.has(part_id):
+		return false
+
+	var cost := int((_MISSILE_PART_DEFS[part_id] as Dictionary).get("cost", 1))
+	if slot_index + cost > _MISSILE_SLOT_COUNT:
+		return false
+
+	for i in cost:
+		if _missile_builder_layout[slot_index + i] != "":
+			return false
+
+	if part_id == "wire_guided" or part_id == "homing":
+		for token in _missile_builder_layout:
+			if token == "wire_guided" or token == "homing" or token == "homing_tail":
+				return false
+
+	return true
+
+
+func _place_missile_part(part_id: String, slot_index: int) -> void:
+	var cost := int((_MISSILE_PART_DEFS[part_id] as Dictionary).get("cost", 1))
+	if cost == 1:
+		_missile_builder_layout[slot_index] = part_id
+		return
+
+	_missile_builder_layout[slot_index] = part_id
+	for i in range(1, cost):
+		_missile_builder_layout[slot_index + i] = "%s_tail" % part_id
+
+
+func _remove_missile_module_at(slot_index: int) -> void:
+	var token := _missile_builder_layout[slot_index]
+	if token == "":
+		return
+
+	if token == "homing_tail":
+		var head := slot_index
+		while head > 0 and _missile_builder_layout[head] == "homing_tail":
+			head -= 1
+		if _missile_builder_layout[head] == "homing":
+			for i in 3:
+				if head + i < _MISSILE_SLOT_COUNT and _missile_builder_layout[head + i].begins_with("homing"):
+					_missile_builder_layout[head + i] = ""
+		return
+
+	if token == "homing":
+		for i in 3:
+			if slot_index + i < _MISSILE_SLOT_COUNT and _missile_builder_layout[slot_index + i].begins_with("homing"):
+				_missile_builder_layout[slot_index + i] = ""
+		return
+
+	_missile_builder_layout[slot_index] = ""
+
+
+func _clear_guidance_modules() -> void:
+	for i in _MISSILE_SLOT_COUNT:
+		var token := _missile_builder_layout[i]
+		if token == "wire_guided" or token == "homing" or token == "homing_tail":
+			_missile_builder_layout[i] = ""
+
+
+func _get_missile_layout_summary(layout: Array[String]) -> Dictionary:
+	var used := 0
+	var guidance_label := "Unguided"
+	for token in layout:
+		if token != "":
+			used += 1
+		if token == "wire_guided":
+			guidance_label = "Wire Guided"
+		elif token == "homing":
+			guidance_label = "Homing"
+	return {
+		"used": used,
+		"guidance_label": guidance_label,
+	}
+
+
+func _normalize_missile_layout(layout: Array[String]) -> Array[String]:
+	var out: Array[String] = []
+	out.resize(_MISSILE_SLOT_COUNT)
+	for i in _MISSILE_SLOT_COUNT:
+		out[i] = ""
+	for i in mini(layout.size(), _MISSILE_SLOT_COUNT):
+		out[i] = layout[i]
+	return out
 
 
 func _add_attachment_options(vbox: VBoxContainer, gun: WeaponData) -> void:

@@ -8,6 +8,7 @@ class_name AutocannonProjectile
 extends Area2D
 
 const EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
+const ENEMY_DAMAGE_SYSTEM := preload("res://src/combat/enemy_damage_system.gd")
 
 const MAX_LIFETIME := 3.0   # seconds before auto-destroy
 
@@ -30,15 +31,20 @@ var penetration: int = 4
 var explodes: bool = true
 ## Visual colour override for the bullet polygon.
 var shell_color: Color = COLOR_HE
+var max_lifetime: float = MAX_LIFETIME
+## Actors this projectile should damage (2 = enemies, 1 = player).
+var target_collision_mask: int = 2
+## Actors the explosion should damage.
+var explosion_target_mask: int = 2
 
 var _elapsed: float = 0.0
 var _pierced: int   = 0
 
 func _ready() -> void:
-	# Layer 4 (bit 3) = projectiles; mask layer 2 (bit 1) = enemies
-	# Also mask layer 5 (bit 16) = environment obstacles so shells don't fly through walls
+	# Layer 4 (bit 3) = projectiles.
+	# Always include layer 5 (bit 16) = environment so shells stop on walls.
 	collision_layer = 8    # bit 3 only (projectiles)
-	collision_mask  = 2 | 16  # bit 1 (enemies) + bit 4 (environment)
+	collision_mask  = target_collision_mask | 16
 
 	area_entered.connect(_on_area_entered)
 	body_entered.connect(_on_body_entered)
@@ -51,14 +57,18 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	position += velocity * delta
 	_elapsed += delta
-	if _elapsed >= MAX_LIFETIME:
+	if _elapsed >= max_lifetime:
 		queue_free()
 
 func _on_area_entered(area: Area2D) -> void:
 	if area.has_method("take_damage"):
 		area.take_damage(damage, penetration)
+	elif area.is_in_group("player"):
+		ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, area)
 	elif area.get_parent() != null and area.get_parent().has_method("take_damage"):
 		area.get_parent().take_damage(damage, penetration)
+	elif area.get_parent() != null and area.get_parent().is_in_group("player"):
+		ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, area.get_parent())
 
 	# Defer explosion + free so we're not mutating physics state mid-flush
 	_deferred_explode_and_pierce()
@@ -67,6 +77,9 @@ func _on_area_entered(area: Area2D) -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if body.has_method("take_damage"):
 		body.take_damage(damage, penetration)
+		call_deferred("_deferred_explode_and_pierce")
+	elif body.is_in_group("player"):
+		ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, body)
 		call_deferred("_deferred_explode_and_pierce")
 	else:
 		call_deferred("_deferred_explode_and_die")
@@ -87,5 +100,6 @@ func _spawn_explosion() -> void:
 	var explosion: AutocannonExplosion = EXPLOSION_SCENE.instantiate()
 	explosion.damage = damage
 	explosion.penetration = penetration
+	explosion.target_collision_mask = explosion_target_mask
 	get_tree().root.add_child(explosion)
 	explosion.global_position = global_position

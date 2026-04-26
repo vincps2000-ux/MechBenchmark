@@ -48,6 +48,28 @@ func test_setup_with_zero_damage() -> void:
 	_machinegun.setup(data)
 	assert_eq(_machinegun._damage, 0, "Zero damage should be stored as-is")
 
+func test_short_barrel_is_fast_and_inaccurate() -> void:
+	var data := WeaponData.new()
+	data.barrel_length = WeaponData.BarrelLength.VERY_SHORT
+	_machinegun.setup(data)
+	assert_lt(_machinegun._fire_interval, Machinegun.FIRE_INTERVAL,
+			"Very short barrel should fire faster than the default setup")
+	assert_gt(_machinegun._spread_deg, Machinegun.SPREAD_DEG,
+			"Very short barrel should be less accurate than the default setup")
+	assert_lt(_machinegun._projectile_lifetime, MachinegunProjectile.MAX_LIFETIME,
+			"Very short barrel should shorten effective range")
+
+func test_long_barrel_is_slow_and_accurate() -> void:
+	var data := WeaponData.new()
+	data.barrel_length = WeaponData.BarrelLength.VERY_LONG
+	_machinegun.setup(data)
+	assert_gt(_machinegun._fire_interval, Machinegun.FIRE_INTERVAL,
+			"Very long barrel should fire slower than the default setup")
+	assert_lt(_machinegun._spread_deg, Machinegun.SPREAD_DEG,
+			"Very long barrel should be more accurate than the default setup")
+	assert_gt(_machinegun._projectile_lifetime, MachinegunProjectile.MAX_LIFETIME,
+			"Very long barrel should extend effective range")
+
 # ─── Constants ───────────────────────────────────────────────────────────────
 
 func test_fire_interval_is_positive() -> void:

@@ -10,6 +10,7 @@ var velocity: Vector2 = Vector2.ZERO
 var damage: int = 3
 var pierce: int = 1
 var penetration: int = 4
+var max_lifetime: float = MAX_LIFETIME
 
 var _elapsed: float = 0.0
 var _pierced: int   = 0
@@ -27,7 +28,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	position += velocity * delta
 	_elapsed += delta
-	if _elapsed >= MAX_LIFETIME:
+	if _elapsed >= max_lifetime:
 		queue_free()
 
 func _on_area_entered(area: Area2D) -> void:

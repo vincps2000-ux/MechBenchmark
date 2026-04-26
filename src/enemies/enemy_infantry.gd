@@ -6,6 +6,8 @@ signal died(enemy: EnemyInfantry)
 
 const ENEMY_PROJECTILE_SCENE := preload("res://scenes/enemies/enemy_projectile.tscn")
 const BLOOD_SPLATTER := preload("res://src/enemies/blood_splatter.gd")
+const _BURN_EFFECT_SCRIPT := preload("res://src/enemies/burn_effect.gd")
+const _FREEZE_EFFECT_SCRIPT := preload("res://src/enemies/freeze_effect.gd")
 
 ## Movement
 @export var move_speed: float = 60.0
@@ -30,6 +32,7 @@ const BLOOD_SPLATTER := preload("res://src/enemies/blood_splatter.gd")
 @export var projectile_penetration: int = 2
 
 var health: int
+var _is_frozen: bool = false
 var _player: Node2D = null
 var _fire_timer: float = 0.0
 var _burst_shot_timer: float = 0.0
@@ -61,6 +64,11 @@ func _physics_process(delta: float) -> void:
 		_player = _find_player()
 		if not _player:
 			return
+
+	if _is_frozen:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
 
 	_fire_timer -= delta
 	_burst_shot_timer -= delta
@@ -244,6 +252,29 @@ func take_damage(amount: int, penetration: int = 10) -> void:
 		_spawn_blood_splatter()
 		died.emit(self)
 		queue_free()
+
+## Apply a burning DoT effect.  If already burning, refreshes tick count.
+## ticks=2 and damage_per_tick=4 kills infantry (health 8) in exactly 2 ticks.
+func apply_burn(ticks: int = 2, damage_per_tick: int = 4) -> void:
+	for child in get_children():
+		if child.get_script() == _BURN_EFFECT_SCRIPT:
+			child.ticks_remaining = maxi(child.ticks_remaining, ticks)
+			return
+	var burn = _BURN_EFFECT_SCRIPT.new()
+	burn.tick_damage = damage_per_tick
+	burn.ticks_remaining = ticks
+	add_child(burn)
+
+## Freeze the enemy in place for duration seconds. Refreshes if already frozen.
+func apply_freeze(dur: float = 10.0) -> void:
+	for child in get_children():
+		if child.get_script() == _FREEZE_EFFECT_SCRIPT:
+			child.duration = dur
+			child._timer = 0.0
+			return
+	var freeze = _FREEZE_EFFECT_SCRIPT.new()
+	freeze.duration = dur
+	add_child(freeze)
 
 func _spawn_blood_splatter() -> void:
 	var splat := BloodSplatter.new()

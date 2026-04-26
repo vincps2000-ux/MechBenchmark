@@ -4,8 +4,6 @@ class_name RocketProjectile
 extends Area2D
 
 const EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
-const MAX_LIFETIME := 3.0
-
 const COLOR_ROCKET := Color(1.0, 0.5, 0.2, 1.0)
 
 ## Turn rate for seeking rockets (radians per second).
@@ -18,6 +16,9 @@ var damage: int = 15
 var pierce: int = 1
 var penetration: int = 3
 var targeting_type: WeaponData.TargetingType = WeaponData.TargetingType.UNGUIDED
+var max_lifetime: float = 3.0
+var aoe_scale: float = 1.0
+var explosive_enabled: bool = true
 
 var _elapsed: float = 0.0
 var _pierced: int   = 0
@@ -31,7 +32,7 @@ func _ready() -> void:
 
 	var visual := get_node_or_null("RocketVisual") as Polygon2D
 	if visual:
-		visual.color = COLOR_ROCKET
+		visual.color = COLOR_ROCKET if explosive_enabled else Color(0.55, 0.65, 0.75, 0.9)
 
 func _physics_process(delta: float) -> void:
 	match targeting_type:
@@ -46,7 +47,7 @@ func _physics_process(delta: float) -> void:
 	position += velocity * delta
 	rotation = velocity.angle()
 	_elapsed += delta
-	if _elapsed >= MAX_LIFETIME:
+	if _elapsed >= max_lifetime:
 		queue_free()
 
 
@@ -86,6 +87,9 @@ func _get_cursor_world_pos() -> Vector2:
 	return canvas.affine_inverse() * viewport.get_mouse_position()
 
 func _on_area_entered(area: Area2D) -> void:
+	if not explosive_enabled:
+		queue_free()
+		return
 	if area.has_method("take_damage"):
 		area.take_damage(damage, penetration)
 	elif area.get_parent() != null and area.get_parent().has_method("take_damage"):
@@ -93,6 +97,9 @@ func _on_area_entered(area: Area2D) -> void:
 	_deferred_explode_and_pierce()
 
 func _on_body_entered(body: Node2D) -> void:
+	if not explosive_enabled:
+		queue_free()
+		return
 	if body.has_method("take_damage"):
 		body.take_damage(damage, penetration)
 		call_deferred("_deferred_explode_and_pierce")
@@ -113,5 +120,6 @@ func _spawn_explosion() -> void:
 	var explosion = EXPLOSION_SCENE.instantiate()
 	explosion.damage = damage
 	explosion.penetration = penetration
+	explosion.blast_scale = aoe_scale
 	get_tree().root.add_child(explosion)
 	explosion.global_position = global_position

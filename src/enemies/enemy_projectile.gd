@@ -3,6 +3,7 @@ class_name EnemyProjectile
 extends Area2D
 
 const MAX_LIFETIME := 4.0   # seconds before auto-destroy
+const ENEMY_DAMAGE_SYSTEM := preload("res://src/combat/enemy_damage_system.gd")
 
 ## Set by the spawning enemy before adding to tree.
 var velocity: Vector2 = Vector2.ZERO
@@ -31,13 +32,4 @@ func _on_body_entered(body: Node2D) -> void:
 	queue_free()
 
 func _hit_player(player: Node2D) -> void:
-	var stats: PlayerStats = GameManager.player_stats
-	if not stats:
-		return
-	if ArmorSystem.roll_penetration(penetration, stats.armor):
-		stats.take_damage(1)
-	else:
-		# Deflected — sparks on the player
-		var sparks := DeflectionSparks.new()
-		player.get_tree().root.add_child(sparks)
-		sparks.global_position = player.global_position
+	ENEMY_DAMAGE_SYSTEM.apply_to_player(damage, penetration, player)

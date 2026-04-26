@@ -8,6 +8,7 @@ const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 const VictoryScreen := preload("res://src/ui/victory_screen.gd")
 const TrenchObstacle := preload("res://src/levels/trench_obstacle.gd")
 const MudPit := preload("res://src/levels/mud_pit.gd")
+const Mine := preload("res://src/levels/mine.gd")
 const WIN_RETURN_DELAY := 2.0
 const VICTORY_TITLE := "EXTRACTION REACHED"
 const VICTORY_MESSAGE := "You broke through the trench line. Returning to workshop."
@@ -79,6 +80,7 @@ func _ready() -> void:
 	_create_arena_bounds()
 	_create_obstacles()
 	_create_mud_pits()
+	_create_mines()
 	_spawn_initial_enemies()
 
 	_spawn_timer = TOP_EDGE_SPAWN_INTERVAL
@@ -261,6 +263,51 @@ func _create_mud_pits() -> void:
 		pit.radii = p[1]
 		pit.global_position = p[0]
 		mud_node.add_child(pit)
+
+func _create_mines() -> void:
+	var mines_node := Node2D.new()
+	mines_node.name = "Mines"
+	add_child(mines_node)
+
+	var half_h := _arena_half_height
+	# Each entry: [position] — mines placed at strategic locations in the trenches
+	# Concentrated around defensive lines and narrow passages
+	var mine_positions: Array = [
+		# --- southern defenses (first wave) ---
+		Vector2(-420.0,  half_h - 380.0),
+		Vector2( 160.0,  half_h - 380.0),
+		Vector2( 540.0,  half_h - 390.0),
+		Vector2(-250.0,  half_h - 520.0),
+		Vector2( 380.0,  half_h - 540.0),
+		Vector2( 720.0,  half_h - 520.0),
+		
+		# --- middle field (approaching defenses) ---
+		Vector2(-520.0,  half_h * 0.22),
+		Vector2( 420.0,  half_h * 0.18),
+		Vector2(-120.0,  half_h * 0.15),
+		Vector2( 680.0,  half_h * 0.12),
+		Vector2(-680.0,  half_h * 0.05),
+		Vector2( 280.0, -half_h * 0.02),
+		
+		# --- upper defenses (beyond bunkers) ---
+		Vector2(-640.0, -half_h * 0.26),
+		Vector2( 600.0, -half_h * 0.26),
+		Vector2(-300.0, -half_h * 0.32),
+		Vector2( 140.0, -half_h * 0.30),
+		Vector2( 520.0, -half_h * 0.34),
+		
+		# --- northern approach (leading to extraction) ---
+		Vector2(-480.0, -half_h * 0.58),
+		Vector2(  80.0, -half_h * 0.60),
+		Vector2( 620.0, -half_h * 0.62),
+		Vector2(-280.0, -half_h * 0.80),
+		Vector2( 340.0, -half_h * 0.82),
+	]
+
+	for mine_pos in mine_positions:
+		var mine := Mine.new()
+		mine.global_position = mine_pos
+		mines_node.add_child(mine)
 
 func _spawn_initial_enemies() -> void:
 	for i in INITIAL_ENEMY_COUNT:

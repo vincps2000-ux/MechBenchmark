@@ -7,7 +7,7 @@ extends Node2D
 const PROJECTILE_SCENE := preload("res://scenes/weapons/rocket_projectile.tscn")
 
 const FIRE_INTERVAL     := 1.2
-const PROJECTILE_SPEED  := 400.0
+const DEFAULT_PROJECTILE_SPEED := 400.0
 const MUZZLE_FLASH_TIME := 0.04
 const BURST_COUNT       := 3
 const BURST_DELAY       := 0.08
@@ -21,6 +21,10 @@ var _damage: int       = 15
 var _pierce: int       = 1
 var _penetration: int  = 3
 var _targeting_type: WeaponData.TargetingType = WeaponData.TargetingType.UNGUIDED
+var _projectile_speed: float = DEFAULT_PROJECTILE_SPEED
+var _projectile_lifetime: float = 3.0
+var _aoe_scale: float = 1.0
+var _has_explosive: bool = true
 var _cooldown: float   = 0.0
 var _flash_timer: float = 0.0
 var _burst_remaining: int = 0
@@ -36,6 +40,10 @@ func setup(data: WeaponData) -> void:
 	_pierce         = data.pierce
 	_penetration    = data.penetration
 	_targeting_type = data.targeting_type
+	_projectile_speed = data.projectile_speed
+	_projectile_lifetime = data.projectile_lifetime
+	_aoe_scale = data.area
+	_has_explosive = data.missile_has_explosive
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -52,7 +60,8 @@ func _process(delta: float) -> void:
 			_burst_timer = BURST_DELAY
 			_flash_timer = MUZZLE_FLASH_TIME
 
-	if Input.is_action_pressed(fire_action) and _cooldown <= 0.0 and _burst_remaining <= 0:
+	var trigger_pressed := InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
+	if trigger_pressed and _cooldown <= 0.0 and _burst_remaining <= 0:
 		_burst_remaining = BURST_COUNT
 		_burst_timer = 0.0
 		_cooldown = FIRE_INTERVAL
@@ -76,7 +85,10 @@ func _fire_rocket() -> void:
 	proj.pierce   = _pierce
 	proj.penetration = _penetration
 	proj.targeting_type = _targeting_type
-	proj.velocity = fire_dir * PROJECTILE_SPEED
+	proj.velocity = fire_dir * _projectile_speed
+	proj.aoe_scale = _aoe_scale
+	proj.max_lifetime = _projectile_lifetime
+	proj.explosive_enabled = _has_explosive
 	proj.rotation = fire_dir.angle()
 	proj.global_position = muzzle_pos
 	get_tree().root.add_child(proj)

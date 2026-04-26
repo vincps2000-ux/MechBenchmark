@@ -44,6 +44,28 @@ func test_setup_with_zero_damage() -> void:
 	_autocannon.setup(data)
 	assert_eq(_autocannon._damage, 0, "Zero damage should be stored as-is")
 
+func test_short_barrel_is_fast_and_inaccurate() -> void:
+	var data := WeaponData.new()
+	data.barrel_length = WeaponData.BarrelLength.VERY_SHORT
+	_autocannon.setup(data)
+	assert_lt(_autocannon._fire_interval, Autocannon.FIRE_INTERVAL,
+			"Very short barrel should fire faster than the default setup")
+	assert_gt(_autocannon._spread_deg, 0.0,
+			"Very short barrel should introduce noticeable shot spread")
+	assert_lt(_autocannon._projectile_lifetime, AutocannonProjectile.MAX_LIFETIME,
+			"Very short barrel should shorten effective range")
+
+func test_long_barrel_is_slow_and_accurate() -> void:
+	var data := WeaponData.new()
+	data.barrel_length = WeaponData.BarrelLength.VERY_LONG
+	_autocannon.setup(data)
+	assert_gt(_autocannon._fire_interval, Autocannon.FIRE_INTERVAL,
+			"Very long barrel should fire slower than the default setup")
+	assert_lt(_autocannon._spread_deg, 1.0,
+			"Very long barrel should keep spread very tight")
+	assert_gt(_autocannon._projectile_lifetime, AutocannonProjectile.MAX_LIFETIME,
+			"Very long barrel should extend effective range")
+
 # ─── Constants ───────────────────────────────────────────────────────────────
 
 func test_fire_interval_is_positive() -> void:
