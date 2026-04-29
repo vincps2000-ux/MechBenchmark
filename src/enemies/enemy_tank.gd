@@ -18,6 +18,10 @@ const HALF_H := 11.0
 @export var preferred_range: float = 350.0
 @export var fire_range: float = 420.0
 @export var fire_arc_deg: float = 12.0
+@export var path_reach_distance: float = 30.0
+@export var path_alert_range: float = 320.0
+@export var path_end_circle_radius: float = 72.0
+@export var path_end_circle_speed: float = 0.9
 
 @export var max_health: int = 20
 @export var armor: int = 5
@@ -31,6 +35,13 @@ var _is_frozen: bool = false
 var _player: Node2D = null
 var _autocannon: Autocannon = null
 var _rng := RandomNumberGenerator.new()
+var _level_pathing_enabled: bool = false
+var _path_alerted: bool = false
+var _path_points: Array[Vector2] = []
+var _path_index: int = 0
+var _path_end_circling: bool = false
+var _path_end_anchor: Vector2 = Vector2.ZERO
+var _circle_phase: float = 0.0
 
 @onready var _visual: Polygon2D = $Visual
 
@@ -52,6 +63,18 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		move_and_slide()
 		return
+
+	if _level_pathing_enabled and _path_end_circling:
+		_circle_at_path_end(delta)
+		return
+
+	if _level_pathing_enabled and not _path_alerted:
+		if global_position.distance_to(_player.global_position) <= path_alert_range:
+			_path_alerted = true
+			_path_end_circling = false
+		else:
+			_follow_level_path(delta)
+			return
 
 	var to_player := global_position.direction_to(_player.global_position)
 	var dist_player := global_position.distance_to(_player.global_position)
@@ -76,6 +99,81 @@ func _physics_process(delta: float) -> void:
 		var aim_error := absf(wrapf(to_player.angle() - rotation, -PI, PI))
 		if dist_player <= fire_range and aim_error <= deg_to_rad(fire_arc_deg):
 			_autocannon.try_fire_once()
+
+func configure_level_path(path_points: Array[Vector2], alert_range: float = 320.0) -> void:
+	_path_points = path_points.duplicate()
+	_path_index = 0
+	_level_pathing_enabled = not _path_points.is_empty()
+	_path_alerted = false
+	_path_end_circling = false
+	_path_end_anchor = Vector2.ZERO
+	_circle_phase = randf_range(0.0, TAU)
+	path_alert_range = alert_range
+
+func alert_to_player() -> void:
+	if _level_pathing_enabled:
+		_path_alerted = true
+		_path_end_circling = false
+
+func is_path_alerted() -> bool:
+	return _path_alerted
+
+func is_path_end_circling() -> bool:
+	return _path_end_circling
+
+func begin_loosing_zone_orbit(anchor: Vector2) -> void:
+	_path_end_anchor = anchor
+	_path_end_circling = true
+	_level_pathing_enabled = true
+
+func _follow_level_path(delta: float) -> void:
+	if _path_points.is_empty():
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
+
+	if _path_end_circling:
+		_circle_at_path_end(delta)
+		return
+
+	var target := _path_points[min(_path_index, _path_points.size() - 1)]
+	if global_position.distance_to(target) <= path_reach_distance:
+		if _path_index < _path_points.size() - 1:
+			_path_index += 1
+			target = _path_points[_path_index]
+		else:
+			_path_end_circling = true
+			_path_end_anchor = target
+			_circle_at_path_end(delta)
+			return
+
+	var to_target := global_position.direction_to(target)
+	var target_angle := to_target.angle()
+	var angle_diff := wrapf(target_angle - rotation, -PI, PI)
+	var max_rot := deg_to_rad(turn_speed) * delta
+	rotation += clampf(angle_diff, -max_rot, max_rot)
+
+	# Keep movement deliberate: tank rotates into the curve before pushing forward.
+	var facing_target := absf(wrapf(target_angle - rotation, -PI, PI)) < deg_to_rad(22.0)
+	if facing_target:
+		velocity = transform.x * move_speed
+	else:
+		velocity = Vector2.ZERO
+
+	move_and_slide()
+
+func _circle_at_path_end(delta: float) -> void:
+	_circle_phase = wrapf(_circle_phase + path_end_circle_speed * delta, 0.0, TAU)
+	var orbit_target := _path_end_anchor + Vector2.from_angle(_circle_phase) * path_end_circle_radius
+	var to_orbit := global_position.direction_to(orbit_target)
+	var target_angle := to_orbit.angle()
+	var angle_diff := wrapf(target_angle - rotation, -PI, PI)
+	var max_rot := deg_to_rad(turn_speed) * delta
+	rotation += clampf(angle_diff, -max_rot, max_rot)
+
+	var facing_orbit := absf(wrapf(target_angle - rotation, -PI, PI)) < deg_to_rad(26.0)
+	velocity = transform.x * move_speed if facing_orbit else Vector2.ZERO
+	move_and_slide()
 
 func take_damage(amount: int, penetration: int = 10) -> void:
 	if not ArmorSystem.roll_penetration(penetration, armor):

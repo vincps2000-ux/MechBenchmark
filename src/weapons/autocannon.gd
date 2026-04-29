@@ -20,6 +20,7 @@ const FIRE_INTERVAL  := 0.80
 const PROJECTILE_SPEED := 700.0
 ## How long the muzzle-flash sprite tint lasts in seconds.
 const MUZZLE_FLASH_TIME := 0.06
+const MAX_AMMO := 20
 const BARREL_PROFILES := [
 	{"fire_interval": 0.48, "projectile_speed": 600.0, "spread_deg": 5.5, "projectile_lifetime": 1.8, "muzzle_distance": 12.0, "canister_spread_deg": 36.0},
 	{"fire_interval": 0.62, "projectile_speed": 650.0, "spread_deg": 3.5, "projectile_lifetime": 2.3, "muzzle_distance": 14.0, "canister_spread_deg": 33.0},
@@ -53,6 +54,7 @@ var _canister_spread_deg: float = CANISTER_SPREAD_DEG
 var _cooldown: float = 0.0
 ## Muzzle-flash timer; >0 while flash is showing.
 var _flash_timer: float = 0.0
+var _ammo_current: int = MAX_AMMO
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 ## Fire source mode (player input or external AI trigger).
@@ -80,6 +82,7 @@ func setup(data: WeaponData) -> void:
 	_pierce = data.pierce
 	_penetration = data.penetration
 	_ammo_type = data.ammo_type
+	_ammo_current = MAX_AMMO
 	_apply_barrel_profile(data.barrel_length)
 	WeaponAttachment.mount_from_data(self, data)
 
@@ -109,15 +112,28 @@ func _process(delta: float) -> void:
 			_weapon_sprite.modulate = COLOR_IDLE
 
 func can_fire() -> bool:
-	return _cooldown <= 0.0
+	return _cooldown <= 0.0 and has_ammo()
 
 func try_fire_once() -> bool:
 	if not can_fire():
 		return false
 	_shoot()
+	_ammo_current -= 1
 	_cooldown = _fire_interval
 	_flash_timer = MUZZLE_FLASH_TIME
 	return true
+
+func get_ammo_count() -> int:
+	return _ammo_current
+
+func get_ammo_capacity() -> int:
+	return MAX_AMMO
+
+func has_ammo() -> bool:
+	return _ammo_current > 0
+
+func is_out_of_ammo() -> bool:
+	return not has_ammo()
 
 func _shoot() -> void:
 	var fire_dir   : Vector2 = global_transform.x

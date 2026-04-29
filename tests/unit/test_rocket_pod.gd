@@ -41,6 +41,17 @@ func test_setup_applies_wire_guided() -> void:
 	assert_eq(_pod._targeting_type, WeaponData.TargetingType.WIRE_GUIDED,
 		"setup() should apply WIRE_GUIDED targeting type")
 
+func test_fire_rocket_consumes_one_ammo() -> void:
+	var before := _pod.get_ammo_count()
+	assert_true(_pod._fire_rocket(), "Rocket pod should fire while ammo remains")
+	assert_eq(_pod.get_ammo_count(), before - 1,
+		"Rocket pod should spend one rocket per launch")
+
+func test_fire_rocket_fails_when_out_of_ammo() -> void:
+	_pod._ammo_current = 0
+	assert_false(_pod._fire_rocket(),
+		"Rocket pod should not launch when rack is empty")
+
 
 # ─── WeaponData.TargetingType enum ────────────────────────────────────────────
 

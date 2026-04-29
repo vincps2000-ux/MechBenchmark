@@ -13,6 +13,7 @@ const HIT_MASK     := 2 | 16  # layer 2 = enemies + layer 5 = obstacles
 
 const SEG_COUNT    := 20      # vertices along the outer cone arc
 const TONGUE_COUNT := 8       # individual flame-streamer polygons
+const MAX_AMMO     := 100
 
 @onready var _flame_poly:  Polygon2D = $FlamePoly
 @onready var _flame_inner: Polygon2D = $FlameInner
@@ -23,6 +24,7 @@ var _time:   float = 0.0
 var _damage: int = 3
 ## Armour penetration value, configured via setup()
 var _penetration: int = 2
+var _ammo_current: int = MAX_AMMO
 ## Element profile used to color the flame visuals.
 var _thrower_element: WeaponData.ThrowerElement = WeaponData.ThrowerElement.FUEL
 ## InputMap action name for firing this weapon.
@@ -77,6 +79,7 @@ func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_penetration = data.penetration
 	_thrower_element = data.thrower_element
+	_ammo_current = MAX_AMMO
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -89,12 +92,34 @@ func stop_firing() -> void:
 # ─── Per-frame update ─────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
 	_time += delta
-	_firing = InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
+	var trigger_pressed := InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
+	_firing = trigger_pressed and has_ammo()
 
 	if _firing:
-		_fire_cone()
+		if _consume_ammo():
+			_fire_cone()
+		else:
+			_firing = false
 
 	_animate_flame()
+
+func _consume_ammo() -> bool:
+	if not has_ammo():
+		return false
+	_ammo_current -= 1
+	return true
+
+func get_ammo_count() -> int:
+	return _ammo_current
+
+func get_ammo_capacity() -> int:
+	return MAX_AMMO
+
+func has_ammo() -> bool:
+	return _ammo_current > 0
+
+func is_out_of_ammo() -> bool:
+	return not has_ammo()
 
 # ─── Raycast fan ─────────────────────────────────────────────────────────────
 func _fire_cone() -> void:

@@ -38,3 +38,17 @@ func test_acid_damage_minimum_one() -> void:
 	data.damage = 1
 	_flamethrower.setup(data)
 	assert_eq(maxi(1, _flamethrower._damage / 2), 1, "Acid damage minimum is 1")
+
+
+func test_consume_ammo_spends_one_unit() -> void:
+	var before := _flamethrower.get_ammo_count()
+	assert_true(_flamethrower._consume_ammo(),
+			"Chemical thrower should consume ammo while fuel remains")
+	assert_eq(_flamethrower.get_ammo_count(), before - 1,
+			"Chemical thrower should spend one unit of fuel per firing tick")
+
+
+func test_consume_ammo_fails_when_empty() -> void:
+	_flamethrower._ammo_current = 0
+	assert_false(_flamethrower._consume_ammo(),
+			"Chemical thrower should stop firing when out of fuel")

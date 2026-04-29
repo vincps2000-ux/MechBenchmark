@@ -12,6 +12,7 @@ const MUZZLE_FLASH_TIME := 0.04
 const BURST_COUNT       := 3
 const BURST_DELAY       := 0.08
 const SPREAD_DEG        := 8.0
+const MAX_AMMO          := 12
 
 const COLOR_IDLE  := Color(1.0, 1.0, 1.0, 1.0)
 const COLOR_FLASH := Color(1.0, 0.6, 0.2, 1.0)
@@ -29,6 +30,7 @@ var _cooldown: float   = 0.0
 var _flash_timer: float = 0.0
 var _burst_remaining: int = 0
 var _burst_timer: float   = 0.0
+var _ammo_current: int = MAX_AMMO
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -44,6 +46,7 @@ func setup(data: WeaponData) -> void:
 	_projectile_lifetime = data.projectile_lifetime
 	_aoe_scale = data.area
 	_has_explosive = data.missile_has_explosive
+	_ammo_current = MAX_AMMO
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -55,13 +58,15 @@ func _process(delta: float) -> void:
 	if _burst_remaining > 0:
 		_burst_timer -= delta
 		if _burst_timer <= 0.0:
-			_fire_rocket()
-			_burst_remaining -= 1
-			_burst_timer = BURST_DELAY
-			_flash_timer = MUZZLE_FLASH_TIME
+			if _fire_rocket():
+				_burst_remaining -= 1
+				_burst_timer = BURST_DELAY
+				_flash_timer = MUZZLE_FLASH_TIME
+			else:
+				_burst_remaining = 0
 
 	var trigger_pressed := InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
-	if trigger_pressed and _cooldown <= 0.0 and _burst_remaining <= 0:
+	if trigger_pressed and can_start_burst():
 		_burst_remaining = BURST_COUNT
 		_burst_timer = 0.0
 		_cooldown = FIRE_INTERVAL
@@ -74,7 +79,25 @@ func _process(delta: float) -> void:
 		if is_instance_valid(_weapon_sprite):
 			_weapon_sprite.modulate = COLOR_IDLE
 
-func _fire_rocket() -> void:
+func can_start_burst() -> bool:
+	return _cooldown <= 0.0 and _burst_remaining <= 0 and has_ammo()
+
+func get_ammo_count() -> int:
+	return _ammo_current
+
+func get_ammo_capacity() -> int:
+	return MAX_AMMO
+
+func has_ammo() -> bool:
+	return _ammo_current > 0
+
+func is_out_of_ammo() -> bool:
+	return not has_ammo()
+
+func _fire_rocket() -> bool:
+	if not has_ammo():
+		return false
+	_ammo_current -= 1
 	var fire_dir: Vector2 = global_transform.x
 	var spread := deg_to_rad(randf_range(-SPREAD_DEG, SPREAD_DEG))
 	fire_dir = fire_dir.rotated(spread)
@@ -92,3 +115,4 @@ func _fire_rocket() -> void:
 	proj.rotation = fire_dir.angle()
 	proj.global_position = muzzle_pos
 	get_tree().root.add_child(proj)
+	return true

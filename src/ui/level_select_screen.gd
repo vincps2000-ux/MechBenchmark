@@ -29,6 +29,12 @@ const LEVELS := [
 		"scene":       "res://scenes/levels/level_3.tscn",
 		"color":       Color(0.30, 0.58, 0.22),
 	},
+	{
+		"name":        "COLUMNN AMBUSH",
+		"description": "Five tanks are crossing from west to east on a curved route.\nYou lose if one breaks through. Win by destroying all five.",
+		"scene":       "res://scenes/levels/level_4.tscn",
+		"color":       Color(0.86, 0.62, 0.24),
+	},
 ]
 
 # ─── Lifecycle ──────────────────────────────────────────────────────────────────

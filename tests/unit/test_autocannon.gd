@@ -44,6 +44,18 @@ func test_setup_with_zero_damage() -> void:
 	_autocannon.setup(data)
 	assert_eq(_autocannon._damage, 0, "Zero damage should be stored as-is")
 
+func test_try_fire_once_consumes_one_ammo() -> void:
+	var before := _autocannon.get_ammo_count()
+	var fired := _autocannon.try_fire_once()
+	assert_true(fired, "Autocannon should fire when ammo is available")
+	assert_eq(_autocannon.get_ammo_count(), before - 1,
+			"Autocannon should spend one round per shot")
+
+func test_try_fire_once_fails_when_out_of_ammo() -> void:
+	_autocannon._ammo_current = 0
+	assert_false(_autocannon.try_fire_once(),
+			"Autocannon should not fire when ammo is empty")
+
 func test_short_barrel_is_fast_and_inaccurate() -> void:
 	var data := WeaponData.new()
 	data.barrel_length = WeaponData.BarrelLength.VERY_SHORT

@@ -16,6 +16,7 @@ const PROJECTILE_SPEED  := 600.0
 const MUZZLE_FLASH_TIME := 0.03
 ## Random spread in degrees applied to each shot.
 const SPREAD_DEG        := 5.0
+const MAX_AMMO         := 500
 const BARREL_PROFILES := [
 	{"fire_interval": 0.07, "projectile_speed": 520.0, "spread_deg": 10.0, "projectile_lifetime": 1.4, "muzzle_distance": 8.0},
 	{"fire_interval": 0.085, "projectile_speed": 560.0, "spread_deg": 7.0, "projectile_lifetime": 1.7, "muzzle_distance": 10.0},
@@ -46,6 +47,7 @@ var _muzzle_distance: float = 10.0
 var _cooldown: float = 0.0
 ## Muzzle-flash timer; >0 while flash is showing.
 var _flash_timer: float = 0.0
+var _ammo_current: int = MAX_AMMO
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -57,6 +59,7 @@ func setup(data: WeaponData) -> void:
 	_damage      = data.damage
 	_pierce      = data.pierce
 	_penetration = data.penetration
+	_ammo_current = MAX_AMMO
 	_apply_barrel_profile(data.barrel_length)
 	WeaponAttachment.mount_from_data(self, data)
 
@@ -75,10 +78,8 @@ func _process(delta: float) -> void:
 	_cooldown -= delta
 
 	var trigger_pressed := InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
-	if trigger_pressed and _cooldown <= 0.0:
-		_shoot()
-		_cooldown = _fire_interval
-		_flash_timer = MUZZLE_FLASH_TIME
+	if trigger_pressed:
+		try_fire_once()
 
 	# Muzzle-flash tint
 	if _flash_timer > 0.0:
@@ -88,6 +89,30 @@ func _process(delta: float) -> void:
 	else:
 		if is_instance_valid(_weapon_sprite):
 			_weapon_sprite.modulate = COLOR_IDLE
+
+func can_fire() -> bool:
+	return _cooldown <= 0.0 and has_ammo()
+
+func try_fire_once() -> bool:
+	if not can_fire():
+		return false
+	_shoot()
+	_ammo_current -= 1
+	_cooldown = _fire_interval
+	_flash_timer = MUZZLE_FLASH_TIME
+	return true
+
+func get_ammo_count() -> int:
+	return _ammo_current
+
+func get_ammo_capacity() -> int:
+	return MAX_AMMO
+
+func has_ammo() -> bool:
+	return _ammo_current > 0
+
+func is_out_of_ammo() -> bool:
+	return not has_ammo()
 
 func _shoot() -> void:
 	var fire_dir: Vector2 = global_transform.x

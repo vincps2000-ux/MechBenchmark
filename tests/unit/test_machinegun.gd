@@ -48,6 +48,18 @@ func test_setup_with_zero_damage() -> void:
 	_machinegun.setup(data)
 	assert_eq(_machinegun._damage, 0, "Zero damage should be stored as-is")
 
+func test_try_fire_once_consumes_one_ammo() -> void:
+	var before := _machinegun.get_ammo_count()
+	var fired := _machinegun.try_fire_once()
+	assert_true(fired, "Machinegun should fire when ammo is available")
+	assert_eq(_machinegun.get_ammo_count(), before - 1,
+			"Machinegun should spend one round per shot")
+
+func test_try_fire_once_fails_when_out_of_ammo() -> void:
+	_machinegun._ammo_current = 0
+	assert_false(_machinegun.try_fire_once(),
+			"Machinegun should not fire when ammo is empty")
+
 func test_short_barrel_is_fast_and_inaccurate() -> void:
 	var data := WeaponData.new()
 	data.barrel_length = WeaponData.BarrelLength.VERY_SHORT
