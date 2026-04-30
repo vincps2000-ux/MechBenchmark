@@ -204,7 +204,7 @@ func _mount_weapons_for_torsos(torsos: Array[TorsoData], loadout: MechLoadout) -
 			else:
 				mount = Node2D.new()
 				mount.name = "WeaponMount%d" % (mount_index + 1)
-				mount_root.add_child(mount)
+				mount_root.get_parent().add_child(mount)
 
 			mount.position = offsets[mount_index]
 			_weapon_mounts.append(mount)

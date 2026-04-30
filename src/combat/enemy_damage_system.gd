@@ -1,6 +1,9 @@
 # enemy_damage_system.gd — Converts enemy weapon damage into player structure damage.
 class_name EnemyDamageSystem
 
+const MECH_DEATH_EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
+const PLAYER_DEATH_META := "_mech_death_handled"
+
 # Raw enemy weapon damage is scaled to player integrity chunks.
 # Example mapping with default values:
 #   1..10  -> 1 structure
@@ -20,6 +23,8 @@ static func apply_to_player(raw_enemy_damage: int, penetration: int, player_node
 	var stats: PlayerStats = GameManager.player_stats
 	if not stats:
 		return false
+	if stats.is_dead():
+		return false
 
 	if not ArmorSystem.roll_penetration(penetration, stats.armor):
 		if is_instance_valid(player_node):
@@ -31,5 +36,38 @@ static func apply_to_player(raw_enemy_damage: int, penetration: int, player_node
 	var structure_damage := to_structure_damage(raw_enemy_damage)
 	if structure_damage > 0:
 		stats.take_damage(structure_damage)
+		if stats.is_dead():
+			_handle_player_death(player_node)
 		return true
 	return false
+
+static func _handle_player_death(player_node: Node2D) -> void:
+	if GameManager.is_running:
+		GameManager.end_game()
+	else:
+		GameManager.is_running = false
+
+	if not is_instance_valid(player_node):
+		return
+	if player_node.has_meta(PLAYER_DEATH_META):
+		return
+	player_node.set_meta(PLAYER_DEATH_META, true)
+	var death_position := player_node.global_position
+	var death_camera := player_node.get_node_or_null("Camera2D") as Camera2D
+	if is_instance_valid(death_camera) and player_node.is_inside_tree():
+		var tree := player_node.get_tree()
+		var camera_parent: Node = tree.current_scene if tree.current_scene != null else tree.root
+		death_camera.reparent(camera_parent, true)
+		death_camera.global_position = death_position
+		death_camera.make_current()
+
+	if player_node.is_inside_tree():
+		var explosion = MECH_DEATH_EXPLOSION_SCENE.instantiate()
+		explosion.damage = 0
+		explosion.penetration = 0
+		explosion.target_collision_mask = 0
+		explosion.blast_scale = 1.6
+		player_node.get_tree().root.add_child(explosion)
+		explosion.global_position = death_position
+
+	player_node.queue_free()

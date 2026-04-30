@@ -6,12 +6,17 @@ const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const ENEMY_INFANTRY_SCENE := preload("res://scenes/enemies/enemy_infantry.tscn")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 const VictoryScreen := preload("res://src/ui/victory_screen.gd")
+const GameOverScreen := preload("res://src/ui/game_over_screen.gd")
 const TrenchObstacle := preload("res://src/levels/trench_obstacle.gd")
 const MudPit := preload("res://src/levels/mud_pit.gd")
 const Mine := preload("res://src/levels/mine.gd")
 const WIN_RETURN_DELAY := 2.0
 const VICTORY_TITLE := "EXTRACTION REACHED"
 const VICTORY_MESSAGE := "You broke through the trench line. Returning to workshop."
+const GAME_OVER_SHOW_DELAY := 0.9
+const GAME_OVER_RETURN_DELAY := 2.0
+const GAME_OVER_TITLE := "MECH DESTROYED"
+const GAME_OVER_MESSAGE := "Assault failed in the trenches. Returning to workshop."
 
 const ARENA_HALF_WIDTH := 900.0
 const WALL_THICKNESS := 30.0
@@ -44,6 +49,7 @@ var _bg_material: ShaderMaterial
 
 var _enemies_node: Node2D
 var _victory_screen: VictoryScreen
+var _game_over_screen: GameOverScreen
 var _arena_half_height: float = 1500.0
 
 var _level_won := false
@@ -90,12 +96,23 @@ func _ready() -> void:
 	_victory_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_victory_screen.configure(VICTORY_TITLE, VICTORY_MESSAGE, WIN_RETURN_DELAY)
 
+	_game_over_screen = GameOverScreen.new()
+	$HUD/HUDControl.add_child(_game_over_screen)
+	_game_over_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_game_over_screen.configure(GAME_OVER_TITLE, GAME_OVER_MESSAGE, GAME_OVER_RETURN_DELAY)
+
+	var game_over_cb := Callable(self, "_on_game_over")
+	if not GameManager.game_over.is_connected(game_over_cb):
+		GameManager.game_over.connect(game_over_cb)
+
 	_update_objective_hud()
 	queue_redraw()
 
 func _process(delta: float) -> void:
 	_scroll_background()
 	_update_hud()
+	if _stats and _stats.is_dead():
+		return
 
 	if _level_won:
 		return
@@ -139,12 +156,16 @@ func _update_objective_hud() -> void:
 	if objective_label:
 		if _level_won:
 			objective_label.text = "MISSION COMPLETE"
+		elif not is_instance_valid(_player):
+			objective_label.text = "MECH DESTROYED"
 		else:
 			var distance_to_top := maxf(0.0, _player.global_position.y + _arena_half_height)
 			objective_label.text = "Advance north: %.0f m to extraction" % distance_to_top
 	if mission_label:
 		if _level_won:
 			mission_label.text = "Trenches secured"
+		elif not is_instance_valid(_player):
+			mission_label.text = "Mission failed"
 		else:
 			mission_label.text = "Enemy pressure from the north edge"
 
@@ -339,6 +360,12 @@ func _trigger_win() -> void:
 	_update_objective_hud()
 	if _victory_screen:
 		_victory_screen.show_victory()
+
+func _on_game_over() -> void:
+	if _level_won:
+		return
+	if _game_over_screen:
+		_game_over_screen.show_game_over_delayed(GAME_OVER_SHOW_DELAY)
 
 func _create_arena_bounds() -> void:
 	var bounds := Node2D.new()

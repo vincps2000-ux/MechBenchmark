@@ -6,10 +6,15 @@ const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const ENEMY_TANK_SCENE := preload("res://scenes/enemies/enemy_tank.tscn")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 const VictoryScreen := preload("res://src/ui/victory_screen.gd")
+const GameOverScreen := preload("res://src/ui/game_over_screen.gd")
 
 const WIN_RETURN_DELAY := 2.0
 const VICTORY_TITLE := "COLUMNN AMBUSH CLEARED"
 const VICTORY_MESSAGE := "Convoy neutralized before breakthrough. Returning to workshop."
+const GAME_OVER_SHOW_DELAY := 0.9
+const GAME_OVER_RETURN_DELAY := 2.0
+const GAME_OVER_TITLE := "MECH DESTROYED"
+const GAME_OVER_MESSAGE := "Ambush failed. Returning to workshop."
 
 const ARENA_HALF_WIDTH := 1200.0
 const ARENA_HALF_HEIGHT := 700.0
@@ -64,6 +69,7 @@ var _bg_material: ShaderMaterial
 var _tanks_node: Node2D
 var _obstacles_node: Node2D
 var _victory_screen: VictoryScreen
+var _game_over_screen: GameOverScreen
 
 var _level_won := false
 var _tanks_alive := 0
@@ -107,6 +113,15 @@ func _ready() -> void:
 	_victory_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_victory_screen.configure(VICTORY_TITLE, VICTORY_MESSAGE, WIN_RETURN_DELAY)
 
+	_game_over_screen = GameOverScreen.new()
+	$HUD/HUDControl.add_child(_game_over_screen)
+	_game_over_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_game_over_screen.configure(GAME_OVER_TITLE, GAME_OVER_MESSAGE, GAME_OVER_RETURN_DELAY)
+
+	var game_over_cb := Callable(self, "_on_game_over")
+	if not GameManager.game_over.is_connected(game_over_cb):
+		GameManager.game_over.connect(game_over_cb)
+
 	_update_objective_hud()
 	queue_redraw()
 
@@ -114,6 +129,8 @@ func _process(_delta: float) -> void:
 	_scroll_background()
 	game_hud.update_stats(_stats)
 	_update_objective_hud()
+	if _stats and _stats.is_dead():
+		return
 
 	if _level_won:
 		return
@@ -245,6 +262,12 @@ func _trigger_win() -> void:
 	_update_objective_hud()
 	if _victory_screen:
 		_victory_screen.show_victory()
+
+func _on_game_over() -> void:
+	if _level_won:
+		return
+	if _game_over_screen:
+		_game_over_screen.show_game_over_delayed(GAME_OVER_SHOW_DELAY)
 
 func _create_arena_bounds() -> void:
 	var bounds := Node2D.new()

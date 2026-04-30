@@ -55,13 +55,12 @@ func _ready() -> void:
 	_audio.play()
 
 	# ── Collision: no layer (we are not an obstacle), configurable target mask ──
-	collision_layer = 0
-	collision_mask  = target_collision_mask
-	monitorable      = false   # nothing needs to detect us
+	set_deferred("collision_layer", 0)
+	set_deferred("collision_mask", target_collision_mask)
+	set_deferred("monitorable", false)   # nothing needs to detect us
 	# Defer monitoring enable to avoid "Can't change state while flushing queries"
 	# when spawned from inside an area_entered callback.
-	monitoring       = false
-	set_deferred("monitoring", true)
+	call_deferred("_enable_monitoring")
 
 	# Circle hitbox matching the scaled full blast radius
 	var effective_radius := _effective_max_radius()
@@ -99,7 +98,7 @@ func _process(delta: float) -> void:
 				_state = 1
 				_elapsed = 0.0
 				# Blast window closed — stop detecting new targets
-				monitoring = false
+				call_deferred("_disable_monitoring")
 			_update_visuals(t, 1.0)
 
 		1:  # fade
@@ -150,6 +149,14 @@ func _on_body_entered(body: Node2D) -> void:
 
 func _effective_max_radius() -> float:
 	return MAX_RADIUS * maxf(0.2, blast_scale)
+
+
+func _enable_monitoring() -> void:
+	set_deferred("monitoring", true)
+
+
+func _disable_monitoring() -> void:
+	set_deferred("monitoring", false)
 
 
 func _make_circle(radius: float) -> PackedVector2Array:

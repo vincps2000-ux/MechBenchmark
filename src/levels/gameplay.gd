@@ -6,9 +6,14 @@ const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
 const TARGET_SCENE  := preload("res://scenes/enemies/shoot_target.tscn")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 const VictoryScreen := preload("res://src/ui/victory_screen.gd")
+const GameOverScreen := preload("res://src/ui/game_over_screen.gd")
 const WIN_RETURN_DELAY := 2.0
 const VICTORY_TITLE := "COURSE CLEAR"
 const VICTORY_MESSAGE := "All targets destroyed. Returning to the workshop."
+const GAME_OVER_SHOW_DELAY := 0.9
+const GAME_OVER_RETURN_DELAY := 2.0
+const GAME_OVER_TITLE := "MECH DESTROYED"
+const GAME_OVER_MESSAGE := "Training mech lost. Returning to the workshop."
 
 ## Total number of targets the player must destroy to win.
 @export var target_count: int = 10
@@ -68,6 +73,7 @@ var _bg_material: ShaderMaterial
 var _targets_node: Node2D
 var _obstacles_node: Node2D
 var _victory_screen: VictoryScreen
+var _game_over_screen: GameOverScreen
 var _alive_targets: int = 0
 var _total_targets: int = 0
 var _level_won: bool = false
@@ -121,15 +127,26 @@ func _ready() -> void:
 	_victory_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_victory_screen.configure(VICTORY_TITLE, VICTORY_MESSAGE, WIN_RETURN_DELAY)
 
+	_game_over_screen = GameOverScreen.new()
+	$HUD/HUDControl.add_child(_game_over_screen)
+	_game_over_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_game_over_screen.configure(GAME_OVER_TITLE, GAME_OVER_MESSAGE, GAME_OVER_RETURN_DELAY)
+
+	var game_over_cb := Callable(self, "_on_game_over")
+	if not GameManager.game_over.is_connected(game_over_cb):
+		GameManager.game_over.connect(game_over_cb)
+
 	_update_target_hud()
 	queue_redraw()
 
 func _process(_delta: float) -> void:
 	_scroll_background()
 	_update_hud()
+	if _stats and _stats.is_dead():
+		return
 
 func _scroll_background() -> void:
-	if not (_bg_material and _player_camera):
+	if not (_bg_material and is_instance_valid(_player_camera) and is_instance_valid(_player)):
 		return
 	var vp_size: Vector2    = get_viewport().get_visible_rect().size
 	var zoom: float         = _player_camera.zoom.x
@@ -176,6 +193,12 @@ func _trigger_win() -> void:
 	GameManager.is_running = false
 	if _victory_screen:
 		_victory_screen.show_victory()
+
+func _on_game_over() -> void:
+	if _level_won:
+		return
+	if _game_over_screen:
+		_game_over_screen.show_game_over_delayed(GAME_OVER_SHOW_DELAY)
 
 ## External access — e.g. for tests
 func get_alive_targets() -> int:
