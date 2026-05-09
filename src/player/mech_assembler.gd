@@ -67,3 +67,14 @@ static func weapon_rect_size(container_px: float) -> float:
 ## The side-length for a light weapon preview TextureRect.
 static func light_weapon_rect_size(container_px: float) -> float:
 	return container_px * (LIGHT_WEAPON_NATIVE_PX / TORSO_NATIVE_PX)
+
+## Utility slot count granted by a torso type.
+## Cargo = 2, Stealth = 3, all others = 1.
+static func get_utility_slots(torso_type: TorsoData.TorsoType) -> int:
+	match torso_type:
+		TorsoData.TorsoType.CARGO:
+			return 2
+		TorsoData.TorsoType.STEALTH:
+			return 3
+		_:
+			return 1

@@ -1,0 +1,19 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="barrel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a6676"/>
+      <stop offset="100%" stop-color="#2a3442"/>
+    </linearGradient>
+    <linearGradient id="coil" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#69d8ff"/>
+      <stop offset="100%" stop-color="#0a7cff"/>
+    </linearGradient>
+  </defs>
+  <rect x="17" y="9" width="14" height="26" rx="5" fill="#16202b" stroke="#7fdfff" stroke-width="1.5"/>
+  <rect x="20" y="4" width="8" height="10" rx="3" fill="url(#coil)" stroke="#d3fbff" stroke-width="1.5"/>
+  <rect x="18.5" y="14" width="11" height="18" rx="4" fill="url(#barrel)"/>
+  <rect x="14" y="19" width="20" height="6" rx="3" fill="url(#coil)" opacity="0.95"/>
+  <circle cx="24" cy="22" r="6.5" fill="#8ff5ff" opacity="0.35"/>
+  <circle cx="24" cy="22" r="3.5" fill="#dffcff"/>
+  <path d="M18 35 L30 35 L27 43 L21 43 Z" fill="#39495b" stroke="#88c9ff" stroke-width="1.5"/>
+</svg>

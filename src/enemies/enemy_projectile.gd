@@ -13,6 +13,7 @@ var penetration: int = 2
 var _elapsed: float = 0.0
 
 func _ready() -> void:
+	add_to_group("level_effect")
 	# Layer 4 (projectiles = bit 3)
 	# Mask: layer 1 (player = bit 0 = 1) + layer 5 (obstacles = bit 4 = 16)
 	collision_layer = 8

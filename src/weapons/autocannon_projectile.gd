@@ -41,6 +41,7 @@ var _elapsed: float = 0.0
 var _pierced: int   = 0
 
 func _ready() -> void:
+	add_to_group("level_effect")
 	# Layer 4 (bit 3) = projectiles.
 	# Always include layer 5 (bit 16) = environment so shells stop on walls.
 	collision_layer = 8    # bit 3 only (projectiles)

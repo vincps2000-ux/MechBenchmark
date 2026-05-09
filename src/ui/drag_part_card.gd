@@ -4,6 +4,7 @@ class_name DragPartCard
 extends PanelContainer
 
 signal modify_pressed(data: Variant)
+signal wiki_pressed(data: Variant, part_type: String)
 
 ## The part resource (LegData / TorsoData / WeaponData).
 var part_data = null
@@ -31,6 +32,14 @@ func setup(data: Variant, type: String, index: int) -> void:
 	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
+
+	var wiki_btn := Button.new()
+	wiki_btn.text = "i"
+	wiki_btn.add_theme_font_size_override("font_size", 14)
+	wiki_btn.custom_minimum_size = Vector2(28, 28)
+	wiki_btn.tooltip_text = "Open wiki for " + data.name
+	wiki_btn.pressed.connect(func(): wiki_pressed.emit(part_data, part_type))
+	title_row.add_child(wiki_btn)
 
 	if type == "weapon" or type == "light_weapon":
 		var modify_btn := Button.new()

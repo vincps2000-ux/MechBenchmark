@@ -46,6 +46,7 @@ var _hit_set: Array = []
 var _audio: AudioStreamPlayer2D
 
 func _ready() -> void:
+	add_to_group("level_effect")
 	# Procedural explosion boom
 	_audio = AudioStreamPlayer2D.new()
 	_audio.stream = _create_boom_stream()
@@ -62,13 +63,9 @@ func _ready() -> void:
 	# when spawned from inside an area_entered callback.
 	call_deferred("_enable_monitoring")
 
-	# Circle hitbox matching the scaled full blast radius
-	var effective_radius := _effective_max_radius()
-	var shape := CircleShape2D.new()
-	shape.radius = effective_radius
-	var cs := CollisionShape2D.new()
-	cs.shape = shape
-	add_child(cs)
+	# Defer hitbox creation too; adding a CollisionShape2D to an Area2D from an
+	# overlap callback can still trip physics query flushing.
+	call_deferred("_add_collision_shape")
 
 	area_entered.connect(_on_area_entered)
 	body_entered.connect(_on_body_entered)
@@ -157,6 +154,14 @@ func _enable_monitoring() -> void:
 
 func _disable_monitoring() -> void:
 	set_deferred("monitoring", false)
+
+
+func _add_collision_shape() -> void:
+	var shape := CircleShape2D.new()
+	shape.radius = _effective_max_radius()
+	var collision_shape := CollisionShape2D.new()
+	collision_shape.shape = shape
+	add_child(collision_shape)
 
 
 func _make_circle(radius: float) -> PackedVector2Array:

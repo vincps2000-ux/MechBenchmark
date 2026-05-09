@@ -115,7 +115,18 @@ static func get_all_guns() -> Array[WeaponData]:
 	laser.pierce           = 99
 	laser.area             = 0.5
 
-	return [autocannon, flamethrower, railgun, laser]
+	var plasma_gun := WeaponData.new()
+	plasma_gun.name             = "Plasma Gun"
+	plasma_gun.weapon_type      = WeaponData.WeaponType.PLASMA_GUN
+	plasma_gun.damage           = 24
+	plasma_gun.cooldown         = 1.1
+	plasma_gun.projectile_speed = 360.0
+	plasma_gun.projectile_count = 1
+	plasma_gun.pierce           = 2
+	plasma_gun.penetration      = 5
+	plasma_gun.projectile_lifetime = 2.2
+
+	return [autocannon, flamethrower, railgun, laser, plasma_gun]
 
 ## Returns all available light weapon configurations
 static func get_all_light_guns() -> Array[WeaponData]:
@@ -142,3 +153,53 @@ static func get_all_light_guns() -> Array[WeaponData]:
 	machinegun.penetration      = 4
 
 	return [rocket_pod, machinegun]
+
+## Returns all available module configurations
+static func get_all_modules() -> Array:
+	const _ModuleData = preload("res://src/player/module_data.gd")
+	
+	# 2x2 Reactor: Larger footprint, bigger bonus
+	var reactor_2x2 = _ModuleData.new()
+	reactor_2x2.name              = "Reactor (2x2)"
+	reactor_2x2.description       = "Large power reactor. Significantly boosts energy regeneration."
+	reactor_2x2.tutorial_text     = "Occupies 4 grid slots. Adds +5 energy per second."
+	reactor_2x2.recharge_rate_bonus = 5.0
+	var shape_2x2: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]
+	reactor_2x2.grid_shape        = shape_2x2
+	reactor_2x2.grid_cell_color   = Color.DODGER_BLUE
+	reactor_2x2.module_icon_path  = "res://assets/sprites/module_reactor_2x2.svg"
+
+	# 1x1 Reactor Module: Single slot, smaller bonus
+	var reactor_1x1 = _ModuleData.new()
+	reactor_1x1.name              = "Reactor Module"
+	reactor_1x1.description       = "Compact energy module. Modest energy regeneration boost."
+	reactor_1x1.tutorial_text     = "Occupies 1 grid slot. Adds +1 energy per second."
+	reactor_1x1.recharge_rate_bonus = 1.0
+	var shape_1x1: Array[Vector2i] = [Vector2i(0, 0)]
+	reactor_1x1.grid_shape        = shape_1x1
+	reactor_1x1.grid_cell_color   = Color.CORNFLOWER_BLUE
+	reactor_1x1.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
+
+	# 2x1 Armor Module: Two slots, strong armor bonus
+	var armor_2x1 = _ModuleData.new()
+	armor_2x1.name              = "Armor Module (2x1)"
+	armor_2x1.description       = "Reinforced plating strip. Improves survivability."
+	armor_2x1.tutorial_text     = "Occupies 2 grid slots. Adds +3 armor."
+	armor_2x1.armor_bonus       = 3
+	var shape_2x1: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0)]
+	armor_2x1.grid_shape        = shape_2x1
+	armor_2x1.grid_cell_color   = Color(0.86, 0.58, 0.18, 1.0)
+	armor_2x1.module_icon_path  = "res://assets/sprites/module_reactor_2x2.svg"
+
+	# 1x1 Armor Module: Single slot, light armor bonus
+	var armor_1x1 = _ModuleData.new()
+	armor_1x1.name              = "Armor Module (1x1)"
+	armor_1x1.description       = "Compact armor tile. Adds a small armor boost."
+	armor_1x1.tutorial_text     = "Occupies 1 grid slot. Adds +1 armor."
+	armor_1x1.armor_bonus       = 1
+	armor_1x1.grid_shape        = shape_1x1
+	armor_1x1.grid_cell_color   = Color(0.95, 0.74, 0.24, 1.0)
+	armor_1x1.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
+
+	return [reactor_2x2, reactor_1x1, armor_2x1, armor_1x1]
+

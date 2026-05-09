@@ -4,11 +4,12 @@ extends Resource
 
 @export var max_integrity: int = 4
 @export var integrity: int = 4
-@export var armor: int = 5
+@export var armor: int = 0
 @export var speed: float = 200.0
 @export var experience: int = 0
 @export var level: int = 1
 @export var pickup_range: float = 50.0
+@export var recharge_rate_bonus: float = 0.0  # Energy regen bonus per second
 
 # XP required to reach the next level
 func xp_for_next_level() -> int:

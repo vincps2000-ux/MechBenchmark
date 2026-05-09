@@ -24,6 +24,7 @@ var _elapsed: float = 0.0
 var _pierced: int   = 0
 
 func _ready() -> void:
+	add_to_group("level_effect")
 	collision_layer = 8    # bit 3 = projectiles
 	collision_mask  = 2 | 16  # bit 1 (enemies) + bit 4 (environment)
 

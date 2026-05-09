@@ -1,0 +1,20 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer border -->
+  <rect x="2" y="2" width="28" height="28" fill="#1E90FF" stroke="#0047AB" stroke-width="1.5"/>
+  
+  <!-- Inner glow sections -->
+  <rect x="4" y="4" width="12" height="12" fill="#00BFFF" stroke="none"/>
+  <rect x="16" y="4" width="12" height="12" fill="#00BFFF" stroke="none"/>
+  <rect x="4" y="16" width="12" height="12" fill="#00BFFF" stroke="none"/>
+  <rect x="16" y="16" width="12" height="12" fill="#00BFFF" stroke="none"/>
+  
+  <!-- Center highlights -->
+  <circle cx="10" cy="10" r="3" fill="#87CEEB" opacity="0.8"/>
+  <circle cx="22" cy="10" r="3" fill="#87CEEB" opacity="0.8"/>
+  <circle cx="10" cy="22" r="3" fill="#87CEEB" opacity="0.8"/>
+  <circle cx="22" cy="22" r="3" fill="#87CEEB" opacity="0.8"/>
+  
+  <!-- Subtle grid lines -->
+  <line x1="16" y1="2" x2="16" y2="30" stroke="#0047AB" stroke-width="0.5" opacity="0.5"/>
+  <line x1="2" y1="16" x2="30" y2="16" stroke="#0047AB" stroke-width="0.5" opacity="0.5"/>
+</svg>

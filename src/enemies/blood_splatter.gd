@@ -12,6 +12,7 @@ var _drops: Array[Dictionary] = []
 func _ready() -> void:
 	z_index = -1  # Draw below characters
 	add_to_group("blood_splatter")
+	add_to_group("level_effect")
 	_generate_drops()
 	queue_redraw()
 

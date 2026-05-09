@@ -277,6 +277,12 @@ func _process(_delta: float) -> void:
 			parent_size.x - _panel.size.x - 16,
 			parent_size.y - _panel.size.y - 16
 		)
+	if _player != null and _player.has_method("is_drone_view_active") and bool(_player.call("is_drone_view_active")):
+		if _panel:
+			_panel.visible = false
+		return
+	if _panel:
+		_panel.visible = true
 	for index in _ammo_labels.keys():
 		_refresh_weapon_status(index)
 	_update_charge_bars()

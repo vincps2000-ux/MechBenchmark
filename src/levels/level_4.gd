@@ -4,7 +4,9 @@ extends Node2D
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const ENEMY_TANK_SCENE := preload("res://scenes/enemies/enemy_tank.tscn")
+const EnergyHUD := preload("res://src/ui/energy_hud.gd")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
+const DroneBatteryHUD := preload("res://src/ui/drone_battery_hud.gd")
 const VictoryScreen := preload("res://src/ui/victory_screen.gd")
 const GameOverScreen := preload("res://src/ui/game_over_screen.gd")
 
@@ -76,6 +78,7 @@ var _tanks_alive := 0
 var _firing_actions: Array[String] = []
 
 func _ready() -> void:
+	get_tree().call_group("level_effect", "queue_free")
 	_player = PLAYER_SCENE.instantiate() as CharacterBody2D
 	add_child(_player)
 	_player_camera = _player.get_node("Camera2D") as Camera2D
@@ -87,6 +90,14 @@ func _ready() -> void:
 	$HUD/HUDControl.add_child(weapon_hud)
 	weapon_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	weapon_hud.setup(_player)
+	var energy_hud := EnergyHUD.new()
+	$HUD/HUDControl.add_child(energy_hud)
+	energy_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	energy_hud.setup(_player)
+	var drone_battery_hud := DroneBatteryHUD.new()
+	$HUD/HUDControl.add_child(drone_battery_hud)
+	drone_battery_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	drone_battery_hud.setup(_player)
 
 	if background_rect and background_rect.material is ShaderMaterial:
 		_bg_material = (background_rect.material as ShaderMaterial).duplicate()
@@ -141,13 +152,26 @@ func _process(_delta: float) -> void:
 	_trigger_loosing_zone_orbit()
 
 func _scroll_background() -> void:
-	if not (_bg_material and _player_camera and is_instance_valid(_player)):
+	if not (_bg_material and is_instance_valid(_player)):
 		return
 	var vp_size: Vector2 = get_viewport().get_visible_rect().size
-	var zoom: float = _player_camera.zoom.x
+	var active_camera := get_viewport().get_camera_2d()
+	var zoom: float = _player_camera.zoom.x if is_instance_valid(_player_camera) else 1.0
+	if is_instance_valid(active_camera):
+		zoom = maxf(active_camera.zoom.x, 0.001)
 	var world_vp: Vector2 = vp_size / zoom
 	_bg_material.set_shader_parameter("viewport_size", world_vp)
-	_bg_material.set_shader_parameter("camera_world_pos", _player.global_position - world_vp * 0.5)
+	_bg_material.set_shader_parameter("camera_world_pos", _get_background_anchor_position() - world_vp * 0.5)
+
+
+func _get_background_anchor_position() -> Vector2:
+	if not is_instance_valid(_player):
+		return Vector2.ZERO
+	if _player.has_method("get_active_drone"):
+		var active_drone: Variant = _player.call("get_active_drone")
+		if active_drone is Node2D and is_instance_valid(active_drone):
+			return (active_drone as Node2D).global_position
+	return _player.global_position
 
 func _update_objective_hud() -> void:
 	if objective_label:
@@ -259,6 +283,7 @@ func _trigger_win() -> void:
 		return
 	_level_won = true
 	GameManager.is_running = false
+	get_tree().call_group("level_effect", "queue_free")
 	_update_objective_hud()
 	if _victory_screen:
 		_victory_screen.show_victory()

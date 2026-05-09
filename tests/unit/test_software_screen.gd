@@ -103,10 +103,52 @@ func test_apply_bindings_to_input_map():
 		InputMap.erase_action("fire_0")
 
 
+func test_default_bindings_for_utility_modules():
+	_loadout.selected_utility_modules = ["Backup Battery", "Drone", ""]
+
+	var utility_bindings := GameManager.get_default_utility_bindings(_loadout)
+	assert_eq(utility_bindings.size(), 2, "Should create bindings for non-empty utility modules")
+	assert_true(utility_bindings[0] is InputEventKey)
+	assert_true(utility_bindings[1] is InputEventKey)
+	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_Q)
+	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_E)
+
+
+func test_default_bindings_for_customizable_utility_modules():
+	var utility_script: Script = load("res://src/player/utility_module_data.gd")
+	var battery = utility_script.new()
+	battery.module_type = 0
+	var booster = utility_script.new()
+	booster.module_type = 2
+	booster.direction_angle = PI * 0.5
+	_loadout.selected_utility_modules = [battery, booster]
+
+	var utility_bindings := GameManager.get_default_utility_bindings(_loadout)
+	assert_eq(utility_bindings.size(), 2, "Configured utility modules should still get bindings")
+	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_Q)
+	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_E)
+
+
+func test_apply_utility_bindings_to_input_map():
+	_loadout.selected_utility_modules = ["Backup Battery"]
+	GameManager.utility_bindings = GameManager.get_default_utility_bindings(_loadout)
+
+	GameManager.apply_utility_bindings()
+
+	assert_true(InputMap.has_action("utility_0"), "utility_0 action should exist")
+	var events := InputMap.action_get_events("utility_0")
+	assert_eq(events.size(), 1, "utility_0 should have exactly 1 event")
+	assert_true(events[0] is InputEventKey)
+
+
 func after_each():
 	# Clean up any dynamic actions
 	for i in range(10):
 		var action_name := "fire_%d" % i
 		if InputMap.has_action(action_name):
 			InputMap.erase_action(action_name)
+		var utility_action_name := "utility_%d" % i
+		if InputMap.has_action(utility_action_name):
+			InputMap.erase_action(utility_action_name)
 	GameManager.weapon_bindings = []
+	GameManager.utility_bindings = []

@@ -1,6 +1,8 @@
 # game_manager.gd — Autoload singleton for game state
 extends Node
 
+const _UTILITY_MODULE_DATA_SCRIPT := preload("res://src/player/utility_module_data.gd")
+
 signal wave_started(wave_number: int)
 signal game_over
 signal level_up(new_level: int)
@@ -12,6 +14,7 @@ var enemies_alive: int = 0
 var game_time: float = 0.0
 var is_running: bool = false
 var weapon_bindings: Array[InputEvent] = []
+var utility_bindings: Array[InputEvent] = []
 
 func start_game() -> void:
 	player_stats = PlayerStats.new()
@@ -62,6 +65,24 @@ static func get_default_bindings(loadout: MechLoadout) -> Array[InputEvent]:
 	return defaults
 
 
+## Returns default InputEvent bindings for each equipped utility module.
+## Defaults: Q, E, R, then T, Y, U.
+static func get_default_utility_bindings(loadout: MechLoadout) -> Array[InputEvent]:
+	var defaults: Array[InputEvent] = []
+	var key_defaults := [KEY_Q, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U]
+	var count := 0
+	var utility_module_data = _UTILITY_MODULE_DATA_SCRIPT.new()
+	for module in loadout.selected_utility_modules:
+		if not utility_module_data.is_module_empty(module):
+			count += 1
+	for i in count:
+		var ev := InputEventKey.new()
+		var key_index := mini(i, key_defaults.size() - 1)
+		ev.keycode = key_defaults[key_index] as Key
+		defaults.append(ev)
+	return defaults
+
+
 ## Returns a human-readable label for an InputEvent.
 static func get_binding_label(ev: InputEvent) -> String:
 	if ev is InputEventMouseButton:
@@ -86,3 +107,14 @@ func apply_weapon_bindings() -> void:
 		else:
 			InputMap.add_action(action_name)
 		InputMap.action_add_event(action_name, weapon_bindings[i])
+
+
+## Registers per-utility InputMap actions (utility_0, utility_1, …) from utility_bindings.
+func apply_utility_bindings() -> void:
+	for i in utility_bindings.size():
+		var action_name := "utility_%d" % i
+		if InputMap.has_action(action_name):
+			InputMap.action_erase_events(action_name)
+		else:
+			InputMap.add_action(action_name)
+		InputMap.action_add_event(action_name, utility_bindings[i])

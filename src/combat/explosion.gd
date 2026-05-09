@@ -31,6 +31,7 @@ var _audio: AudioStreamPlayer2D = null
 var _scale: float = 1.0
 
 func _ready() -> void:
+	add_to_group("level_effect")
 	# Defer all physics state changes to avoid conflicts during collision callbacks
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 2)

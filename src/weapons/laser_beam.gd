@@ -11,6 +11,9 @@ const FADE_TIME := 0.25  # seconds for fade-out after stop()
 var _fading:  bool  = false
 var _elapsed: float = 0.0
 
+func _ready() -> void:
+	add_to_group("level_effect")
+
 ## Initial setup — called on the first frame the laser fires
 func fire(from: Vector2, to: Vector2) -> void:
 	_fading  = false

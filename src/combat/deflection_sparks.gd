@@ -12,6 +12,7 @@ var _audio: AudioStreamPlayer2D
 
 func _ready() -> void:
 	z_index = 12
+	add_to_group("level_effect")
 	# Generate random spark directions
 	for _i in SPARK_COUNT:
 		var angle := randf() * TAU

@@ -10,6 +10,8 @@ signal deploy_pressed(loadout: MechLoadout)
 const _MISSILE_BUILDER_PART_CARD_SCRIPT := preload("res://src/ui/missile_builder_part_card.gd")
 const _MISSILE_BUILDER_SLOT_SCRIPT := preload("res://src/ui/missile_builder_slot.gd")
 const _THROWER_TANK_SCRIPT := preload("res://src/ui/thrower_tank.gd")
+const _WIKI_ROOT := "res://assets/wiki"
+const _WIKI_DEFAULT_PAGE := "res://assets/wiki/default.html"
 
 # ── Node refs (from scene) ────────────────────────────────────────────────────
 @onready var _step_label:     Label            = %StepLabel
@@ -139,6 +141,7 @@ func _build_parts_catalog() -> void:
 	for i in _all_legs.size():
 		var card := DragPartCard.new()
 		card.setup(_all_legs[i], "legs", i)
+		card.wiki_pressed.connect(_on_part_wiki_requested)
 		legs_body.add_child(card)
 		_leg_cards.append(card)
 
@@ -146,6 +149,7 @@ func _build_parts_catalog() -> void:
 	for i in _all_torsos.size():
 		var card := DragPartCard.new()
 		card.setup(_all_torsos[i], "torso", i)
+		card.wiki_pressed.connect(_on_part_wiki_requested)
 		torsos_body.add_child(card)
 		_torso_cards.append(card)
 
@@ -154,6 +158,7 @@ func _build_parts_catalog() -> void:
 		var card := DragPartCard.new()
 		card.setup(_all_guns[i], "weapon", i)
 		card.modify_pressed.connect(_on_modify_weapon)
+		card.wiki_pressed.connect(_on_part_wiki_requested)
 		weapons_body.add_child(card)
 		_weapon_cards.append(card)
 
@@ -162,6 +167,7 @@ func _build_parts_catalog() -> void:
 		var card := DragPartCard.new()
 		card.setup(_all_light_guns[i], "light_weapon", i)
 		card.modify_pressed.connect(_on_modify_weapon)
+		card.wiki_pressed.connect(_on_part_wiki_requested)
 		light_body.add_child(card)
 		_light_weapon_cards.append(card)
 
@@ -507,6 +513,7 @@ func _on_light_weapon_equipped(data: Variant, slot: int) -> void:
 static func _weapon_preview_rotation(gun: WeaponData) -> float:
 	match gun.weapon_type:
 		WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER, \
+		WeaponData.WeaponType.PLASMA_GUN, \
 		WeaponData.WeaponType.ROCKET_POD, WeaponData.WeaponType.MACHINEGUN:
 			return deg_to_rad(-90.0)
 	return 0.0
@@ -649,11 +656,16 @@ func _on_deploy_pressed() -> void:
 	GameManager.current_loadout = _loadout
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 0.5).set_ease(Tween.EASE_IN)
-	tween.tween_callback(_go_to_game)
+	tween.tween_callback(func(): _go_to_engineering_screen())
+
+
+func _go_to_engineering_screen() -> void:
+	# Use a normal scene transition so Workshop visuals are fully unloaded.
+	get_tree().change_scene_to_file("res://scenes/ui/engineering_screen.tscn")
 
 
 func _go_to_game() -> void:
-	get_tree().change_scene_to_file("res://scenes/ui/software_screen.tscn")
+	get_tree().change_scene_to_file("res://scenes/ui/utility_modules_screen.tscn")
 
 # ── Modify modal ──────────────────────────────────────────────────────────────
 
@@ -695,6 +707,7 @@ const _MODIFIABLE_TYPES := [
 	WeaponData.WeaponType.FLAMETHROWER,
 	WeaponData.WeaponType.RAILGUN,
 	WeaponData.WeaponType.LASER,
+	WeaponData.WeaponType.PLASMA_GUN,
 	WeaponData.WeaponType.MACHINEGUN,
 ]
 
@@ -775,6 +788,8 @@ static func _thrower_element_label(element: WeaponData.ThrowerElement) -> String
 static func _weapon_variant_label(gun: WeaponData) -> String:
 	if gun.weapon_type == WeaponData.WeaponType.FLAMETHROWER:
 		return "Element: %s" % _thrower_element_label(gun.thrower_element)
+	if gun.weapon_type == WeaponData.WeaponType.PLASMA_GUN:
+		return "Core: Plasma"
 	return _ammo_type_label(gun.ammo_type)
 
 
@@ -957,6 +972,182 @@ func _show_sub_modal(title_text: String, body_text: String) -> void:
 
 	_sub_modal_open_frame = Engine.get_process_frames()
 	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_part_wiki_requested(data: Variant, part_type: String) -> void:
+	var part_obj := data as Object
+	if part_obj == null:
+		return
+	var part_name := str(part_obj.get("name"))
+	if part_name.is_empty():
+		part_name = "Unknown Part"
+	var sprite_path := ""
+	if part_obj.has_method("get_sprite_path"):
+		sprite_path = part_obj.get_sprite_path()
+	_show_wiki_modal(part_name, _resolve_wiki_page_path(part_name, part_type), sprite_path)
+
+
+func _resolve_wiki_page_path(part_name: String, part_type: String) -> String:
+	var slug := _part_name_to_slug(part_name)
+	if slug.is_empty():
+		return _WIKI_DEFAULT_PAGE
+
+	var typed_page := "%s/%s/%s.html" % [_WIKI_ROOT, part_type, slug]
+	if FileAccess.file_exists(typed_page):
+		return typed_page
+
+	var root_page := "%s/%s.html" % [_WIKI_ROOT, slug]
+	if FileAccess.file_exists(root_page):
+		return root_page
+
+	if FileAccess.file_exists(_WIKI_DEFAULT_PAGE):
+		return _WIKI_DEFAULT_PAGE
+	return ""
+
+
+func _part_name_to_slug(part_name: String) -> String:
+	var slug := part_name.to_lower()
+	var separator_regex := RegEx.new()
+	separator_regex.compile("[^a-z0-9]+")
+	slug = separator_regex.sub(slug, "_", true)
+	while slug.begins_with("_"):
+		slug = slug.substr(1)
+	while slug.ends_with("_"):
+		slug = slug.substr(0, slug.length() - 1)
+	return slug
+
+
+func _show_wiki_modal(part_name: String, page_path: String, sprite_path: String = "") -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var root := VBoxContainer.new()
+	root.custom_minimum_size = Vector2(780, 560)
+	root.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(root)
+
+	var title := Label.new()
+	title.text = "WIKI — %s" % part_name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	root.add_child(sep)
+
+	if not sprite_path.is_empty() and ResourceLoader.exists(sprite_path):
+		var sprite_row := CenterContainer.new()
+		sprite_row.custom_minimum_size = Vector2(0, 128)
+		root.add_child(sprite_row)
+		var tex_rect := TextureRect.new()
+		tex_rect.texture = load(sprite_path)
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex_rect.custom_minimum_size = Vector2(128, 128)
+		sprite_row.add_child(tex_rect)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(760, 390)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(scroll)
+
+	var body := RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.fit_content = true
+	body.scroll_active = false
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(740, 420)
+	body.add_theme_font_size_override("normal_font_size", 14)
+	body.add_theme_color_override("default_color", Color(0.84, 0.8, 0.74))
+	body.clear()
+	body.append_text(_wiki_html_to_bbcode(_load_wiki_html(page_path, part_name)))
+	scroll.add_child(body)
+
+	var controls := HBoxContainer.new()
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	controls.add_theme_constant_override("separation", 10)
+	root.add_child(controls)
+
+	if not page_path.is_empty() and FileAccess.file_exists(page_path):
+		var open_external := Button.new()
+		open_external.text = "OPEN HTML"
+		open_external.custom_minimum_size = Vector2(130, 36)
+		open_external.pressed.connect(func(): OS.shell_open(ProjectSettings.globalize_path(page_path)))
+		controls.add_child(open_external)
+
+	var close_btn := Button.new()
+	close_btn.text = "CLOSE"
+	close_btn.custom_minimum_size = Vector2(130, 36)
+	close_btn.pressed.connect(_hide_sub_modal)
+	controls.add_child(close_btn)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _load_wiki_html(page_path: String, part_name: String) -> String:
+	if page_path.is_empty() or not FileAccess.file_exists(page_path):
+		return "<h1>%s</h1><p>No wiki page found yet.</p><p>Create a page at <b>assets/wiki/</b> to document this part.</p>" % part_name
+
+	var file := FileAccess.open(page_path, FileAccess.READ)
+	if file == null:
+		return "<h1>%s</h1><p>Wiki page exists but could not be loaded.</p>" % part_name
+	return file.get_as_text()
+
+
+func _wiki_html_to_bbcode(html: String) -> String:
+	var text := html.replace("\r", "")
+
+	text = text.replace("<br>", "\n")
+	text = text.replace("<br/>", "\n")
+	text = text.replace("<br />", "\n")
+
+	text = text.replace("<h1>", "[b]")
+	text = text.replace("</h1>", "[/b]\n")
+	text = text.replace("<h2>", "[b]")
+	text = text.replace("</h2>", "[/b]\n")
+	text = text.replace("<h3>", "[b]")
+	text = text.replace("</h3>", "[/b]\n")
+
+	text = text.replace("<p>", "")
+	text = text.replace("</p>", "\n\n")
+	text = text.replace("<ul>", "")
+	text = text.replace("</ul>", "\n")
+	text = text.replace("<ol>", "")
+	text = text.replace("</ol>", "\n")
+	text = text.replace("<li>", "• ")
+	text = text.replace("</li>", "\n")
+
+	text = text.replace("<strong>", "[b]")
+	text = text.replace("</strong>", "[/b]")
+	text = text.replace("<b>", "[b]")
+	text = text.replace("</b>", "[/b]")
+	text = text.replace("<em>", "[i]")
+	text = text.replace("</em>", "[/i]")
+	text = text.replace("<i>", "[i]")
+	text = text.replace("</i>", "[/i]")
+	text = text.replace("<u>", "[u]")
+	text = text.replace("</u>", "[/u]")
+
+	var strip_tags_regex := RegEx.new()
+	strip_tags_regex.compile("<[^>]+>")
+	text = strip_tags_regex.sub(text, "", true)
+
+	text = text.replace("&nbsp;", " ")
+	text = text.replace("&amp;", "&")
+	text = text.replace("&lt;", "<")
+	text = text.replace("&gt;", ">")
+	text = text.replace("&quot;", '"')
+	text = text.replace("&#39;", "'")
+
+	var excess_newlines := RegEx.new()
+	excess_newlines.compile("\n{3,}")
+	text = excess_newlines.sub(text, "\n\n", true)
+
+	return text.strip_edges()
 
 
 func _hide_sub_modal() -> void:

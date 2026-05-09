@@ -6,7 +6,7 @@ extends CharacterBody2D
 signal died(enemy: EnemyTank)
 
 const AUTOCANNON_SCENE := preload("res://scenes/weapons/autocannon.tscn")
-const BLOOD_SPLATTER := preload("res://src/enemies/blood_splatter.gd")
+const SCRAP_SPLATTER := preload("res://src/enemies/scrap_splatter.gd")
 const _BURN_EFFECT_SCRIPT := preload("res://src/enemies/burn_effect.gd")
 const _FREEZE_EFFECT_SCRIPT := preload("res://src/enemies/freeze_effect.gd")
 
@@ -186,7 +186,7 @@ func take_damage(amount: int, penetration: int = 10) -> void:
 	tween.tween_property(_visual, "color", COLOR_BODY, 0.12)
 
 	if health <= 0:
-		_spawn_blood_splatter()
+		_spawn_scrap_splatter()
 		died.emit(self)
 		queue_free()
 
@@ -238,9 +238,9 @@ func _draw() -> void:
 	draw_rect(Rect2(-tread_w, -tread_offset - tread_h, tread_w * 2.0, tread_h), COLOR_TREAD)
 	draw_rect(Rect2(-tread_w, tread_offset, tread_w * 2.0, tread_h), COLOR_TREAD)
 
-func _spawn_blood_splatter() -> void:
-	var splat := BLOOD_SPLATTER.new()
-	splat.add_to_group("blood_splatter")
+func _spawn_scrap_splatter() -> void:
+	var splat := SCRAP_SPLATTER.new()
+	splat.add_to_group("scrap_splatter")
 	get_tree().root.add_child(splat)
 	splat.global_position = global_position
 

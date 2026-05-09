@@ -6,6 +6,9 @@ const BEAM_SCENE := preload("res://scenes/weapons/laser_beam.tscn")
 const MAX_RANGE  := 900.0
 ## Collision layer bits to test against (layer 2 = enemies + layer 5 = obstacles)
 const HIT_MASK   := 2 | 16
+const ENERGY_COST_PER_SECOND := 20.0
+const COOL_OFF_DURATION := 0.85
+const RESTART_ENERGY := 8.0
 
 ## The live beam visual while firing; null when not firing
 var _beam: Node2D = null
@@ -17,6 +20,8 @@ var _damage: int = 12
 var _penetration: int = 3
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
+var _cool_off_timer: float = 0.0
+var _needs_restart_charge: bool = false
 
 ## Called by PlayerController right after instantiation to wire up WeaponData.
 func setup(data: WeaponData) -> void:
@@ -24,11 +29,62 @@ func setup(data: WeaponData) -> void:
 	_penetration = data.penetration
 	WeaponAttachment.mount_from_data(self, data)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_cool_off(delta)
 	if InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action):
-		_fire_continuous()
+		if _can_resume_fire() and _try_consume_energy(delta):
+			_fire_continuous()
+		else:
+			if _can_resume_fire():
+				_enter_cool_off()
+			_stop_beam()
 	else:
 		_stop_beam()
+
+func get_energy_cost_per_second() -> float:
+	return ENERGY_COST_PER_SECOND
+
+func get_cool_off_duration() -> float:
+	return COOL_OFF_DURATION
+
+func _try_consume_energy(delta: float) -> bool:
+	var owner := _find_energy_owner()
+	if owner == null:
+		return true
+	var energy_cost := ENERGY_COST_PER_SECOND * delta
+	if not owner.call("has_energy_for", energy_cost):
+		return false
+	return bool(owner.call("consume_energy", energy_cost))
+
+func _find_energy_owner() -> Node:
+	var node: Node = self
+	while node != null:
+		if node.has_method("has_energy_for") and node.has_method("consume_energy"):
+			return node
+		node = node.get_parent()
+	return null
+
+func _update_cool_off(delta: float) -> void:
+	if _cool_off_timer > 0.0:
+		_cool_off_timer = maxf(0.0, _cool_off_timer - delta)
+
+func _can_resume_fire() -> bool:
+	if _cool_off_timer > 0.0:
+		return false
+	if not _needs_restart_charge:
+		return true
+	var owner := _find_energy_owner()
+	if owner == null:
+		_needs_restart_charge = false
+		return true
+	if owner.call("has_energy_for", RESTART_ENERGY):
+		_needs_restart_charge = false
+		return true
+	return false
+
+func _enter_cool_off() -> void:
+	_cool_off_timer = COOL_OFF_DURATION
+	_needs_restart_charge = true
 
 func _fire_continuous() -> void:
 	# Muzzle tip: 14 px forward along the weapon's +X axis in world space

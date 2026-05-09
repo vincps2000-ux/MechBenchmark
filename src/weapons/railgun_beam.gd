@@ -13,6 +13,7 @@ var _core : Line2D = null
 var _edge : Line2D = null
 
 func _ready() -> void:
+	add_to_group("level_effect")
 	_glow = get_node_or_null("GlowLine") as Line2D
 	_core = get_node_or_null("CoreLine") as Line2D
 	_edge = get_node_or_null("EdgeLine") as Line2D

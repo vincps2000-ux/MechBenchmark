@@ -7,10 +7,14 @@ class_name Railgun
 extends Node2D
 
 const BEAM_SCENE  := preload("res://scenes/weapons/railgun_beam.tscn")
-const MAX_RANGE   := 1200.0
+const MAX_RANGE   := 1000000.0
 const HIT_MASK    := 2 | 16    # layer 2 = enemies + layer 5 = obstacles
 const CHARGE_TIME := 1.5        # seconds to reach full charge (1.0)
 const MIN_CHARGE  := 0.35       # fraction of charge needed to fire at all
+## Total energy consumed while charging from 0 → full.
+const CHARGE_ENERGY_TOTAL := 15.0
+## Energy drained per second while holding a full charge.
+const HOLD_ENERGY_PER_SECOND := 5.0
 
 ## Idle weapon sprite colour (no charge).
 const COLOR_IDLE   := Color(1.00, 1.00, 1.00, 1.0)
@@ -33,6 +37,14 @@ var _penetration: int = 7
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
+func _find_energy_owner() -> Node:
+	var node: Node = self
+	while node != null:
+		if node.has_method("has_energy_for") and node.has_method("consume_energy"):
+			return node
+		node = node.get_parent()
+	return null
+
 ## Called by PlayerController immediately after instantiation.
 func setup(data: WeaponData) -> void:
 	_damage = data.damage
@@ -42,7 +54,24 @@ func setup(data: WeaponData) -> void:
 
 func _process(delta: float) -> void:
 	if InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action):
-		_charge = minf(_charge + delta / CHARGE_TIME, 1.0)
+		var owner := _find_energy_owner()
+		if _charge < 1.0:
+			# Charging phase: consume energy proportional to charge rate.
+			var cost := (CHARGE_ENERGY_TOTAL / CHARGE_TIME) * delta
+			if owner == null or owner.call("has_energy_for", cost):
+				if owner != null:
+					owner.call("consume_energy", cost)
+				_charge = minf(_charge + delta / CHARGE_TIME, 1.0)
+			# If no energy, charge simply doesn't increase.
+		else:
+			# Holding at full charge: drain 5 energy/s; auto-fire if empty.
+			var hold_cost := HOLD_ENERGY_PER_SECOND * delta
+			if owner != null and not owner.call("has_energy_for", hold_cost):
+				_shoot()
+				_charge = 0.0
+			else:
+				if owner != null:
+					owner.call("consume_energy", hold_cost)
 	else:
 		# Release — fire if we have enough charge, then always reset.
 		if _charge >= MIN_CHARGE:
@@ -113,3 +142,6 @@ func stop_firing() -> void:
 
 func get_charge_ratio() -> float:
 	return _charge
+
+func get_max_range() -> float:
+	return MAX_RANGE

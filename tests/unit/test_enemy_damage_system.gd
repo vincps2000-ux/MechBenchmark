@@ -1,6 +1,12 @@
 # test_enemy_damage_system.gd — Unit tests for enemy damage to player/mech death handling.
 extends GutTest
 
+func before_each() -> void:
+	_clear_autocannon_explosions()
+
+func after_each() -> void:
+	_clear_autocannon_explosions()
+
 func test_apply_to_player_lethal_hit_spawns_explosion_and_removes_mech() -> void:
 	var stats := PlayerStats.new()
 	stats.max_integrity = 4
@@ -16,12 +22,14 @@ func test_apply_to_player_lethal_hit_spawns_explosion_and_removes_mech() -> void
 
 	var before := _count_autocannon_explosions()
 	var applied := EnemyDamageSystem.apply_to_player(10, 99, mech)
+	await get_tree().process_frame
 
 	assert_true(applied, "Lethal damage should be applied")
 	assert_true(stats.is_dead(), "Player stats should be dead at 0 integrity")
 	assert_false(GameManager.is_running, "Game should stop when the player dies")
-	assert_true(mech.is_queued_for_deletion(), "Player mech should be removed after death")
+	assert_false(is_instance_valid(mech), "Player mech should be removed after death")
 	assert_eq(_count_autocannon_explosions(), before + 1, "A death explosion should be spawned exactly once")
+	_clear_autocannon_explosions()
 
 
 func test_apply_to_player_dead_player_does_not_spawn_extra_explosions() -> void:
@@ -39,10 +47,12 @@ func test_apply_to_player_dead_player_does_not_spawn_extra_explosions() -> void:
 	var before := _count_autocannon_explosions()
 	var first_applied := EnemyDamageSystem.apply_to_player(10, 99, mech)
 	var second_applied := EnemyDamageSystem.apply_to_player(10, 99, mech)
+	await get_tree().process_frame
 
 	assert_true(first_applied, "First lethal hit should apply")
 	assert_false(second_applied, "No additional damage should apply after death")
 	assert_eq(_count_autocannon_explosions(), before + 1, "Only one death explosion should be spawned")
+	_clear_autocannon_explosions()
 
 
 func test_apply_to_player_lethal_hit_detaches_and_locks_camera() -> void:
@@ -78,3 +88,9 @@ func _count_autocannon_explosions() -> int:
 		if script != null and script.resource_path.ends_with("autocannon_explosion.gd"):
 			count += 1
 	return count
+
+func _clear_autocannon_explosions() -> void:
+	for child in get_tree().root.get_children():
+		var script: Script = child.get_script() as Script
+		if script != null and script.resource_path.ends_with("autocannon_explosion.gd"):
+			child.free()

@@ -7,6 +7,7 @@ enum WeaponType {
 	FLAMETHROWER, # Continuous cone — low damage per ray, high area saturation
 	RAILGUN,      # Slow charge — extreme damage, high pierce
 	LASER,        # Instant-hit beam — continuous fire on right mouse button
+	PLASMA_GUN,   # Arcing plasma lobber — high damage, medium penetration
 	ROCKET_POD,   # Light multi-rocket launcher — fits medium & light slots
 	MACHINEGUN,   # Light rapid-fire — high fire rate, low damage per bullet
 }
@@ -102,6 +103,7 @@ func get_sprite_path() -> String:
 	match weapon_type:
 		WeaponType.LASER, WeaponType.RAILGUN: return "res://assets/sprites/weapon_laser.svg"
 		WeaponType.AUTOCANNON:               return "res://assets/sprites/weapon_autocannon.svg"
+		WeaponType.PLASMA_GUN:               return "res://assets/sprites/weapon_plasma.svg"
 		WeaponType.ROCKET_POD:               return "res://assets/sprites/weapon_rocket_pod.svg"
 		WeaponType.MACHINEGUN:               return "res://assets/sprites/weapon_gun.svg"
 		_:                                    return "res://assets/sprites/weapon_gun.svg"
