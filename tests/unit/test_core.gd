@@ -8,19 +8,19 @@ var _utility_module_data = preload("res://src/player/utility_module_data.gd").ne
 
 func test_player_stats_defaults():
 	var s := PlayerStats.new()
-	assert_eq(s.max_integrity, 4)
+	assert_eq(s.max_health, 30)
 	assert_eq(s.speed, 200.0)
 
 func test_player_stats_take_damage_and_heal():
 	var s := PlayerStats.new()
 	s.take_damage()
-	assert_eq(s.integrity, 3)
+	assert_eq(s.health, 29)
 	s.heal()
-	assert_eq(s.integrity, 4)
+	assert_eq(s.health, 30)
 
 func test_player_stats_is_dead():
 	var s := PlayerStats.new()
-	s.integrity = 0
+	s.health = 0
 	assert_true(s.is_dead())
 
 func test_player_stats_xp_level_up():
@@ -73,14 +73,13 @@ func test_leg_custom_torso_slots():
 	leg.torso_slots = 2
 	assert_eq(leg.torso_slots, 2)
 
-func test_torso_applies_integrity():
+func test_torso_does_not_override_structure_health():
 	var t := TorsoData.new()
 	t.speed_modifier = 1.0
-	t.integrity = 8
 	var s := PlayerStats.new()
 	t.apply_to_stats(s)
-	assert_eq(s.max_integrity, 8)
-	assert_eq(s.integrity, 8)
+	assert_eq(s.max_health, 30)
+	assert_eq(s.health, 30)
 
 # ── MechLoadout (multi-weapon) ────────────────────────────────────────────────
 
@@ -312,13 +311,12 @@ func test_loadout_apply_stats():
 	legs.speed_modifier = 0.6
 	var torso := TorsoData.new()
 	torso.speed_modifier = 1.0
-	torso.integrity = 8
 	l.selected_legs = legs
 	l.selected_torso = torso
 	var s := PlayerStats.new()
 	l.apply_to_stats(s)
 	assert_eq(s.speed, 200.0 * 0.6)
-	assert_eq(s.max_integrity, 8)
+	assert_eq(s.max_health, 30)
 
 # ── MechCatalog ───────────────────────────────────────────────────────────────
 

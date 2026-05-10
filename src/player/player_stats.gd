@@ -2,8 +2,8 @@
 class_name PlayerStats
 extends Resource
 
-@export var max_integrity: int = 4
-@export var integrity: int = 4
+@export var max_health: int = 30
+@export var health: int = 30
 @export var armor: int = 0
 @export var speed: float = 200.0
 @export var experience: int = 0
@@ -26,10 +26,10 @@ func add_experience(amount: int) -> bool:
 	return false
 
 func take_damage(amount: int = 1) -> void:
-	integrity = max(0, integrity - amount)
+	health = max(0, health - amount)
 
 func heal(amount: int = 1) -> void:
-	integrity = min(max_integrity, integrity + amount)
+	health = min(max_health, health + amount)
 
 func is_dead() -> bool:
-	return integrity <= 0
+	return health <= 0

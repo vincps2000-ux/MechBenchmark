@@ -1,20 +1,40 @@
-[gd_scene load_steps=2 format=3 uid="uid://game_hud_001"]
+[gd_scene load_steps=4 format=3 uid="uid://game_hud_001"]
 
 [ext_resource type="Script" path="res://src/ui/game_hud.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_fill"]
+bg_color = Color(0.29, 0.77, 0.89, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.09, 0.15, 0.2, 0.85)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
 
 [node name="GameHUD" type="VBoxContainer"]
 script = ExtResource("1")
 theme_override_constants/separation = 6
 
-[node name="IntegrityRow" type="HBoxContainer" parent="."]
+[node name="StructureLabel" type="Label" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 8
+text = "STRUCTURE 30 / 30"
+theme_override_colors/font_color = Color(0.76, 0.92, 0.99, 1)
+theme_override_font_sizes/font_size = 18
 
-[node name="IntegrityLabel" type="Label" parent="IntegrityRow"]
+[node name="StructureBar" type="ProgressBar" parent="."]
+custom_minimum_size = Vector2(190, 12)
 layout_mode = 2
-text = "◆◆◆◆"
-theme_override_colors/font_color = Color(0.3, 0.85, 0.95, 1)
-theme_override_font_sizes/font_size = 20
+size_flags_horizontal = 0
+max_value = 30.0
+value = 30.0
+show_percentage = false
+theme_override_styles/fill = SubResource("StyleBoxFlat_fill")
+theme_override_styles/background = SubResource("StyleBoxFlat_bg")
 
 [node name="ArmorLabel" type="Label" parent="."]
 layout_mode = 2

@@ -1,9 +1,10 @@
-# game_hud.gd — Universal HUD component for integrity, armor, and timer display.
+# game_hud.gd — Universal HUD component for structure, armor, and timer display.
 # Reusable across all levels. Levels add their own custom labels as siblings.
 class_name GameHUD
 extends VBoxContainer
 
-@onready var _integrity_label: Label = $IntegrityRow/IntegrityLabel
+@onready var _structure_label: Label = $StructureLabel
+@onready var _structure_bar: ProgressBar = $StructureBar
 @onready var _armor_label: Label = $ArmorLabel
 @onready var _timer_label: Label = $TimerLabel
 
@@ -11,8 +12,8 @@ extends VBoxContainer
 func update_stats(stats: PlayerStats) -> void:
 	if not stats:
 		return
-	var filled := "◆".repeat(stats.integrity)
-	var empty := "◇".repeat(stats.max_integrity - stats.integrity)
-	_integrity_label.text = filled + empty
-	_armor_label.text = "▰".repeat(stats.armor)
+	_structure_label.text = "STRUCTURE %d / %d" % [stats.health, stats.max_health]
+	_structure_bar.max_value = stats.max_health
+	_structure_bar.value = stats.health
+	_armor_label.text = "ARMOR %d" % stats.armor
 	_timer_label.text = GameManager.get_game_time_formatted()

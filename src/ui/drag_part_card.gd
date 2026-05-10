@@ -68,8 +68,8 @@ func setup(data: Variant, type: String, index: int) -> void:
 			var slots_desc := "%d wpn slot%s" % [torso.weapon_slots, "s" if torso.weapon_slots > 1 else ""]
 			if torso.light_weapon_slots > 0:
 				slots_desc += " + %d light" % torso.light_weapon_slots
-			desc.text = "HP %d  ·  %s  ·  Speed ×%.1f" % [
-				torso.integrity, slots_desc, torso.speed_modifier]
+			desc.text = "Structure 30  ·  %s  ·  Speed x%.1f" % [
+				slots_desc, torso.speed_modifier]
 		"legs":
 			var leg := data as LegData
 			var slots_info := "  ·  %d torso slots" % leg.torso_slots if leg.torso_slots > 1 else ""

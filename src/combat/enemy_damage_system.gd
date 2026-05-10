@@ -1,21 +1,13 @@
-# enemy_damage_system.gd — Converts enemy weapon damage into player structure damage.
+# enemy_damage_system.gd — Applies enemy weapon damage to player structure health.
 class_name EnemyDamageSystem
 
 const MECH_DEATH_EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
 const PLAYER_DEATH_META := "_mech_death_handled"
 
-# Raw enemy weapon damage is scaled to player integrity chunks.
-# Example mapping with default values:
-#   1..10  -> 1 structure
-#   11..20 -> 2 structure
-#   21..30 -> 3 structure
-const DAMAGE_PER_STRUCTURE := 10
-
-## Returns how much player structure damage should be dealt for a raw enemy hit.
+## Returns how much structure damage should be dealt for a raw enemy hit.
+## Player and enemies both use direct HP subtraction.
 static func to_structure_damage(raw_enemy_damage: int) -> int:
-	if raw_enemy_damage <= 0:
-		return 0
-	return maxi(1, int(ceil(float(raw_enemy_damage) / float(DAMAGE_PER_STRUCTURE))))
+	return maxi(0, raw_enemy_damage)
 
 ## Applies enemy damage to player stats with armor penetration conversion.
 ## Returns true if damage was applied, false if deflected or no player stats exist.

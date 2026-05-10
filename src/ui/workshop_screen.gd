@@ -590,7 +590,7 @@ func _update_stats_preview() -> void:
 		return
 	var preview_stats := PlayerStats.new()
 	_loadout.apply_to_stats(preview_stats)
-	var integrity_str := "◆".repeat(preview_stats.max_integrity)
+	var structure_str := "Structure: %d/%d" % [preview_stats.health, preview_stats.max_health]
 	var weapon_names := ""
 	var total_dmg := 0
 	for gun in _loadout.selected_guns:
@@ -615,7 +615,7 @@ func _update_stats_preview() -> void:
 	elif _loadout.selected_torso:
 		torso_name = _loadout.selected_torso.name
 	_stats_label.text = "%s  |  Speed: %.0f  |  %s  +  %s  +  %s  (DMG: %d)" % [
-		integrity_str,
+		structure_str,
 		preview_stats.speed,
 		_loadout.selected_legs.name,
 		torso_name,

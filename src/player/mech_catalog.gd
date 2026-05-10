@@ -9,18 +9,16 @@ static func get_all_torsos() -> Array[TorsoData]:
 	stealth.name           = "Stealth"
 	stealth.description    = "Sleek triangular hull. Cuts through resistance — fast but thin armour."
 	stealth.torso_type     = TorsoData.TorsoType.STEALTH
-	stealth.tutorial_text  = "Low profile — harder for enemies to track\nSpeed bonus, minimal integrity"
+	stealth.tutorial_text  = "Low profile — harder for enemies to track\nHigh speed, light armour"
 	stealth.speed_modifier  = 1.2
-	stealth.integrity       = 2
 	stealth.light_weapon_slots = 1
 
 	var heavy := TorsoData.new()
 	heavy.name           = "Heavy Armour"
 	heavy.description    = "Forward-facing dome hull. Absorbs tremendous punishment."
 	heavy.torso_type     = TorsoData.TorsoType.HEAVY_ARMOUR
-	heavy.tutorial_text  = "Maximum integrity — reduced mobility\nTakes hits the other torsos can't"
+	heavy.tutorial_text  = "Reinforced hull plating — reduced mobility\nExcellent weapon coverage"
 	heavy.speed_modifier  = 0.8
-	heavy.integrity       = 8
 	heavy.weapon_slots    = 2
 	heavy.light_weapon_slots = 0
 
@@ -28,9 +26,8 @@ static func get_all_torsos() -> Array[TorsoData]:
 	cargo.name           = "Cargo"
 	cargo.description    = "Utility trapezoid hull. Balanced loadout with extra storage."
 	cargo.torso_type     = TorsoData.TorsoType.CARGO
-	cargo.tutorial_text  = "Balanced speed and integrity\nExtra pickup radius (passive)"
+	cargo.tutorial_text  = "Balanced speed and utility\nExtra pickup radius (passive)"
 	cargo.speed_modifier  = 1.0
-	cargo.integrity       = 4
 	cargo.light_weapon_slots = 2
 
 	return [stealth, heavy, cargo]
