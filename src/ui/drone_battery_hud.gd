@@ -6,6 +6,7 @@ var _panel: PanelContainer = null
 var _battery_bar: ProgressBar = null
 var _battery_label: Label = null
 var _firecontrol_toggle: CheckButton = null
+var _explode_button: Button = null
 var _exit_button: Button = null
 
 func setup(player: Node) -> void:
@@ -70,6 +71,15 @@ func _build_ui() -> void:
 	_firecontrol_toggle.toggled.connect(_on_firecontrol_toggled)
 	vbox.add_child(_firecontrol_toggle)
 
+	_explode_button = Button.new()
+	_explode_button.text = "EXPLODE"
+	_explode_button.custom_minimum_size = Vector2(0, 24)
+	_explode_button.add_theme_font_size_override("font_size", 10)
+	_explode_button.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2, 0.95))
+	_explode_button.pressed.connect(_on_explode_pressed)
+	_explode_button.visible = false
+	vbox.add_child(_explode_button)
+
 	_exit_button = Button.new()
 	_exit_button.text = "EXIT DRONE"
 	_exit_button.custom_minimum_size = Vector2(0, 24)
@@ -109,6 +119,13 @@ func _refresh() -> void:
 		var firecontrol_active := bool(_player.call("is_drone_firecontrol_active"))
 		if _firecontrol_toggle.button_pressed != firecontrol_active:
 			_firecontrol_toggle.set_pressed_no_signal(firecontrol_active)
+	if _firecontrol_toggle != null and _player != null and _player.has_method("can_drone_firecontrol"):
+		_firecontrol_toggle.visible = bool(_player.call("can_drone_firecontrol"))
+	
+	# Show/hide explode button based on whether drone can explode
+	if _explode_button != null and _player != null and _player.has_method("can_drone_explode"):
+		_explode_button.visible = bool(_player.call("can_drone_explode"))
+	
 	_battery_bar.max_value = maximum
 	_battery_bar.value = current
 	_battery_label.text = "%d / %d" % [roundi(current), roundi(maximum)]
@@ -117,6 +134,11 @@ func _refresh() -> void:
 func _on_firecontrol_toggled(active: bool) -> void:
 	if _player != null and _player.has_method("set_drone_firecontrol_active"):
 		_player.call("set_drone_firecontrol_active", active)
+
+
+func _on_explode_pressed() -> void:
+	if _player != null and _player.has_method("trigger_drone_explode"):
+		_player.call("trigger_drone_explode")
 
 
 func _on_exit_pressed() -> void:

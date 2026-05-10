@@ -9,6 +9,7 @@ enum ModuleType {
 
 @export var module_type: ModuleType = ModuleType.BACKUP_BATTERY
 @export var direction_angle: float = 0.0
+@export var drone_modifications: Variant = null  # DroneModificationData
 
 var name: String:
 	get:

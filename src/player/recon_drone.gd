@@ -2,8 +2,9 @@ class_name ReconDrone
 extends CharacterBody2D
 
 signal battery_depleted
+signal exploded(position: Vector2, damage: int, radius: float)
 
-const MAX_BATTERY := 100.0
+const BASE_MAX_BATTERY := 50.0
 const BATTERY_DRAIN_PER_SECOND := 4.0
 const FORWARD_THRUST := 420.0
 const STRAFE_THRUST := 320.0
@@ -13,10 +14,20 @@ const DRAG_PER_SECOND := 1.4
 
 @onready var camera: Camera2D = $Camera2D
 
-var _battery: float = MAX_BATTERY
+var _modifications: Variant = null
+var _max_battery: float = BASE_MAX_BATTERY
+var _battery: float = BASE_MAX_BATTERY
 
 func _ready() -> void:
 	z_index = 4
+	
+	# Apply modifications if provided
+	if _modifications:
+		_max_battery = BASE_MAX_BATTERY + _modifications.get_battery_bonus()
+	else:
+		_max_battery = BASE_MAX_BATTERY
+	
+	_battery = _max_battery
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
@@ -74,12 +85,12 @@ func get_battery() -> float:
 	return _battery
 
 func get_max_battery() -> float:
-	return MAX_BATTERY
+	return _max_battery
 
 func get_battery_ratio() -> float:
-	if MAX_BATTERY <= 0.0:
+	if _max_battery <= 0.0:
 		return 0.0
-	return _battery / MAX_BATTERY
+	return _battery / _max_battery
 
 func set_active_view(active: bool) -> void:
 	if active:
@@ -89,6 +100,34 @@ func set_launch_velocity(world_direction: Vector2) -> void:
 	if world_direction.length_squared() <= 0.0001:
 		return
 	velocity = world_direction.normalized() * (FORWARD_THRUST * 0.35)
+
+func set_modifications(modifications: Variant) -> void:
+	_modifications = modifications
+	if modifications:
+		_max_battery = BASE_MAX_BATTERY + modifications.get_battery_bonus()
+		_battery = minf(_battery, _max_battery)
+
+func get_modifications() -> Variant:
+	return _modifications
+
+func can_explode() -> bool:
+	return _modifications != null and _modifications.get_explosive_charge_count() > 0
+
+
+func has_fire_control() -> bool:
+	return _modifications != null and _modifications.has_fire_control_module()
+
+func explode() -> void:
+	if not can_explode():
+		return
+	
+	var damage: int = int(_modifications.get_explosion_damage())
+	var radius: float = float(_modifications.get_explosion_radius())
+	
+	exploded.emit(global_position, damage, radius)
+	_battery = 0.0
+	battery_depleted.emit()
+	queue_free()
 
 func debug_deplete_battery() -> void:
 	_battery = 0.0

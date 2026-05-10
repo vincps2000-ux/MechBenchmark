@@ -2,7 +2,9 @@
 extends GutTest
 
 const _PLAYER_SCENE := preload("res://scenes/player/player.tscn")
+const _SHOOT_TARGET_SCENE := preload("res://scenes/enemies/shoot_target.tscn")
 var _utility_module_data = preload("res://src/player/utility_module_data.gd").new()
+var _drone_modification_data = preload("res://src/player/drone_modification_data.gd")
 
 # ── PlayerStats ───────────────────────────────────────────────────────────────
 
@@ -304,6 +306,57 @@ func test_drone_is_single_use_and_returns_camera_on_depletion():
 
 	assert_false(player.is_drone_view_active(),
 		"Player camera control should return after drone battery is depleted")
+
+
+func test_drone_explosion_uses_explosion_system_and_damages_target():
+	var loadout := MechLoadout.new()
+	loadout.selected_legs = LegData.new()
+	loadout.selected_torso = TorsoData.new()
+	loadout.selected_torsos = [loadout.selected_torso]
+	loadout.selected_guns = [WeaponData.new()]
+
+	var drone_module = _utility_module_data.make_module(_utility_module_data.ModuleType.DRONE)
+	var drone_mods = _drone_modification_data.new()
+	var placed: bool = drone_mods.try_place_component(0, _drone_modification_data.ComponentType.EXPLOSIVE_CHARGE)
+	assert_true(placed, "Explosive Charge should fit into drone builder slot 1")
+	drone_module.drone_modifications = drone_mods
+	loadout.selected_utility_modules = [drone_module]
+
+	GameManager.current_loadout = loadout
+	GameManager.utility_bindings = GameManager.get_default_utility_bindings(loadout)
+	GameManager.apply_utility_bindings()
+
+	var player = _PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+	assert_true(player._activate_drone_for_action(0), "Drone should activate from utility action")
+
+	var drone: Variant = player.get_active_drone()
+	assert_not_null(drone, "Drone should exist before self-destruct")
+
+	var target = _SHOOT_TARGET_SCENE.instantiate()
+	add_child_autofree(target)
+	target.global_position = drone.global_position + Vector2(12.0, 0.0)
+
+	var explosions_before: int = _count_autocannon_explosions()
+	player.trigger_drone_explode()
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	await get_tree().create_timer(0.18).timeout
+	await get_tree().process_frame
+
+	assert_eq(_count_autocannon_explosions(), explosions_before + 1,
+		"Drone self-destruct should spawn one autocannon explosion")
+	assert_false(is_instance_valid(target),
+		"Target inside blast should be destroyed by drone explosion")
+
+
+func _count_autocannon_explosions() -> int:
+	var count := 0
+	for child in get_tree().root.get_children():
+		var script: Script = child.get_script() as Script
+		if script != null and script.resource_path.ends_with("autocannon_explosion.gd"):
+			count += 1
+	return count
 
 func test_loadout_apply_stats():
 	var l := MechLoadout.new()

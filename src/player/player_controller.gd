@@ -10,6 +10,7 @@ const PLASMA_GUN_SCENE   := preload("res://scenes/weapons/plasma_gun.tscn")
 const ROCKET_POD_SCENE   := preload("res://scenes/weapons/rocket_pod.tscn")
 const MACHINEGUN_SCENE   := preload("res://scenes/weapons/machinegun.tscn")
 const RECON_DRONE_SCENE  := preload("res://scenes/player/recon_drone.tscn")
+const DRONE_EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
 const _DirectionArrow    := preload("res://src/player/direction_arrow.gd")
 const _UTILITY_MODULE_DATA_SCRIPT := preload("res://src/player/utility_module_data.gd")
 
@@ -30,6 +31,8 @@ const DRONE_MODULE_NAME := "Drone"
 const BOOSTER_MODULE_NAME := "Booster"
 const BOOSTER_SPEED := 1250.0
 const BOOSTER_DURATION := 0.18
+const DRONE_EXPLOSION_BASE_RADIUS := 40.0
+const DRONE_EXPLOSION_PENETRATION := 999
 const BOOST_VISUAL_EDGE := Color(1.0, 0.46, 0.14, 0.32)
 const BOOST_VISUAL_CORE := Color(1.0, 0.9, 0.45, 0.72)
 const BOOST_SPRITE_TINT := Color(1.0, 0.88, 0.72, 1.0)
@@ -439,8 +442,16 @@ func is_drone_firecontrol_active() -> bool:
 	return _drone_firecontrol_active and is_drone_view_active()
 
 
+func can_drone_firecontrol() -> bool:
+	if not is_instance_valid(_active_drone):
+		return false
+	if _active_drone.has_method("has_fire_control"):
+		return bool(_active_drone.call("has_fire_control"))
+	return true
+
+
 func set_drone_firecontrol_active(active: bool) -> void:
-	_drone_firecontrol_active = active and is_drone_view_active()
+	_drone_firecontrol_active = active and is_drone_view_active() and can_drone_firecontrol()
 	_update_weapon_deadspot_blocks()
 
 
@@ -465,6 +476,20 @@ func get_drone_max_battery() -> float:
 	if _active_drone.has_method("get_max_battery"):
 		return float(_active_drone.call("get_max_battery"))
 	return 100.0
+
+
+func can_drone_explode() -> bool:
+	if not is_instance_valid(_active_drone):
+		return false
+	if _active_drone.has_method("can_explode"):
+		return bool(_active_drone.call("can_explode"))
+	return false
+
+
+func trigger_drone_explode() -> void:
+	if is_instance_valid(_active_drone):
+		if _active_drone.has_method("explode"):
+			_active_drone.call("explode")
 
 
 ## Returns one icon key per currently available consumable utility.
@@ -515,15 +540,22 @@ func _activate_drone_for_action(action_index: int) -> bool:
 		return false
 	if not _drone_modules_by_action.has(action_index):
 		return false
+	var drone_module = _drone_modules_by_action[action_index]
 	_drone_modules_by_action.erase(action_index)
-	_spawn_recon_drone()
+	_spawn_recon_drone(drone_module)
 	return true
 
 
-func _spawn_recon_drone() -> void:
+func _spawn_recon_drone(drone_module: Variant = null) -> void:
 	var drone := RECON_DRONE_SCENE.instantiate()
 	if drone == null:
 		return
+
+	# Apply modifications if provided
+	if drone_module != null:
+		var util_module = drone_module
+		if util_module != null and util_module.get("drone_modifications") != null:
+			drone.set_modifications(util_module.get("drone_modifications"))
 
 	var scene_root := get_tree().current_scene if get_tree().current_scene != null else get_parent()
 	if scene_root == null:
@@ -538,6 +570,8 @@ func _spawn_recon_drone() -> void:
 	_drone_firecontrol_active = false
 	if drone.has_signal("battery_depleted"):
 		drone.connect("battery_depleted", Callable(self, "_on_recon_drone_battery_depleted"), CONNECT_ONE_SHOT)
+	if drone.has_signal("exploded"):
+		drone.connect("exploded", Callable(self, "_on_recon_drone_exploded"), CONNECT_ONE_SHOT)
 	drone.tree_exited.connect(_on_recon_drone_exited, CONNECT_ONE_SHOT)
 
 	camera.enabled = false
@@ -546,6 +580,19 @@ func _spawn_recon_drone() -> void:
 
 
 func _on_recon_drone_battery_depleted() -> void:
+	_end_recon_drone_view()
+
+
+func _on_recon_drone_exploded(explosion_pos: Vector2, damage: int, radius: float) -> void:
+	var explosion = DRONE_EXPLOSION_SCENE.instantiate()
+	if explosion != null:
+		explosion.damage = maxi(0, damage)
+		explosion.penetration = DRONE_EXPLOSION_PENETRATION
+		explosion.target_collision_mask = 2  # enemy layer
+		explosion.blast_scale = maxf(0.2, radius / DRONE_EXPLOSION_BASE_RADIUS)
+		var scene_root := get_tree().current_scene if get_tree().current_scene != null else get_tree().root
+		scene_root.add_child(explosion)
+		explosion.global_position = explosion_pos
 	_end_recon_drone_view()
 
 
