@@ -81,14 +81,19 @@ func apply_to_stats(stats: PlayerStats) -> void:
 	# Apply module bonuses
 	var total_recharge_bonus := 0.0
 	var total_armor_bonus := 0
+	var total_max_health_bonus := 0
 	for grid in module_grids:
 		if grid:
 			total_recharge_bonus += grid.get_recharge_bonus()
 			total_armor_bonus += grid.get_armor_bonus()
+			total_max_health_bonus += grid.get_max_health_bonus()
 	if total_recharge_bonus > 0:
 		stats.recharge_rate_bonus = total_recharge_bonus
 	if total_armor_bonus > 0:
 		stats.armor += total_armor_bonus
+	if total_max_health_bonus > 0:
+		stats.max_health += total_max_health_bonus
+		stats.health += total_max_health_bonus
 
 ## Get or create the module grid for a specific torso index
 func get_or_create_module_grid(torso_index: int):
@@ -123,5 +128,13 @@ func get_total_armor_bonus() -> int:
 	for grid in module_grids:
 		if grid:
 			total += grid.get_armor_bonus()
+	return total
+
+## Calculate total max health bonus from all modules
+func get_total_max_health_bonus() -> int:
+	var total := 0
+	for grid in module_grids:
+		if grid:
+			total += grid.get_max_health_bonus()
 	return total
 

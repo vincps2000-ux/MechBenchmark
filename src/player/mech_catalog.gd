@@ -198,5 +198,16 @@ static func get_all_modules() -> Array:
 	armor_1x1.grid_cell_color   = Color(0.95, 0.74, 0.24, 1.0)
 	armor_1x1.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
 
-	return [reactor_2x2, reactor_1x1, armor_2x1, armor_1x1]
+	# Diagonal 1-1 Super-Structure Module: two diagonal cells, large structure bonus
+	var redundant_super_structure = _ModuleData.new()
+	redundant_super_structure.name              = "Redundant Super-Structure"
+	redundant_super_structure.description       = "Reinforced internal lattice that greatly increases survivability."
+	redundant_super_structure.tutorial_text     = "Diagonal 1-1 footprint. Adds +30 structure HP."
+	redundant_super_structure.max_health_bonus  = 30
+	var shape_diagonal_1_1: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 1)]
+	redundant_super_structure.grid_shape        = shape_diagonal_1_1
+	redundant_super_structure.grid_cell_color   = Color.GREEN
+	redundant_super_structure.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
+
+	return [reactor_2x2, reactor_1x1, armor_2x1, armor_1x1, redundant_super_structure]
 

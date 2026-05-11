@@ -12,6 +12,9 @@ extends MechPartData
 ## Flat armor bonus granted by this module
 @export var armor_bonus: int = 0
 
+## Flat max health bonus granted by this module
+@export var max_health_bonus: int = 0
+
 ## Icon for visual representation in catalogs and grids
 @export var module_icon_path: String = ""
 
@@ -71,6 +74,9 @@ func remove_from_grid(grid: Array[Array], position: Vector2i) -> void:
 ## Apply this module's bonuses to PlayerStats
 func apply_to_stats(stats: PlayerStats) -> void:
 	super.apply_to_stats(stats)
+	if max_health_bonus != 0:
+		stats.max_health += max_health_bonus
+		stats.health += max_health_bonus
 	if armor_bonus != 0:
 		stats.armor += armor_bonus
 	# Recharge rate bonus will be handled in PlayerController

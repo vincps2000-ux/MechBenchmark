@@ -97,24 +97,47 @@ func test_mech_loadout_total_armor_bonus() -> void:
 
 	assert_eq(loadout.get_total_armor_bonus(), 4, "Total armor bonus should be 4 (3 + 1)")
 
+func test_mech_loadout_total_max_health_bonus() -> void:
+	var loadout = MechLoadout.new()
+	var super_structure = _ModuleData.new()
+	super_structure.name = "Redundant Super-Structure"
+	var diagonal_shape: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 1)]
+	super_structure.grid_shape = diagonal_shape
+	super_structure.max_health_bonus = 30
+
+	var grid0 = loadout.get_or_create_module_grid(0)
+	grid0.place_module(super_structure, Vector2i(0, 0))
+
+	assert_eq(loadout.get_total_max_health_bonus(), 30, "Total max health bonus should be 30")
+
 func test_catalog_contains_armor_modules_with_expected_bonuses() -> void:
 	var modules = MechCatalog.get_all_modules()
 	var armor_2x1 = null
 	var armor_1x1 = null
+	var super_structure = null
 	for module in modules:
 		if module.name == "Armor Module (2x1)":
 			armor_2x1 = module
 		elif module.name == "Armor Module (1x1)":
 			armor_1x1 = module
+		elif module.name == "Redundant Super-Structure":
+			super_structure = module
 
 	assert_not_null(armor_2x1, "Catalog should include Armor Module (2x1)")
 	assert_not_null(armor_1x1, "Catalog should include Armor Module (1x1)")
+	assert_not_null(super_structure, "Catalog should include Redundant Super-Structure")
 	if armor_2x1 != null:
 		assert_eq(armor_2x1.armor_bonus, 3, "2x1 armor module should grant +3 armor")
 		assert_eq(armor_2x1.grid_shape.size(), 2, "2x1 armor module should use two cells")
 	if armor_1x1 != null:
 		assert_eq(armor_1x1.armor_bonus, 1, "1x1 armor module should grant +1 armor")
 		assert_eq(armor_1x1.grid_shape.size(), 1, "1x1 armor module should use one cell")
+	if super_structure != null:
+		assert_eq(super_structure.max_health_bonus, 30, "Super-Structure should grant +30 max health")
+		assert_eq(super_structure.grid_shape.size(), 2, "Super-Structure should use a diagonal 1-1 two-cell footprint")
+		assert_eq(super_structure.grid_shape[0], Vector2i(0, 0), "Diagonal shape should include origin")
+		assert_eq(super_structure.grid_shape[1], Vector2i(1, 1), "Diagonal shape should include lower-right cell")
+		assert_eq(super_structure.grid_cell_color, Color.GREEN, "Super-Structure should be green")
 
 func test_loadout_apply_stats_includes_module_armor_bonus() -> void:
 	var loadout = MechLoadout.new()
@@ -138,5 +161,22 @@ func test_loadout_apply_stats_includes_module_armor_bonus() -> void:
 	loadout.apply_to_stats(stats)
 
 	assert_eq(stats.armor, 9, "Armor modules should add +4 total armor to stats")
+
+func test_loadout_apply_stats_includes_module_health_bonus() -> void:
+	var loadout = MechLoadout.new()
+	var super_structure = _ModuleData.new()
+	super_structure.name = "Redundant Super-Structure"
+	var diagonal_shape: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 1)]
+	super_structure.grid_shape = diagonal_shape
+	super_structure.max_health_bonus = 30
+
+	var grid = loadout.get_or_create_module_grid(0)
+	grid.place_module(super_structure, Vector2i(0, 0))
+
+	var stats = PlayerStats.new()
+	loadout.apply_to_stats(stats)
+
+	assert_eq(stats.max_health, 60, "Super-Structure should add +30 max health")
+	assert_eq(stats.health, 60, "Current health should scale with max health bonus")
 
 

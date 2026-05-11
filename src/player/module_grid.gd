@@ -64,6 +64,15 @@ func get_armor_bonus() -> int:
 			total += int(module.armor_bonus)
 	return total
 
+## Get total max health bonus from all placed modules
+func get_max_health_bonus() -> int:
+	var total := 0
+	for placement in placements:
+		var module = placement["module"]
+		if module:
+			total += int(module.max_health_bonus)
+	return total
+
 ## Clear all placements
 func clear() -> void:
 	placements.clear()
