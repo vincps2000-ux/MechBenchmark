@@ -20,6 +20,7 @@ const ROTATION_SPEED_TANK   := 1.2   # rad/s — tank turns very slowly
 const ROTATION_SPEED_LANDSHIP := 0.45  # rad/s — landship turns even slower than tank
 const TANK_FORWARD_MULT     := 1.3   # extra power in straight-line tank drive
 const TORSO_ROTATION_SPEED  := 4.0   # rad/s — torso tracks mouse independently
+const TORSO_ROTATION_SPEED_NAVAL_TURRET := 0.2  # rad/s — naval turret rotates extremely slowly
 const ROTATION_SPEED_WALKER := 3.0   # rad/s — walker body rotation toward mouse (Q held)
 const TORSO_DEADSPOT_HALF_ANGLE := deg_to_rad(35.0)
 const MAX_ENERGY := 100.0
@@ -57,6 +58,7 @@ var _weapon_mounts: Array[Node2D] = []
 var _weapon_torso_indices: Array[int] = []
 var _weapon_default_actions: Array[String] = []
 var _torso_sprites: Array[Sprite2D] = []
+var _torso_data: Array[TorsoData] = []
 var _torso_mount_roots: Array[Node2D] = []
 var _torso_deadspot_sides: Array[TorsoDeadspotSide] = []
 var _energy_current: float = MAX_ENERGY
@@ -169,6 +171,7 @@ func _get_equipped_torsos(loadout: MechLoadout) -> Array[TorsoData]:
 
 func _create_torso_nodes(torsos: Array[TorsoData], slot_count: int) -> void:
 	_torso_sprites.clear()
+	_torso_data.clear()
 	_torso_mount_roots.clear()
 	_torso_deadspot_sides.clear()
 	_weapons.clear()
@@ -200,6 +203,7 @@ func _create_torso_nodes(torsos: Array[TorsoData], slot_count: int) -> void:
 		sprite.position = offsets[i] if i < offsets.size() else Vector2.ZERO
 		_apply_torso_texture_to_sprite(sprite, torso_data)
 		_torso_sprites.append(sprite)
+		_torso_data.append(torso_data)
 		_torso_mount_roots.append(mount_root)
 		_torso_deadspot_sides.append(_get_deadspot_side_for_slot(i, slot_count))
 
@@ -769,8 +773,10 @@ func _rotate_torso_toward_mouse(delta: float) -> void:
 		return
 	# Desired angle in world space → convert to torso local space
 	var desired_local := to_mouse.angle() - global_rotation
-	var step := TORSO_ROTATION_SPEED * delta
 	for i in _torso_sprites.size():
+		var torso_type := _torso_data[i].torso_type if i < _torso_data.size() else TorsoData.TorsoType.CARGO
+		var rotation_speed := TORSO_ROTATION_SPEED_NAVAL_TURRET if torso_type == TorsoData.TorsoType.NAVAL_TURRET else TORSO_ROTATION_SPEED
+		var step := rotation_speed * delta
 		var side := _torso_deadspot_sides[i] if i < _torso_deadspot_sides.size() else TorsoDeadspotSide.NONE
 		var clamped_local := apply_torso_deadspot(desired_local, side)
 		var sprite := _torso_sprites[i]

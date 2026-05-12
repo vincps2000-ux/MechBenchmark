@@ -30,7 +30,16 @@ static func get_all_torsos() -> Array[TorsoData]:
 	cargo.speed_modifier  = 1.0
 	cargo.light_weapon_slots = 2
 
-	return [stealth, heavy, cargo]
+	var naval_turret := TorsoData.new()
+	naval_turret.name           = "Naval Turret"
+	naval_turret.description    = "WW2-inspired naval gun turret. Mounts three weapons in a broadside layout but traverses extremely slowly."
+	naval_turret.torso_type     = TorsoData.TorsoType.NAVAL_TURRET
+	naval_turret.tutorial_text  = "Triple naval guns - devastating broadsides\nExtremely slow turret traverse requires planning"
+	naval_turret.speed_modifier  = 0.7
+	naval_turret.weapon_slots    = 3
+	naval_turret.light_weapon_slots = 0
+
+	return [stealth, heavy, cargo, naval_turret]
 
 ## Returns all available leg configurations
 static func get_all_legs() -> Array[LegData]:

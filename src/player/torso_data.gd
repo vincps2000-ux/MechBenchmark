@@ -4,9 +4,10 @@ class_name TorsoData
 extends MechPartData
 
 enum TorsoType {
-	STEALTH,       # Sleek triangle — fast, fragile
-	HEAVY_ARMOUR,  # Half-dome    — slow, very tough
-	CARGO,         # Trapezoid    — balanced, extra utility
+	STEALTH,           # Sleek triangle — fast, fragile
+	HEAVY_ARMOUR,      # Half-dome    — slow, very tough
+	CARGO,             # Trapezoid    — balanced, extra utility
+	NAVAL_TURRET,      # Naval turret — 3 weapons, very slow rotation
 }
 
 @export var torso_type: TorsoType = TorsoType.CARGO
@@ -22,7 +23,8 @@ func apply_to_stats(stats: PlayerStats) -> void:
 ## Returns the sprite path for this torso type
 func get_sprite_path() -> String:
 	match torso_type:
-		TorsoType.STEALTH:      return "res://assets/sprites/torso_stealth.svg"
-		TorsoType.HEAVY_ARMOUR: return "res://assets/sprites/torso_heavy.svg"
-		TorsoType.CARGO:        return "res://assets/sprites/torso_cargo.svg"
-		_:                      return "res://assets/sprites/mech_torso.svg"
+		TorsoType.STEALTH:           return "res://assets/sprites/torso_stealth.svg"
+		TorsoType.HEAVY_ARMOUR:      return "res://assets/sprites/torso_heavy.svg"
+		TorsoType.CARGO:             return "res://assets/sprites/torso_cargo.svg"
+		TorsoType.NAVAL_TURRET:      return "res://assets/sprites/torso_naval_turret.svg"
+		_:                           return "res://assets/sprites/mech_torso.svg"

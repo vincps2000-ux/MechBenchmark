@@ -34,6 +34,9 @@ static func get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2
 			return [Vector2(10.0, 0.0)]
 		TorsoData.TorsoType.CARGO:
 			return [Vector2(-17.0, 0.0)]
+		TorsoData.TorsoType.NAVAL_TURRET:
+			# Center, left flank, right flank — turret configuration
+			return [Vector2(8.0, 0.0), Vector2(4.0, 16.0), Vector2(4.0, -16.0)]
 		_:
 			return [Vector2.ZERO]
 
