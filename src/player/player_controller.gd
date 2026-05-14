@@ -899,8 +899,8 @@ func _move_spider(delta: float) -> void:
 	velocity = (transform.x * local_fwd + transform.y * local_strafe) * _speed * speed_mod
 
 	var rot_dir := (
-		float(Input.is_key_pressed(KEY_E)) -
-		float(Input.is_key_pressed(KEY_Q))
+		float(Input.is_action_pressed("turn_right")) -
+		float(Input.is_action_pressed("turn_left"))
 	)
 	rotation += rot_dir * ROTATION_SPEED_SPIDER * delta
 
@@ -917,8 +917,8 @@ func _move_tank(delta: float) -> void:
 	velocity = transform.x * fwd * _speed * TANK_FORWARD_MULT * speed_mod
 
 	var rot_dir := (
-		float(Input.is_key_pressed(KEY_E)) -
-		float(Input.is_key_pressed(KEY_Q))
+		float(Input.is_action_pressed("turn_right")) -
+		float(Input.is_action_pressed("turn_left"))
 	)
 	rotation += rot_dir * ROTATION_SPEED_TANK * delta
 
@@ -934,19 +934,19 @@ func _move_landship(delta: float) -> void:
 	velocity = transform.x * fwd * _speed * TANK_FORWARD_MULT * speed_mod
 
 	var rot_dir := (
-		float(Input.is_key_pressed(KEY_E)) -
-		float(Input.is_key_pressed(KEY_Q))
+		float(Input.is_action_pressed("turn_right")) -
+		float(Input.is_action_pressed("turn_left"))
 	)
 	rotation += rot_dir * ROTATION_SPEED_LANDSHIP * delta
 
 # ─── Legs (Bipedal — Heavy Walker / Light Walker) ─────────────────────────────
-# Q held →  body slowly rotates toward mouse pointer
+# Turn Left (Q) held →  body slowly rotates toward mouse pointer
 # W / S  →  walk forward / backward along body facing
 # A / D  →  lateral strafe perpendicular to facing
 # (diagonal is normalised so speed is always consistent)
 func _move_legs(delta: float) -> void:
-	# Q held → slowly rotate body toward mouse
-	if Input.is_key_pressed(KEY_Q):
+	# Turn Left (Q) held → slowly rotate body toward mouse
+	if Input.is_action_pressed("turn_left"):
 		var mouse_world := get_global_mouse_position()
 		if global_position.distance_squared_to(mouse_world) > 16.0:
 			var desired_angle := (mouse_world - global_position).angle()

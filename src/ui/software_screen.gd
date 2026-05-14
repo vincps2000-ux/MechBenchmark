@@ -20,22 +20,29 @@ const GRID_LINE      := Color(0.08, 0.18, 0.22, 0.3)
 const LISTEN_TARGET_NONE := 0
 const LISTEN_TARGET_UTILITY := 1
 const LISTEN_TARGET_WEAPON := 2
+const LISTEN_TARGET_MOVEMENT := 3
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var _weapon_names: Array[String] = []
 var _utility_modules: Array[String] = []
 var _utility_bindings: Array[InputEvent] = []
 var _bindings: Array[InputEvent] = []
+var _movement_bindings: Array[InputEvent] = []
+var _movement_indices: Array[int] = []  # Indices of movement bindings used by this mech
+var _movement_labels: Array[String] = []  # Labels for those bindings
 var _utility_bind_buttons: Array[Button] = []
 var _bind_buttons: Array[Button] = []
+var _movement_bind_buttons: Array[Button] = []
 var _listening_target: int = LISTEN_TARGET_NONE
 var _listening_index: int = -1
+var _listening_binding_index: int = -1  # Actual binding index for movement (0-5)
 var _time: float = 0.0
 var _scanline_offset: float = 0.0
 
 # ── Scene refs built in code ──────────────────────────────────────────────────
 var _utility_container: VBoxContainer = null
 var _weapons_container: VBoxContainer = null
+var _movement_container: VBoxContainer = null
 var _deploy_button: Button = null
 var _back_button: Button = null
 var _title_label: Label = null
@@ -84,6 +91,57 @@ func _load_weapon_data() -> void:
 	else:
 		_bindings = GameManager.get_default_bindings(loadout)
 
+	# Load movement bindings (always 6: up, down, left, right, turn_left, turn_right)
+	if GameManager.movement_bindings.size() == 6:
+		_movement_bindings = GameManager.movement_bindings.duplicate()
+	else:
+		_movement_bindings = GameManager.get_default_movement_bindings()
+	
+	# Determine which movement keys this mech uses
+	_determine_mech_movement_keys(loadout)
+
+
+func _determine_mech_movement_keys(loadout: MechLoadout) -> void:
+	_movement_indices.clear()
+	_movement_labels.clear()
+	
+	if not loadout or not loadout.selected_legs:
+		return
+	
+	var leg_name := loadout.selected_legs.name.to_lower() if loadout.selected_legs else ""
+	
+	# Movement binding indices: 0=up, 1=down, 2=left, 3=right, 4=turn_left, 5=turn_right
+	# All mechs have: up, down, turn_left, turn_right
+	_movement_indices = [0, 1, 4, 5]
+	_movement_labels = ["UP", "DOWN", "TURN LEFT", "TURN RIGHT"]
+	
+	# Spider, Walker, and Legs have strafe (left/right)
+	if "spider" in leg_name or "walker" in leg_name or "legs" in leg_name:
+		_movement_indices = [0, 1, 2, 3, 4, 5]
+		_movement_labels = ["UP", "DOWN", "LEFT", "RIGHT", "TURN LEFT", "TURN RIGHT"]
+		# Walkers don't use turn_right (only turn_left for mouse tracking)
+		if "walker" in leg_name or "legs" in leg_name:
+			_movement_indices = [0, 1, 2, 3, 4]
+			_movement_labels = ["UP", "DOWN", "LEFT", "RIGHT", "TURN TO MOUSE"]
+
+
+func _get_movement_binding_label(binding_index: int) -> String:
+	var pos := _movement_indices.find(binding_index)
+	if pos >= 0 and pos < _movement_labels.size():
+		return _movement_labels[pos]
+
+	var fallback_labels: Array[String] = ["UP", "DOWN", "LEFT", "RIGHT", "TURN LEFT", "TURN RIGHT"]
+	if binding_index >= 0 and binding_index < fallback_labels.size():
+		return fallback_labels[binding_index]
+	return "MOVEMENT %d" % binding_index
+
+
+func _get_all_movement_binding_labels() -> Array[String]:
+	var labels: Array[String] = []
+	for i in _movement_bindings.size():
+		labels.append(_get_movement_binding_label(i))
+	return labels
+
 
 func _get_utility_module_label(module: Variant) -> String:
 	var utility_module_data = _UTILITY_MODULE_DATA_SCRIPT.new()
@@ -127,7 +185,7 @@ func _build_ui() -> void:
 
 	# ── Subtitle / instructions ───────────────────────────────────────────
 	var subtitle := Label.new()
-	subtitle.text = "REVIEW UTILITY LOADOUT AND CONFIGURE FIRE CONTROL BINDINGS"
+	subtitle.text = "CONFIGURE MOVEMENT CONTROLS, UTILITY LOADOUT, AND FIRE CONTROL BINDINGS"
 	subtitle.add_theme_font_size_override("font_size", 14)
 	subtitle.add_theme_color_override("font_color", TEXT_DIM)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -149,9 +207,11 @@ func _build_ui() -> void:
 	sections.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(sections)
 
+	_movement_container = _add_collapsible_section(sections, "MOVEMENT SECTION", true)
 	_utility_container = _add_collapsible_section(sections, "UTILITY SECTION", true)
 	_weapons_container = _add_collapsible_section(sections, "WEAPON SECTION", true)
 
+	_build_movement_rows()
 	_build_utility_rows()
 	_build_weapon_rows()
 
@@ -250,6 +310,138 @@ func _add_collapsible_section(parent: VBoxContainer, title: String, starts_open:
 
 	return body
 
+
+# ── Movement rows ─────────────────────────────────────────────────────────────
+
+func _build_movement_rows() -> void:
+	_movement_bind_buttons.clear()
+	for child in _movement_container.get_children():
+		child.queue_free()
+
+	if _movement_indices.is_empty():
+		var empty := Label.new()
+		empty.text = "NO MOVEMENT CONTROLS AVAILABLE"
+		empty.add_theme_font_size_override("font_size", 16)
+		empty.add_theme_color_override("font_color", TEXT_DIM)
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_movement_container.add_child(empty)
+		return
+
+	# Create a panel containing a VBoxContainer for multi-row layout
+	var row_panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.11, 0.16, 0.9)
+	style.set_border_width_all(1)
+	style.border_color = ACCENT_DIM * 0.6
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(12)
+	row_panel.add_theme_stylebox_override("panel", style)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	row_panel.add_child(vbox)
+
+	# Title row
+	var title := Label.new()
+	title.text = "MECH MOVEMENT"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", TEXT_MAIN)
+	vbox.add_child(title)
+
+	# Split binding keys across HBox rows — max 3 per row
+	const COLS_PER_ROW := 3
+	var current_hbox: HBoxContainer = null
+
+	for i in _movement_indices.size():
+		if i % COLS_PER_ROW == 0:
+			current_hbox = HBoxContainer.new()
+			current_hbox.add_theme_constant_override("separation", 16)
+			vbox.add_child(current_hbox)
+
+		var binding_idx := _movement_indices[i]
+		var direction_label := _movement_labels[i]
+
+		# Each key is a vertical cell: label on top, button below
+		var cell := VBoxContainer.new()
+		cell.add_theme_constant_override("separation", 4)
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		current_hbox.add_child(cell)
+
+		var key_label := Label.new()
+		key_label.text = direction_label
+		key_label.add_theme_font_size_override("font_size", 13)
+		key_label.add_theme_color_override("font_color", TEXT_DIM)
+		key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cell.add_child(key_label)
+
+		var bind_btn := _make_compact_bind_button("movement", binding_idx)
+		bind_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cell.add_child(bind_btn)
+		_movement_bind_buttons.append(bind_btn)
+
+	_movement_container.add_child(row_panel)
+
+
+func _make_movement_section_header() -> HBoxContainer:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 0)
+
+	var idx_label := _make_col_label("IDX", 50)
+	hbox.add_child(idx_label)
+	var name_label := _make_col_label("DIRECTION", 0, true)
+	hbox.add_child(name_label)
+	var badge_label := _make_col_label("TYPE", 80)
+	hbox.add_child(badge_label)
+	var bind_label := _make_col_label("ASSIGN", 200)
+	hbox.add_child(bind_label)
+
+	return hbox
+
+
+func _build_single_movement_row(index: int, direction_name: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.11, 0.16, 0.9)
+	style.set_border_width_all(1)
+	style.border_color = ACCENT_DIM * 0.6
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(10)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	panel.add_child(hbox)
+
+	var idx := Label.new()
+	idx.text = "M%02d" % (index + 1)
+	idx.custom_minimum_size.x = 48
+	idx.add_theme_font_size_override("font_size", 16)
+	idx.add_theme_color_override("font_color", ACCENT_DIM)
+	idx.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(idx)
+
+	var name := Label.new()
+	name.text = direction_name.to_upper()
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name.add_theme_font_size_override("font_size", 18)
+	name.add_theme_color_override("font_color", TEXT_MAIN)
+	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(name)
+
+	var badge := Label.new()
+	badge.text = "MOVE"
+	badge.custom_minimum_size.x = 80
+	badge.add_theme_font_size_override("font_size", 12)
+	badge.add_theme_color_override("font_color", Color(0.7, 0.95, 0.45, 0.95))
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hbox.add_child(badge)
+
+	var bind_btn := _make_bind_button("movement", index)
+	hbox.add_child(bind_btn)
+	_movement_bind_buttons.append(bind_btn)
+
+	return panel
 
 # ── Weapon rows ───────────────────────────────────────────────────────────────
 
@@ -491,7 +683,12 @@ func _make_weapon_type_icon(data: WeaponData) -> ColorRect:
 func _make_bind_button(bind_kind: String, index: int) -> Button:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(180, 44)
-	btn.text = _get_current_utility_bind_text(index) if bind_kind == "utility" else _get_current_bind_text(index)
+	if bind_kind == "utility":
+		btn.text = _get_current_utility_bind_text(index)
+	elif bind_kind == "movement":
+		btn.text = _get_current_movement_bind_text(index)
+	else:
+		btn.text = _get_current_bind_text(index)
 	btn.add_theme_font_size_override("font_size", 18)
 	btn.add_theme_color_override("font_color", Color(0.0, 0.0, 0.0, 1.0))
 
@@ -515,6 +712,32 @@ func _make_bind_button(bind_kind: String, index: int) -> Button:
 	return btn
 
 
+func _make_compact_bind_button(bind_kind: String, binding_index: int) -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(120, 36)
+	btn.text = _get_current_movement_bind_text(binding_index)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.add_theme_color_override("font_color", Color(0.0, 0.0, 0.0, 1.0))
+
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = ACCENT * 0.8
+	normal.set_border_width_all(2)
+	normal.border_color = ACCENT
+	normal.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", normal)
+
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = ACCENT
+	hover.border_color = Color(1, 1, 1, 0.6)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = ACCENT * 0.5
+	btn.add_theme_stylebox_override("pressed", pressed)
+
+	btn.pressed.connect(_on_bind_pressed.bind(bind_kind, binding_index))
+	return btn
+
 func _get_current_bind_text(index: int) -> String:
 	if index < _bindings.size():
 		return "[ %s ]" % GameManager.get_binding_label(_bindings[index])
@@ -524,6 +747,12 @@ func _get_current_bind_text(index: int) -> String:
 func _get_current_utility_bind_text(index: int) -> String:
 	if index < _utility_bindings.size():
 		return "[ %s ]" % GameManager.get_binding_label(_utility_bindings[index])
+	return "[ UNBOUND ]"
+
+
+func _get_current_movement_bind_text(index: int) -> String:
+	if index < _movement_bindings.size():
+		return "[ %s ]" % GameManager.get_binding_label(_movement_bindings[index])
 	return "[ UNBOUND ]"
 
 
@@ -597,42 +826,79 @@ func _on_row_unhover(panel: PanelContainer, style: StyleBoxFlat) -> void:
 # ── Binding logic ─────────────────────────────────────────────────────────────
 
 func _on_bind_pressed(bind_kind: String, index: int) -> void:
-	var target := LISTEN_TARGET_UTILITY if bind_kind == "utility" else LISTEN_TARGET_WEAPON
+	var target := LISTEN_TARGET_NONE
+	if bind_kind == "utility":
+		target = LISTEN_TARGET_UTILITY
+	elif bind_kind == "movement":
+		target = LISTEN_TARGET_MOVEMENT
+	else:
+		target = LISTEN_TARGET_WEAPON
 
-	if _listening_target == target and _listening_index == index:
-		# Cancel listening
-		_cancel_listening()
-		return
+	if _listening_target == target:
+		# For movement, compare against binding index; for others use button index.
+		if (target == LISTEN_TARGET_MOVEMENT and _listening_binding_index == index) or (target != LISTEN_TARGET_MOVEMENT and _listening_index == index):
+			_cancel_listening()
+			return
 
 	_cancel_listening()
 	_listening_target = target
 	_listening_index = index
-	var target_buttons := _utility_bind_buttons if target == LISTEN_TARGET_UTILITY else _bind_buttons
-	if index < 0 or index >= target_buttons.size():
-		return
-	target_buttons[index].text = ">> PRESS KEY <<"
-	target_buttons[index].add_theme_color_override("font_color", Color(0, 0, 0, 1))
+	var target_buttons: Array[Button]
+	match target:
+		LISTEN_TARGET_UTILITY:
+			target_buttons = _utility_bind_buttons
+		LISTEN_TARGET_MOVEMENT:
+			target_buttons = _movement_bind_buttons
+		_:
+			target_buttons = _bind_buttons
+	# For movement, index is the actual binding index (0-5), not button position
+	var button_index := index
+	if target == LISTEN_TARGET_MOVEMENT:
+		_listening_binding_index = index
+		# Find position of this binding in the visible buttons
+		var button_pos := _movement_indices.find(index)
+		if button_pos < 0 or button_pos >= _movement_bind_buttons.size():
+			return
+		button_index = button_pos
+	else:
+		_listening_binding_index = -1
+		if index < 0 or index >= target_buttons.size():
+			return
+	_listening_index = button_index
+	target_buttons[button_index].text = ">> PRESS KEY <<"
+	target_buttons[button_index].add_theme_color_override("font_color", Color(0, 0, 0, 1))
 
-	var style := target_buttons[index].get_theme_stylebox("normal").duplicate() as StyleBoxFlat
+	var style := target_buttons[button_index].get_theme_stylebox("normal").duplicate() as StyleBoxFlat
 	style.bg_color = LISTENING_COLOR
 	style.border_color = Color(1, 1, 0.5, 1)
-	target_buttons[index].add_theme_stylebox_override("normal", style)
-	target_buttons[index].add_theme_stylebox_override("hover", style)
+	target_buttons[button_index].add_theme_stylebox_override("normal", style)
+	target_buttons[button_index].add_theme_stylebox_override("hover", style)
 
-	var target_name := _utility_modules[index] if target == LISTEN_TARGET_UTILITY else _weapon_names[index]
-	_status_label.text = "[ AWAITING INPUT FOR %s ]" % target_name.to_upper()
+	var target_name: String
+	match target:
+		LISTEN_TARGET_UTILITY:
+			target_name = _utility_modules[index]
+		LISTEN_TARGET_MOVEMENT:
+			target_name = _get_movement_binding_label(index)
+		_:
+			target_name = _weapon_names[index]
+	_status_label.text = "[ AWAITING INPUT FOR %s ]" % target_name
 	_status_label.add_theme_color_override("font_color", LISTENING_COLOR)
 
 
 func _cancel_listening() -> void:
 	if _listening_index < 0:
 		return
-	if _listening_target == LISTEN_TARGET_UTILITY:
-		_update_utility_bind_button_display(_listening_index)
-	else:
-		_update_bind_button_display(_listening_index)
+	match _listening_target:
+		LISTEN_TARGET_UTILITY:
+			_update_utility_bind_button_display(_listening_index)
+		LISTEN_TARGET_MOVEMENT:
+			_update_movement_bind_button_display(_listening_index)
+		_:
+			_update_bind_button_display(_listening_index)
 	_listening_target = LISTEN_TARGET_NONE
 	_listening_index = -1
+	_listening_binding_index = -1
 	_status_label.text = ""
 
 
@@ -656,17 +922,23 @@ func _input(event: InputEvent) -> void:
 
 	# Store the binding
 	var clean_event := _clean_input_event(event)
-	if _listening_target == LISTEN_TARGET_UTILITY:
-		_utility_bindings[_listening_index] = clean_event
-		_check_duplicate_bindings(_utility_bindings, _utility_modules)
-		_update_utility_bind_button_display(_listening_index)
-	else:
-		_bindings[_listening_index] = clean_event
-		_check_duplicate_bindings(_bindings, _weapon_names)
-		_update_bind_button_display(_listening_index)
+	match _listening_target:
+		LISTEN_TARGET_UTILITY:
+			_utility_bindings[_listening_index] = clean_event
+			_check_duplicate_bindings(_utility_bindings, _utility_modules)
+			_update_utility_bind_button_display(_listening_index)
+		LISTEN_TARGET_MOVEMENT:
+			_movement_bindings[_listening_binding_index] = clean_event
+			_check_duplicate_bindings(_movement_bindings, _get_all_movement_binding_labels())
+			_update_movement_bind_button_display(_listening_index)
+		_:
+			_bindings[_listening_index] = clean_event
+			_check_duplicate_bindings(_bindings, _weapon_names)
+			_update_bind_button_display(_listening_index)
 
 	_listening_target = LISTEN_TARGET_NONE
 	_listening_index = -1
+	_listening_binding_index = -1
 
 	_status_label.text = "[ BINDING UPDATED ]"
 	_status_label.add_theme_color_override("font_color", ACCENT)
@@ -744,6 +1016,27 @@ func _update_utility_bind_button_display(index: int) -> void:
 	btn.add_theme_stylebox_override("hover", hover)
 
 
+func _update_movement_bind_button_display(index: int) -> void:
+	if index < 0 or index >= _movement_bind_buttons.size():
+		return
+	var btn := _movement_bind_buttons[index]
+	btn.text = _get_current_movement_bind_text(index)
+	btn.modulate.a = 1.0
+	btn.add_theme_color_override("font_color", Color(0, 0, 0, 1))
+
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = ACCENT * 0.8
+	normal.set_border_width_all(2)
+	normal.border_color = ACCENT
+	normal.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", normal)
+
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = ACCENT
+	hover.border_color = Color(1, 1, 1, 0.6)
+	btn.add_theme_stylebox_override("hover", hover)
+
+
 # ── Navigation ────────────────────────────────────────────────────────────────
 
 func _on_deploy_pressed() -> void:
@@ -754,8 +1047,10 @@ func _on_deploy_pressed() -> void:
 	# Save bindings to GameManager
 	GameManager.weapon_bindings = _bindings.duplicate()
 	GameManager.utility_bindings = _utility_bindings.duplicate()
+	GameManager.movement_bindings = _movement_bindings.duplicate()
 	GameManager.apply_weapon_bindings()
 	GameManager.apply_utility_bindings()
+	GameManager.apply_movement_bindings()
 
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 0.45).set_ease(Tween.EASE_IN)
@@ -797,6 +1092,9 @@ func _process(delta: float) -> void:
 	elif _listening_target == LISTEN_TARGET_UTILITY and _listening_index >= 0 and _listening_index < _utility_bind_buttons.size():
 		var utility_blink := 0.7 + 0.3 * sin(_time * 6.0)
 		_utility_bind_buttons[_listening_index].modulate.a = utility_blink
+	elif _listening_target == LISTEN_TARGET_MOVEMENT and _listening_index >= 0 and _listening_index < _movement_bind_buttons.size():
+		var movement_blink := 0.7 + 0.3 * sin(_time * 6.0)
+		_movement_bind_buttons[_listening_index].modulate.a = movement_blink
 
 
 func _draw_grid_overlay(overlay: Control) -> void:
@@ -839,3 +1137,4 @@ func _draw_grid_overlay(overlay: Control) -> void:
 	# Blinking status dot (top-right)
 	var dot_alpha: float = 0.4 + 0.6 * absf(sin(_time * 3.0))
 	overlay.draw_circle(Vector2(rect.size.x - 40, 40), 4.0, Color(0, 0.9, 0.5, dot_alpha))
+# ── Weapon rows ───────────────────────────────────────────────────────────────

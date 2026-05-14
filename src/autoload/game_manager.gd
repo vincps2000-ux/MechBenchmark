@@ -15,6 +15,7 @@ var game_time: float = 0.0
 var is_running: bool = false
 var weapon_bindings: Array[InputEvent] = []
 var utility_bindings: Array[InputEvent] = []
+var movement_bindings: Array[InputEvent] = []
 
 func start_game() -> void:
 	player_stats = PlayerStats.new()
@@ -101,7 +102,7 @@ static func get_binding_label(ev: InputEvent) -> String:
 ## Registers per-weapon InputMap actions (fire_0, fire_1, …) from weapon_bindings.
 func apply_weapon_bindings() -> void:
 	for i in weapon_bindings.size():
-		var action_name := "fire_%d" % i
+		var action_name: String = "fire_%d" % i
 		if InputMap.has_action(action_name):
 			InputMap.action_erase_events(action_name)
 		else:
@@ -112,9 +113,33 @@ func apply_weapon_bindings() -> void:
 ## Registers per-utility InputMap actions (utility_0, utility_1, …) from utility_bindings.
 func apply_utility_bindings() -> void:
 	for i in utility_bindings.size():
-		var action_name := "utility_%d" % i
+		var action_name: String = "utility_%d" % i
 		if InputMap.has_action(action_name):
 			InputMap.action_erase_events(action_name)
 		else:
 			InputMap.add_action(action_name)
 		InputMap.action_add_event(action_name, utility_bindings[i])
+
+
+## Returns default InputEvent bindings for movement: Up, Down, Left, Right, Turn Left, Turn Right.
+## Defaults: W, S, A, D, Q, E.
+static func get_default_movement_bindings() -> Array[InputEvent]:
+	var defaults: Array[InputEvent] = []
+	var key_defaults := [KEY_W, KEY_S, KEY_A, KEY_D, KEY_Q, KEY_E]
+	for key in key_defaults:
+		var ev := InputEventKey.new()
+		ev.keycode = key as Key
+		defaults.append(ev)
+	return defaults
+
+
+## Registers movement InputMap actions (move_up, move_down, move_left, move_right, turn_left, turn_right) from movement_bindings.
+func apply_movement_bindings() -> void:
+	var action_names: Array[String] = ["move_up", "move_down", "move_left", "move_right", "turn_left", "turn_right"]
+	for i in min(movement_bindings.size(), action_names.size()):
+		var action_name: String = action_names[i]
+		if InputMap.has_action(action_name):
+			InputMap.action_erase_events(action_name)
+		else:
+			InputMap.add_action(action_name)
+		InputMap.action_add_event(action_name, movement_bindings[i])
