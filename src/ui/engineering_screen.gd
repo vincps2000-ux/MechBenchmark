@@ -369,6 +369,8 @@ func _create_module_card(module) -> Control:
 		bonus_label.text = "+%d energy/sec" % int(module.recharge_rate_bonus)
 	elif int(module.armor_bonus) > 0:
 		bonus_label.text = "+%d armor" % int(module.armor_bonus)
+	elif int(module.max_health_bonus) > 0:
+		bonus_label.text = "+%d max HP" % int(module.max_health_bonus)
 	else:
 		bonus_label.text = "No bonus"
 	bonus_label.add_theme_font_size_override("font_size", 11)

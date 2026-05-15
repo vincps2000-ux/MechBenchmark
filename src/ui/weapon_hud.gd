@@ -4,6 +4,7 @@ class_name WeaponHUD
 extends Control
 
 const WEAPON_AMMO_PIP_SCRIPT := preload("res://src/ui/weapon_ammo_pip.gd")
+const FLAMETHROWER_CANISTER_SCRIPT := preload("res://src/ui/flamethrower_canister.gd")
 
 var _player: Node = null
 var _panel: PanelContainer = null
@@ -12,6 +13,7 @@ var _weapon_name_labels: Dictionary = {}
 var _ammo_labels: Dictionary = {}
 var _ammo_markers: Dictionary = {}
 var _ammo_pip_lists: Dictionary = {}  # index -> {"pips": Array, "unit_ammo": float}
+var _flamethrower_canisters: Dictionary = {}  # index -> Control
 
 func setup(player: Node) -> void:
 	_player = player
@@ -88,6 +90,13 @@ func _make_weapon_row(weapon_name: String, index: int, weapon_node: Node, weapon
 				if _ammo_labels.has(index):
 					(_ammo_labels[index] as Label).visible = false
 
+	# Special handling for flamethrower: show canister with horizontal bar
+	if _is_flamethrower_weapon(weapon_node):
+		var canister := _make_flamethrower_canister(weapon_data, index)
+		row.add_child(canister)
+		if _ammo_labels.has(index):
+			(_ammo_labels[index] as Label).visible = false
+
 	if _is_railgun_weapon(weapon_name, weapon_node):
 		var bar := _make_charge_bar()
 		row.add_child(bar)
@@ -120,11 +129,7 @@ func _get_ammo_strip_spec(weapon_node: Node, _weapon_data: WeaponData, capacity:
 			"unit_ammo": 1.0,
 		}
 	if script_path.ends_with("flamethrower.gd"):
-		return {
-			"style": "thrower",
-			"pip_count": 20,
-			"unit_ammo": float(capacity) / 20.0,
-		}
+		return {}  # Flamethrower now uses canister display instead of pips
 	return {}
 
 func _make_ammo_pip_strip(pip_count: int, style: String, unit_ammo: float, weapon_data: WeaponData, index: int) -> Control:
@@ -256,6 +261,13 @@ func _refresh_weapon_status(index: int) -> void:
 				var start_ammo := float(i) * unit_ammo
 				var fill := clampf((float(current) - start_ammo) / unit_ammo, 0.0, 1.0)
 				pip.set_fill_ratio(fill)
+	elif _flamethrower_canisters.has(index):
+		var canister: Control = _flamethrower_canisters[index] as Control
+		if canister and weapon and weapon.has_method("get_ammo_count") and weapon.has_method("get_ammo_capacity"):
+			var current := int(weapon.call("get_ammo_count"))
+			var capacity := int(weapon.call("get_ammo_capacity"))
+			var fill := clampf(float(current) / float(capacity), 0.0, 1.0) if capacity > 0 else 0.0
+			canister.set_fill_ratio(fill)
 	elif _ammo_labels.has(index):
 		var ammo_label := _ammo_labels[index] as Label
 		if ammo_label:
@@ -303,3 +315,22 @@ func _update_charge_bars() -> void:
 			bar.value = clampf(float(weapon.call("get_charge_ratio")), 0.0, 1.0)
 		else:
 			bar.value = 0.0
+
+func _is_flamethrower_weapon(weapon_node: Node) -> bool:
+	if not weapon_node:
+		return false
+	var script = weapon_node.get_script()
+	if script is Script:
+		var script_path := String((script as Script).resource_path)
+		return script_path.ends_with("flamethrower.gd")
+	return false
+
+func _make_flamethrower_canister(weapon_data: WeaponData, index: int) -> Control:
+	var canister: Control = FLAMETHROWER_CANISTER_SCRIPT.new()
+	var element := WeaponData.ThrowerElement.FUEL
+	if weapon_data:
+		element = weapon_data.thrower_element
+	if canister.has_method("configure"):
+		canister.configure(element)
+	_flamethrower_canisters[index] = canister
+	return canister
