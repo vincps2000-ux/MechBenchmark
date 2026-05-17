@@ -48,40 +48,73 @@ func get_game_time_formatted() -> String:
 
 ## Returns default InputEvent bindings for each weapon in the loadout.
 ## Order: main guns first, then light guns.
-## Defaults: LMB, RMB, MMB, then keys 1-7.
+## Defaults: LMB, RMB, MMB, then keys 1-7. Weapons of the same type share a default key.
 static func get_default_bindings(loadout: MechLoadout) -> Array[InputEvent]:
-	var total := loadout.selected_guns.size() + loadout.selected_light_guns.size()
+	var weapons: Array = []
+	weapons.append_array(loadout.selected_guns)
+	weapons.append_array(loadout.selected_light_guns)
 	var defaults: Array[InputEvent] = []
 	var mouse_defaults := [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE]
 	var key_defaults := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7]
-	for i in total:
-		if i < mouse_defaults.size():
-			var ev := InputEventMouseButton.new()
-			ev.button_index = mouse_defaults[i] as MouseButton
-			defaults.append(ev)
-		else:
-			var ev := InputEventKey.new()
-			ev.keycode = key_defaults[i - mouse_defaults.size()] as Key
-			defaults.append(ev)
+	var input_by_group := {}
+	var next_key_index := 0
+	for i in weapons.size():
+		var weapon: Variant = weapons[i]
+		var group_key := "slot_%d" % i
+		if weapon is WeaponData:
+			group_key = "weapon_%d" % int((weapon as WeaponData).weapon_type)
+		if not input_by_group.has(group_key):
+			if next_key_index < mouse_defaults.size():
+				input_by_group[group_key] = _make_mouse_button_event(mouse_defaults[next_key_index] as MouseButton)
+			else:
+				var key_index := mini(next_key_index - mouse_defaults.size(), key_defaults.size() - 1)
+				input_by_group[group_key] = _make_key_event(key_defaults[key_index] as Key)
+			next_key_index += 1
+		defaults.append((input_by_group[group_key] as InputEvent).duplicate())
 	return defaults
 
 
 ## Returns default InputEvent bindings for each equipped utility module.
-## Defaults: Q, E, R, then T, Y, U.
+## Defaults: keys 1-0. Utility modules of the same type share a default key.
 static func get_default_utility_bindings(loadout: MechLoadout) -> Array[InputEvent]:
 	var defaults: Array[InputEvent] = []
-	var key_defaults := [KEY_Q, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U]
-	var count := 0
+	var key_defaults := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]
+	var key_by_group := {}
+	var next_key_index := 0
 	var utility_module_data = _UTILITY_MODULE_DATA_SCRIPT.new()
+	var valid_index := 0
 	for module in loadout.selected_utility_modules:
 		if not utility_module_data.is_module_empty(module):
-			count += 1
-	for i in count:
-		var ev := InputEventKey.new()
-		var key_index := mini(i, key_defaults.size() - 1)
-		ev.keycode = key_defaults[key_index] as Key
-		defaults.append(ev)
+			var group_key := _get_utility_group_key(module, utility_module_data, valid_index)
+			if not key_by_group.has(group_key):
+				var key_index := mini(next_key_index, key_defaults.size() - 1)
+				key_by_group[group_key] = key_defaults[key_index]
+				next_key_index += 1
+			defaults.append(_make_key_event(int(key_by_group[group_key])))
+			valid_index += 1
 	return defaults
+
+
+static func _make_key_event(keycode: int) -> InputEventKey:
+	var ev := InputEventKey.new()
+	ev.keycode = keycode as Key
+	return ev
+
+
+static func _make_mouse_button_event(button_index: MouseButton) -> InputEventMouseButton:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = button_index
+	return ev
+
+
+static func _get_utility_group_key(module: Variant, utility_module_data: UtilityModuleData, fallback_index: int) -> String:
+	var normalized_module = utility_module_data.ensure_module_data(module)
+	if normalized_module is Resource and (normalized_module as Resource).get_script() == _UTILITY_MODULE_DATA_SCRIPT:
+		return "utility_%d" % int(normalized_module.get("module_type"))
+	var module_name := utility_module_data.get_module_name(normalized_module)
+	if not module_name.is_empty():
+		return module_name.to_lower()
+	return "slot_%d" % fallback_index
 
 
 ## Returns a human-readable label for an InputEvent.

@@ -24,15 +24,37 @@ func test_default_bindings_for_single_weapon():
 func test_default_bindings_for_two_weapons():
 	var gun1 := WeaponData.new()
 	gun1.name = "Autocannon"
+	gun1.weapon_type = WeaponData.WeaponType.AUTOCANNON
 	_loadout.selected_guns.append(gun1)
 	var gun2 := WeaponData.new()
 	gun2.name = "Laser"
+	gun2.weapon_type = WeaponData.WeaponType.LASER
 	_loadout.selected_guns.append(gun2)
 
 	var bindings := GameManager.get_default_bindings(_loadout)
 	assert_eq(bindings.size(), 2, "Should have 2 bindings for 2 weapons")
 	assert_eq((bindings[0] as InputEventMouseButton).button_index, MOUSE_BUTTON_LEFT)
 	assert_eq((bindings[1] as InputEventMouseButton).button_index, MOUSE_BUTTON_RIGHT)
+
+
+func test_default_bindings_share_same_weapon_type_key():
+	var laser_a := WeaponData.new()
+	laser_a.weapon_type = WeaponData.WeaponType.LASER
+	var laser_b := WeaponData.new()
+	laser_b.weapon_type = WeaponData.WeaponType.LASER
+	var machinegun := WeaponData.new()
+	machinegun.weapon_type = WeaponData.WeaponType.MACHINEGUN
+	machinegun.slot_size = WeaponData.SlotSize.LIGHT
+	_loadout.selected_guns = [laser_a, laser_b]
+	_loadout.selected_light_guns = [machinegun]
+
+	var bindings := GameManager.get_default_bindings(_loadout)
+	assert_eq(bindings.size(), 3, "Should include all weapon slots")
+	assert_eq((bindings[0] as InputEventMouseButton).button_index, MOUSE_BUTTON_LEFT)
+	assert_eq((bindings[1] as InputEventMouseButton).button_index, MOUSE_BUTTON_LEFT,
+		"Weapons of the same type should share one default key")
+	assert_eq((bindings[2] as InputEventMouseButton).button_index, MOUSE_BUTTON_RIGHT,
+		"Next unique weapon type should use next mouse button")
 
 
 func test_default_bindings_includes_light_weapons():
@@ -110,8 +132,8 @@ func test_default_bindings_for_utility_modules():
 	assert_eq(utility_bindings.size(), 2, "Should create bindings for non-empty utility modules")
 	assert_true(utility_bindings[0] is InputEventKey)
 	assert_true(utility_bindings[1] is InputEventKey)
-	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_Q)
-	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_E)
+	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_1)
+	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_2)
 
 
 func test_default_bindings_for_customizable_utility_modules():
@@ -125,8 +147,20 @@ func test_default_bindings_for_customizable_utility_modules():
 
 	var utility_bindings := GameManager.get_default_utility_bindings(_loadout)
 	assert_eq(utility_bindings.size(), 2, "Configured utility modules should still get bindings")
-	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_Q)
-	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_E)
+	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_1)
+	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_2)
+
+
+func test_default_utility_bindings_share_same_module_type_key():
+	_loadout.selected_utility_modules = ["Backup Battery", "Backup Battery", "Drone"]
+
+	var utility_bindings := GameManager.get_default_utility_bindings(_loadout)
+	assert_eq(utility_bindings.size(), 3)
+	assert_eq((utility_bindings[0] as InputEventKey).keycode, KEY_1)
+	assert_eq((utility_bindings[1] as InputEventKey).keycode, KEY_1,
+		"Utility modules of the same type should share one default key")
+	assert_eq((utility_bindings[2] as InputEventKey).keycode, KEY_2,
+		"Next unique utility module type should use next numeric key")
 
 
 func test_apply_utility_bindings_to_input_map():
