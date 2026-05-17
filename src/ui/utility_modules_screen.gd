@@ -25,6 +25,10 @@ var _loadout: MechLoadout = null
 var _slot_count: int = 0
 var _slot_boxes: Array[ModuleSlotBox] = []
 var _slot_modify_buttons: Array[Button] = []
+var _battery_modal_overlay: ColorRect = null
+var _battery_selected_slot: int = -1
+var _battery_layout_buttons: Dictionary = {}
+var _battery_layout_summary: Label = null
 var _booster_modal_overlay: ColorRect = null
 var _booster_direction_dial: BoosterDirectionDial = null
 var _booster_direction_label: Label = null
@@ -85,6 +89,56 @@ class BoosterDirectionDial:
 		var marker_end: Vector2 = center + marker_direction * radius
 		draw_line(center, marker_end, Color(0.95, 0.55, 0.18, 1.0), 6.0)
 		draw_circle(marker_end, 10.0, Color(1.0, 0.86, 0.42, 1.0))
+
+
+class BatteryLayoutPreview:
+	extends Control
+
+	var _layout: int = 0
+	var _body_color: Color = Color(0.98, 0.9, 0.56, 0.95)
+	var _border_color: Color = Color(0.95, 0.74, 0.2, 0.95)
+	var _tip_color: Color = Color(0.95, 0.78, 0.28, 0.95)
+
+	func set_layout(layout: int) -> void:
+		_layout = layout
+		queue_redraw()
+
+	func set_palette(body_color: Color, border_color: Color, tip_color: Color) -> void:
+		_body_color = body_color
+		_border_color = border_color
+		_tip_color = tip_color
+		queue_redraw()
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(104, 34)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var cells := 1
+		match _layout:
+			1:
+				cells = 2
+			2:
+				cells = 3
+			3:
+				cells = 4
+
+		var outer := Rect2(Vector2(1, 5), Vector2(size.x - 2, size.y - 10))
+		draw_rect(outer, Color(0.12, 0.12, 0.16, 1.0), true)
+		draw_rect(outer, _border_color, false, 2.0)
+
+		var gap := 4.0
+		var inner_margin := 6.0
+		var usable_width := outer.size.x - inner_margin * 2.0
+		var cell_width := (usable_width - gap * float(cells - 1)) / float(cells)
+		for i in cells:
+			var x := outer.position.x + inner_margin + float(i) * (cell_width + gap)
+			var cell_rect := Rect2(Vector2(x, outer.position.y + 6.0), Vector2(cell_width, outer.size.y - 12.0))
+			draw_rect(cell_rect, _body_color, true)
+			draw_rect(cell_rect, _border_color.darkened(0.55), false, 1.0)
+
+		var cap_rect := Rect2(Vector2(outer.end.x - 10.0, outer.position.y + outer.size.y * 0.33), Vector2(8, outer.size.y * 0.34))
+		draw_rect(cap_rect, _tip_color, true)
 
 
 class ModuleCard:
@@ -227,6 +281,7 @@ func _ready() -> void:
 	_trim_or_pad_selected_modules()
 	_build_module_catalog()
 	_build_slot_list()
+	_build_battery_modal()
 	_build_booster_modal()
 	_build_drone_modal()
 	_refresh_status()
@@ -365,6 +420,98 @@ func _build_booster_modal() -> void:
 	close_btn.custom_minimum_size = Vector2(92, 38)
 	close_btn.pressed.connect(_hide_booster_modal)
 	button_row.add_child(close_btn)
+
+
+func _build_battery_modal() -> void:
+	_battery_modal_overlay = ColorRect.new()
+	_battery_modal_overlay.color = Color(0.0, 0.0, 0.0, 0.68)
+	_battery_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_battery_modal_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_battery_modal_overlay.visible = false
+	_battery_modal_overlay.gui_input.connect(_on_battery_modal_overlay_input)
+	add_child(_battery_modal_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_battery_modal_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.1, 0.08, 0.12, 0.98)
+	panel_style.set_border_width_all(2)
+	panel_style.border_color = Color(0.95, 0.7, 0.2, 0.95)
+	panel_style.set_corner_radius_all(10)
+	panel_style.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "BACKUP BATTERY LAYOUT"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var help := Label.new()
+	help.text = "Pick a battery layout. Each segment shown below is one usable charge."
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	help.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 0.92))
+	vbox.add_child(help)
+
+	_battery_layout_buttons.clear()
+	var layouts := [
+		_UTILITY_MODULE_DATA_SCRIPT.BatteryLayout.LARGE,
+		_UTILITY_MODULE_DATA_SCRIPT.BatteryLayout.DOUBLE_PACKED,
+		_UTILITY_MODULE_DATA_SCRIPT.BatteryLayout.TRIPLE_PACKED,
+		_UTILITY_MODULE_DATA_SCRIPT.BatteryLayout.QUAD_PACKED,
+	]
+	for layout in layouts:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		vbox.add_child(row)
+
+		var preview := BatteryLayoutPreview.new()
+		preview.set_layout(layout)
+		preview.set_palette(
+			_utility_module_data.get_backup_battery_layout_body_color(layout),
+			_utility_module_data.get_backup_battery_layout_border_color(layout),
+			_utility_module_data.get_backup_battery_layout_tip_color(layout)
+		)
+		row.add_child(preview)
+
+		var layout_btn := Button.new()
+		layout_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		layout_btn.custom_minimum_size = Vector2(300, 36)
+		var uses := _utility_module_data.get_backup_battery_layout_uses(layout)
+		var energy := int(_utility_module_data.get_backup_battery_layout_energy_per_use(layout))
+		layout_btn.text = "%s  -  %d uses x %d energy" % [
+			_utility_module_data.get_backup_battery_layout_name(layout),
+			uses,
+			energy,
+		]
+		layout_btn.pressed.connect(_on_battery_layout_selected.bind(layout))
+		row.add_child(layout_btn)
+		_battery_layout_buttons[layout] = layout_btn
+
+	_battery_layout_summary = Label.new()
+	_battery_layout_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_battery_layout_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_battery_layout_summary.add_theme_font_size_override("font_size", 14)
+	_battery_layout_summary.add_theme_color_override("font_color", Color(0.95, 0.84, 0.58, 1.0))
+	vbox.add_child(_battery_layout_summary)
+
+	var close_btn := Button.new()
+	close_btn.text = "DONE"
+	close_btn.custom_minimum_size = Vector2(120, 38)
+	close_btn.pressed.connect(_hide_battery_modal)
+	vbox.add_child(close_btn)
 
 
 func _build_drone_modal() -> void:
@@ -606,6 +753,11 @@ func _on_clear_slot_pressed(slot_index: int) -> void:
 func _on_modify_slot_pressed(slot_index: int) -> void:
 	var module = _get_module(slot_index)
 	var module_name := _utility_module_data.get_module_name(module)
+	if module_name == "Backup Battery":
+		_battery_selected_slot = slot_index
+		_refresh_battery_modal()
+		_battery_modal_overlay.visible = true
+		return
 	if module_name == "Booster":
 		_booster_selected_slot = slot_index
 		_booster_direction_dial.angle = float(module.get("direction_angle") if module != null else 0.0)
@@ -648,6 +800,55 @@ func _hide_booster_modal() -> void:
 	_booster_selected_slot = -1
 
 
+func _on_battery_modal_overlay_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_hide_battery_modal()
+
+
+func _on_battery_layout_selected(layout: int) -> void:
+	if _battery_selected_slot < 0 or _battery_selected_slot >= _loadout.selected_utility_modules.size():
+		return
+	var module = _get_module(_battery_selected_slot)
+	if module == null:
+		return
+	module.backup_battery_layout = layout
+	_refresh_battery_modal()
+	_refresh_slot_row(_battery_selected_slot)
+	_refresh_status()
+
+
+func _refresh_battery_modal() -> void:
+	if _battery_selected_slot < 0 or _battery_selected_slot >= _loadout.selected_utility_modules.size():
+		return
+	var module = _get_module(_battery_selected_slot)
+	if module == null:
+		return
+	var selected_layout := _utility_module_data.get_backup_battery_layout(module)
+	for layout in _battery_layout_buttons.keys():
+		var btn: Button = _battery_layout_buttons[layout]
+		if int(layout) == selected_layout:
+			btn.modulate = _utility_module_data.get_backup_battery_layout_body_color(selected_layout)
+		else:
+			btn.modulate = Color(0.72, 0.72, 0.72, 1.0)
+
+	var uses := _utility_module_data.get_backup_battery_layout_uses(selected_layout)
+	var energy := int(_utility_module_data.get_backup_battery_layout_energy_per_use(selected_layout))
+	_battery_layout_summary.add_theme_color_override(
+		"font_color",
+		_utility_module_data.get_backup_battery_layout_body_color(selected_layout)
+	)
+	_battery_layout_summary.text = "%s selected  ·  %d total charges  ·  %d energy each" % [
+		_utility_module_data.get_backup_battery_layout_name(selected_layout),
+		uses,
+		energy,
+	]
+
+
+func _hide_battery_modal() -> void:
+	_battery_modal_overlay.visible = false
+	_battery_selected_slot = -1
+
+
 func _refresh_booster_direction_label(angle: float) -> void:
 	var angle_degrees := int(round(rad_to_deg(wrapf(angle, -PI, PI))))
 	_booster_direction_label.text = "%s  ·  %d°" % [
@@ -674,6 +875,15 @@ func _refresh_slot_row(slot_index: int) -> void:
 			label,
 			_utility_module_data.get_booster_direction_label(float(module.get("direction_angle"))),
 		]
+	elif label == "Backup Battery" and module != null:
+		var layout := _utility_module_data.get_backup_battery_layout(module)
+		var uses := _utility_module_data.get_backup_battery_layout_uses(layout)
+		var energy := int(_utility_module_data.get_backup_battery_layout_energy_per_use(layout))
+		label = "Backup Battery [%s %dx%d]" % [
+			_utility_module_data.get_backup_battery_layout_name(layout),
+			uses,
+			energy,
+		]
 	elif label == "Drone" and module != null:
 		var modifications = _ensure_drone_modification_data(module)
 		if modifications != null:
@@ -690,7 +900,7 @@ func _refresh_slot_row(slot_index: int) -> void:
 		var modify_button := _slot_modify_buttons[slot_index]
 		modify_button.visible = not label.is_empty()
 		var module_name := _utility_module_data.get_module_name(module)
-		modify_button.disabled = module_name != "Booster" and module_name != "Drone"
+		modify_button.disabled = module_name != "Backup Battery" and module_name != "Booster" and module_name != "Drone"
 
 
 func _refresh_status() -> void:

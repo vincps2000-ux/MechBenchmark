@@ -149,6 +149,14 @@ func _get_utility_module_label(module: Variant) -> String:
 	var module_name := utility_module_data.get_module_name(module_data)
 	if module_name.is_empty():
 		return ""
+	if module_name == "Backup Battery" and module_data != null:
+		var layout := utility_module_data.get_backup_battery_layout(module_data)
+		return "%s [%s %dx%d]" % [
+			module_name,
+			utility_module_data.get_backup_battery_layout_name(layout),
+			utility_module_data.get_backup_battery_layout_uses(layout),
+			int(utility_module_data.get_backup_battery_layout_energy_per_use(layout)),
+		]
 	if module_name == "Booster" and module_data != null:
 		return "%s [%s]" % [
 			module_name,

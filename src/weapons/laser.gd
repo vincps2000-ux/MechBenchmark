@@ -6,9 +6,20 @@ const BEAM_SCENE := preload("res://scenes/weapons/laser_beam.tscn")
 const MAX_RANGE  := 900.0
 ## Collision layer bits to test against (layer 2 = enemies + layer 5 = obstacles)
 const HIT_MASK   := 2 | 16
-const ENERGY_COST_PER_SECOND := 20.0
 const COOL_OFF_DURATION := 0.85
 const RESTART_ENERGY := 8.0
+
+## Per-intensity stats: [energy_cost_per_second, damage, penetration].
+## Index matches laser_intensity value (0 = Flicker … 4 = Overload).
+const _INTENSITY_STATS := [
+	[2.0,  2,  1],  # 0 — Flicker  (infantry-only)
+	[8.0,  5,  2],  # 1 — Low
+	[20.0, 12, 3],  # 2 — Standard (default)
+	[35.0, 22, 5],  # 3 — High
+	[50.0, 35, 8],  # 4 — Overload (huge penetration & damage)
+]
+
+var _energy_cost_per_second: float = 20.0
 
 ## The live beam visual while firing; null when not firing
 var _beam: Node2D = null
@@ -22,11 +33,27 @@ var _penetration: int = 3
 var fire_action: String = "fire"
 var _cool_off_timer: float = 0.0
 var _needs_restart_charge: bool = false
+## Current intensity level (0–4); set by setup() from WeaponData.laser_intensity.
+var _intensity: int = 2
+
+## Returns the per-intensity stats array for a given intensity level (clamped 0–4).
+static func get_stats_for_intensity(level: int) -> Array:
+	var idx := clampi(level, 0, 4)
+	return [
+		[2.0,  2,  1],
+		[8.0,  5,  2],
+		[20.0, 12, 3],
+		[35.0, 22, 5],
+		[50.0, 35, 8],
+	][idx]
 
 ## Called by PlayerController right after instantiation to wire up WeaponData.
 func setup(data: WeaponData) -> void:
-	_damage = data.damage
-	_penetration = data.penetration
+	var stats := get_stats_for_intensity(data.laser_intensity)
+	_energy_cost_per_second = stats[0]
+	_damage      = stats[1]
+	_penetration = stats[2]
+	_intensity   = data.laser_intensity
 	WeaponAttachment.mount_from_data(self, data)
 
 func _process(delta: float) -> void:
@@ -42,7 +69,7 @@ func _process(delta: float) -> void:
 		_stop_beam()
 
 func get_energy_cost_per_second() -> float:
-	return ENERGY_COST_PER_SECOND
+	return _energy_cost_per_second
 
 func get_cool_off_duration() -> float:
 	return COOL_OFF_DURATION
@@ -51,7 +78,7 @@ func _try_consume_energy(delta: float) -> bool:
 	var owner := _find_energy_owner()
 	if owner == null:
 		return true
-	var energy_cost := ENERGY_COST_PER_SECOND * delta
+	var energy_cost := _energy_cost_per_second * delta
 	if not owner.call("has_energy_for", energy_cost):
 		return false
 	return bool(owner.call("consume_energy", energy_cost))
@@ -122,6 +149,7 @@ func _fire_continuous() -> void:
 	if _beam == null or not is_instance_valid(_beam):
 		_beam = BEAM_SCENE.instantiate()
 		get_tree().root.add_child(_beam)
+		(_beam as Node2D).call("set_intensity", _intensity)
 		(_beam as Node2D).call("fire", muzzle_pos, hit_pos)
 	else:
 		(_beam as Node2D).call("update_beam", muzzle_pos, hit_pos)

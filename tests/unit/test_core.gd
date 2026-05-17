@@ -51,6 +51,11 @@ func test_weapon_data_thrower_element_defaults_to_fuel():
 	var w := WeaponData.new()
 	assert_eq(w.thrower_element, WeaponData.ThrowerElement.FUEL)
 
+
+func test_weapon_data_thrower_nozzle_defaults_to_standard():
+	var w := WeaponData.new()
+	assert_eq(w.thrower_nozzle, WeaponData.ThrowerNozzle.NOZZLE)
+
 # ── TorsoData ─────────────────────────────────────────────────────────────────
 
 func test_torso_heavy_has_two_weapon_slots():
@@ -186,6 +191,52 @@ func test_backup_battery_consumes_one_and_restores_ninety_energy():
 	assert_true(player._consume_backup_battery_for_action(1),
 		"Second battery should activate from its own utility action")
 	assert_eq(player.get_backup_battery_count(), 0)
+
+
+func test_backup_battery_layout_stats_match_expected_values():
+	assert_eq(_utility_module_data.get_backup_battery_layout_uses(_utility_module_data.BatteryLayout.LARGE), 1)
+	assert_eq(_utility_module_data.get_backup_battery_layout_energy_per_use(_utility_module_data.BatteryLayout.LARGE), 90.0)
+	assert_eq(_utility_module_data.get_backup_battery_layout_uses(_utility_module_data.BatteryLayout.DOUBLE_PACKED), 2)
+	assert_eq(_utility_module_data.get_backup_battery_layout_energy_per_use(_utility_module_data.BatteryLayout.DOUBLE_PACKED), 40.0)
+	assert_eq(_utility_module_data.get_backup_battery_layout_uses(_utility_module_data.BatteryLayout.TRIPLE_PACKED), 3)
+	assert_eq(_utility_module_data.get_backup_battery_layout_energy_per_use(_utility_module_data.BatteryLayout.TRIPLE_PACKED), 25.0)
+	assert_eq(_utility_module_data.get_backup_battery_layout_uses(_utility_module_data.BatteryLayout.QUAD_PACKED), 4)
+	assert_eq(_utility_module_data.get_backup_battery_layout_energy_per_use(_utility_module_data.BatteryLayout.QUAD_PACKED), 15.0)
+
+
+func test_double_packed_battery_has_two_charges_and_restores_forty_each():
+	var loadout := MechLoadout.new()
+	loadout.selected_legs = LegData.new()
+	loadout.selected_torso = TorsoData.new()
+	loadout.selected_torsos = [loadout.selected_torso]
+	loadout.selected_guns = [WeaponData.new()]
+	var battery = _utility_module_data.make_module(_utility_module_data.ModuleType.BACKUP_BATTERY)
+	battery.backup_battery_layout = _utility_module_data.BatteryLayout.DOUBLE_PACKED
+	loadout.selected_utility_modules = [battery]
+
+	GameManager.current_loadout = loadout
+	GameManager.utility_bindings = GameManager.get_default_utility_bindings(loadout)
+	GameManager.apply_utility_bindings()
+
+	var player = _PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+
+	player.consume_energy(100.0)
+	assert_eq(player.get_energy(), 0.0)
+	assert_eq(player.get_backup_battery_count(), 2)
+
+	assert_true(player._consume_backup_battery_for_action(0),
+		"First double-packed charge should consume")
+	assert_eq(player.get_energy(), 40.0)
+	assert_eq(player.get_backup_battery_count(), 1)
+
+	assert_true(player._consume_backup_battery_for_action(0),
+		"Second double-packed charge should consume")
+	assert_eq(player.get_energy(), 80.0)
+	assert_eq(player.get_backup_battery_count(), 0)
+
+	assert_false(player._consume_backup_battery_for_action(0),
+		"No charges should remain after consuming both double-packed uses")
 
 
 func test_booster_action_starts_fast_dash_in_selected_direction():
@@ -325,6 +376,8 @@ func test_drone_explosion_uses_explosion_system_and_damages_target():
 	GameManager.current_loadout = loadout
 	GameManager.utility_bindings = GameManager.get_default_utility_bindings(loadout)
 	GameManager.apply_utility_bindings()
+	GameManager.movement_bindings = GameManager.get_default_movement_bindings()
+	GameManager.apply_movement_bindings()
 
 	var player = _PLAYER_SCENE.instantiate()
 	add_child_autofree(player)

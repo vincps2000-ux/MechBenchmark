@@ -2,6 +2,10 @@
 class_name EnergyHUD
 extends Control
 
+const _UTILITY_MODULE_DATA_SCRIPT := preload("res://src/player/utility_module_data.gd")
+
+var _utility_module_data = _UTILITY_MODULE_DATA_SCRIPT.new()
+
 var _player: Node = null
 var _panel: PanelContainer = null
 var _energy_bar: ProgressBar = null
@@ -139,15 +143,25 @@ func _refresh_consumable_icons() -> void:
 
 
 func _make_consumable_icon(icon_key: String) -> Control:
+	if icon_key.begins_with("backup_battery"):
+		var layout := _extract_backup_battery_layout(icon_key)
+		return _make_backup_battery_icon(layout)
 	match icon_key:
-		"backup_battery":
-			return _make_backup_battery_icon()
 		"drone":
 			return _make_drone_icon()
 		"booster":
 			return _make_booster_icon()
 		_:
 			return _make_fallback_consumable_icon()
+
+
+func _extract_backup_battery_layout(icon_key: String) -> int:
+	if not icon_key.begins_with("backup_battery_"):
+		return _utility_module_data.BatteryLayout.LARGE
+	var parts := icon_key.split("_")
+	if parts.size() < 3:
+		return _utility_module_data.BatteryLayout.LARGE
+	return clampi(int(parts[2]), _utility_module_data.BatteryLayout.LARGE, _utility_module_data.BatteryLayout.QUAD_PACKED)
 
 
 func _make_drone_icon() -> Control:
@@ -181,32 +195,35 @@ func _make_drone_icon() -> Control:
 	return root
 
 
-func _make_backup_battery_icon() -> Control:
+func _make_backup_battery_icon(layout: int) -> Control:
 	var root := Control.new()
 	root.custom_minimum_size = Vector2(14, 8)
+	var body_color := _utility_module_data.get_backup_battery_layout_body_color(layout)
+	var border_color := _utility_module_data.get_backup_battery_layout_border_color(layout)
+	var tip_color := _utility_module_data.get_backup_battery_layout_tip_color(layout)
 
 	var body := ColorRect.new()
-	body.color = Color(0.95, 0.86, 0.42, 0.95)
+	body.color = body_color
 	body.position = Vector2(0, 0)
 	body.size = Vector2(11, 8)
 	root.add_child(body)
 
 	var body_outline := StyleBoxFlat.new()
-	body_outline.bg_color = Color(0.95, 0.86, 0.42, 0.95)
+	body_outline.bg_color = body_color
 	body_outline.set_border_width_all(1)
-	body_outline.border_color = Color(0.35, 0.3, 0.12, 1.0)
+	body_outline.border_color = border_color
 	body.add_theme_stylebox_override("panel", body_outline)
 
 	var tip := ColorRect.new()
-	tip.color = Color(0.85, 0.78, 0.4, 0.95)
+	tip.color = tip_color
 	tip.position = Vector2(11, 2)
 	tip.size = Vector2(3, 4)
 	root.add_child(tip)
 
 	var tip_outline := StyleBoxFlat.new()
-	tip_outline.bg_color = Color(0.85, 0.78, 0.4, 0.95)
+	tip_outline.bg_color = tip_color
 	tip_outline.set_border_width_all(1)
-	tip_outline.border_color = Color(0.35, 0.3, 0.12, 1.0)
+	tip_outline.border_color = border_color
 	tip.add_theme_stylebox_override("panel", tip_outline)
 
 	return root

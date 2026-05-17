@@ -6,14 +6,15 @@
 class_name Flamethrower
 extends Node2D
 
-const MAX_RANGE    := 240.0
-const CONE_ANGLE   := 0.873   # ≈ 50 degrees in radians
-const RAY_COUNT    := 11      # raycasts spread across the cone
+const DEFAULT_MAX_RANGE  := 240.0
+const DEFAULT_CONE_ANGLE := 0.873  # ≈ 50 degrees in radians
+const DEFAULT_RAY_COUNT  := 11
 const HIT_MASK     := 2 | 16  # layer 2 = enemies + layer 5 = obstacles
 
 const SEG_COUNT    := 20      # vertices along the outer cone arc
 const TONGUE_COUNT := 8       # individual flame-streamer polygons
-const MAX_AMMO     := 100
+const MAX_AMMO     := 200
+const AMMO_DRAIN_PER_SECOND := 60.0
 
 @onready var _flame_poly:  Polygon2D = $FlamePoly
 @onready var _flame_inner: Polygon2D = $FlameInner
@@ -24,9 +25,14 @@ var _time:   float = 0.0
 var _damage: int = 3
 ## Armour penetration value, configured via setup()
 var _penetration: int = 2
-var _ammo_current: int = MAX_AMMO
+var _ammo_current: float = float(MAX_AMMO)
 ## Element profile used to color the flame visuals.
 var _thrower_element: WeaponData.ThrowerElement = WeaponData.ThrowerElement.FUEL
+## Nozzle profile controls cone angle, reach, and hit density.
+var _thrower_nozzle: WeaponData.ThrowerNozzle = WeaponData.ThrowerNozzle.NOZZLE
+var _max_range: float = DEFAULT_MAX_RANGE
+var _cone_angle: float = DEFAULT_CONE_ANGLE
+var _ray_count: int = DEFAULT_RAY_COUNT
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -61,7 +67,7 @@ func _ready() -> void:
 		_seg_phase_b.append(_rng.randf_range(0.0, TAU))
 
 	# Spawn tongue polygons and assign random parameters
-	var half := CONE_ANGLE * 0.5
+	var half := _cone_angle * 0.5
 	for _i in TONGUE_COUNT:
 		var poly := Polygon2D.new()
 		poly.z_index = 5
@@ -79,7 +85,9 @@ func setup(data: WeaponData) -> void:
 	_damage = data.damage
 	_penetration = data.penetration
 	_thrower_element = data.thrower_element
-	_ammo_current = MAX_AMMO
+	_thrower_nozzle = data.thrower_nozzle
+	_apply_nozzle_profile(_thrower_nozzle)
+	_ammo_current = float(MAX_AMMO)
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -96,27 +104,27 @@ func _process(delta: float) -> void:
 	_firing = trigger_pressed and has_ammo()
 
 	if _firing:
-		if _consume_ammo():
+		if _consume_ammo(delta):
 			_fire_cone()
 		else:
 			_firing = false
 
 	_animate_flame()
 
-func _consume_ammo() -> bool:
+func _consume_ammo(delta: float = 1.0 / AMMO_DRAIN_PER_SECOND) -> bool:
 	if not has_ammo():
 		return false
-	_ammo_current -= 1
+	_ammo_current = maxf(_ammo_current - AMMO_DRAIN_PER_SECOND * maxf(delta, 0.0), 0.0)
 	return true
 
 func get_ammo_count() -> int:
-	return _ammo_current
+	return ceili(_ammo_current)
 
 func get_ammo_capacity() -> int:
 	return MAX_AMMO
 
 func has_ammo() -> bool:
-	return _ammo_current > 0
+	return _ammo_current > 0.0
 
 func is_out_of_ammo() -> bool:
 	return not has_ammo()
@@ -126,7 +134,7 @@ func _fire_cone() -> void:
 	var fire_dir   : Vector2 = global_transform.x          # world-space forward
 	var muzzle_pos : Vector2 = global_position + fire_dir * 14.0
 	var base_angle : float   = fire_dir.angle()
-	var half       : float   = CONE_ANGLE * 0.5
+	var half       : float   = _cone_angle * 0.5
 
 	var space := get_world_2d().direct_space_state
 	var already_hit: Array = []
@@ -140,7 +148,7 @@ func _fire_cone() -> void:
 		var t     : float = float(i) / float(SEG_COUNT)
 		var angle : float = base_angle + lerp(-half, half, t)
 		var dir   := Vector2.from_angle(angle)
-		var end   := muzzle_pos + dir * MAX_RANGE
+		var end   := muzzle_pos + dir * _max_range
 
 		var oq := PhysicsRayQueryParameters2D.create(muzzle_pos, end)
 		oq.collision_mask      = 16   # obstacles only
@@ -149,17 +157,17 @@ func _fire_cone() -> void:
 
 		var oresult := space.intersect_ray(oq)
 		if oresult.is_empty():
-			_obstacle_ranges.append(MAX_RANGE)
+			_obstacle_ranges.append(_max_range)
 		else:
 			var hit_dist: float = (oresult["position"] as Vector2 - muzzle_pos).length()
 			_obstacle_ranges.append(hit_dist)
 
 	# ── Second pass: damage raycasts (enemies + obstacles) ──────────────────
-	for i in RAY_COUNT:
-		var t     := float(i) / float(RAY_COUNT - 1)
+	for i in _ray_count:
+		var t     := float(i) / float(maxi(_ray_count - 1, 1))
 		var angle : float = base_angle + lerp(-half, half, t)
 		var dir   := Vector2.from_angle(angle)
-		var end   := muzzle_pos + dir * MAX_RANGE
+		var end   := muzzle_pos + dir * _max_range
 
 		var query := PhysicsRayQueryParameters2D.create(muzzle_pos, end)
 		query.collision_mask      = HIT_MASK
@@ -199,7 +207,7 @@ func _animate_flame() -> void:
 	if not _firing:
 		return
 
-	var half : float = CONE_ANGLE * 0.5
+	var half : float = _cone_angle * 0.5
 
 	# ── Outer cone: every arc vertex has its own noise pair ───────────────────
 	# Each segment blends a fast + slow sin wave with unique freq & phase, so
@@ -210,14 +218,14 @@ func _animate_flame() -> void:
 		if i < _obstacle_ranges.size():
 			seg_max.append(_obstacle_ranges[i])
 		else:
-			seg_max.append(MAX_RANGE)
+			seg_max.append(_max_range)
 
 	var outer := PackedVector2Array()
 	outer.append(Vector2.ZERO)
 	for i in SEG_COUNT + 1:
 		var t     : float = float(i) / float(SEG_COUNT)
 		var angle : float = lerp(-half, half, t)
-		var r : float = MAX_RANGE * (
+		var r : float = _max_range * (
 			0.62
 			+ 0.20 * sin(_time * _seg_freq_a[i]  + _seg_phase_a[i])
 			+ 0.11 * sin(_time * _seg_freq_b[i]  + _seg_phase_b[i])
@@ -234,7 +242,7 @@ func _animate_flame() -> void:
 	for i in SEG_COUNT + 1:
 		var t     : float = float(i) / float(SEG_COUNT)
 		var angle : float = lerp(-half * 0.48, half * 0.48, t)
-		var r : float = MAX_RANGE * 0.52 * (
+		var r : float = _max_range * 0.52 * (
 			0.68
 			+ 0.22 * sin(_time * _seg_freq_a[i] * 1.4  + _seg_phase_a[i] + 0.9)
 			+ 0.10 * sin(_time * 29.0                   + float(i) * 1.1)
@@ -258,7 +266,7 @@ func _animate_flame() -> void:
 		var len_frac : float = _tongue_length[i] * (
 			0.72 + 0.28 * sin(_time * _tongue_freq[i] * 1.15 + _tongue_phase[i] + 1.2)
 		)
-		var r   : float   = MAX_RANGE * len_frac
+		var r   : float   = _max_range * len_frac
 		# Clamp tongue to the nearest obstacle along its angle
 		var tongue_seg_idx: int = clampi(int((angle / half * 0.5 + 0.5) * SEG_COUNT), 0, seg_max.size() - 1)
 		r = minf(r, seg_max[tongue_seg_idx])
@@ -304,6 +312,22 @@ func _animate_flame() -> void:
 		clampf(inner_base.b + 0.07 * f_inner, 0.0, 1.0),
 		0.65 + 0.14 * f_inner
 	)
+
+
+func _apply_nozzle_profile(nozzle: WeaponData.ThrowerNozzle) -> void:
+	match nozzle:
+		WeaponData.ThrowerNozzle.LONG_NOZZLE:
+			_max_range = 340.0
+			_cone_angle = deg_to_rad(30.0)
+			_ray_count = 9
+		WeaponData.ThrowerNozzle.WIDE_NOZZLE:
+			_max_range = 170.0
+			_cone_angle = deg_to_rad(86.0)
+			_ray_count = 17
+		_:
+			_max_range = DEFAULT_MAX_RANGE
+			_cone_angle = DEFAULT_CONE_ANGLE
+			_ray_count = DEFAULT_RAY_COUNT
 
 
 func _get_outer_base_color() -> Color:

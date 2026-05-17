@@ -10,6 +10,9 @@ signal deploy_pressed(loadout: MechLoadout)
 const _MISSILE_BUILDER_PART_CARD_SCRIPT := preload("res://src/ui/missile_builder_part_card.gd")
 const _MISSILE_BUILDER_SLOT_SCRIPT := preload("res://src/ui/missile_builder_slot.gd")
 const _THROWER_TANK_SCRIPT := preload("res://src/ui/thrower_tank.gd")
+const _NOZZLE_LONG_ICON_PATH := "res://assets/sprites/thrower_nozzle_long.svg"
+const _NOZZLE_STANDARD_ICON_PATH := "res://assets/sprites/thrower_nozzle_standard.svg"
+const _NOZZLE_WIDE_ICON_PATH := "res://assets/sprites/thrower_nozzle_wide.svg"
 const _WIKI_ROOT := "res://assets/wiki"
 const _WIKI_DEFAULT_PAGE := "res://assets/wiki/default.html"
 
@@ -785,9 +788,16 @@ static func _thrower_element_label(element: WeaponData.ThrowerElement) -> String
 	return "Unknown"
 
 
+static func _thrower_nozzle_label(nozzle: WeaponData.ThrowerNozzle) -> String:
+	match nozzle:
+		WeaponData.ThrowerNozzle.LONG_NOZZLE: return "Long Nozzle"
+		WeaponData.ThrowerNozzle.WIDE_NOZZLE: return "Wide Nozzle"
+		_: return "Nozzle"
+
+
 static func _weapon_variant_label(gun: WeaponData) -> String:
 	if gun.weapon_type == WeaponData.WeaponType.FLAMETHROWER:
-		return "Element: %s" % _thrower_element_label(gun.thrower_element)
+		return "Element: %s | %s" % [_thrower_element_label(gun.thrower_element), _thrower_nozzle_label(gun.thrower_nozzle)]
 	if gun.weapon_type == WeaponData.WeaponType.PLASMA_GUN:
 		return "Core: Plasma"
 	return _ammo_type_label(gun.ammo_type)
@@ -826,6 +836,8 @@ func _show_modify_modal(gun: WeaponData) -> void:
 			_add_chemical_thrower_options(vbox, gun)
 		WeaponData.WeaponType.ROCKET_POD:
 			_add_rocket_pod_options(vbox, gun)
+		WeaponData.WeaponType.LASER:
+			_add_laser_options(vbox, gun)
 
 	# Attachments (available for all weapons)
 	_add_attachment_options(vbox, gun)
@@ -868,6 +880,13 @@ func _add_chemical_thrower_options(vbox: VBoxContainer, gun: WeaponData) -> void
 	element_btn.pressed.connect(_show_thrower_element_modal.bind(gun))
 	vbox.add_child(element_btn)
 
+	var nozzle_btn := Button.new()
+	nozzle_btn.text = "Nozzle  Spray Shape"
+	nozzle_btn.custom_minimum_size = Vector2(280, 44)
+	nozzle_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	nozzle_btn.pressed.connect(_show_thrower_nozzle_modal.bind(gun))
+	vbox.add_child(nozzle_btn)
+
 
 func _add_rocket_pod_options(vbox: VBoxContainer, gun: WeaponData) -> void:
 	var missile_builder_btn := Button.new()
@@ -876,6 +895,161 @@ func _add_rocket_pod_options(vbox: VBoxContainer, gun: WeaponData) -> void:
 	missile_builder_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	missile_builder_btn.pressed.connect(_show_missile_builder_modal.bind(gun))
 	vbox.add_child(missile_builder_btn)
+
+
+func _add_laser_options(vbox: VBoxContainer, gun: WeaponData) -> void:
+	gun.laser_intensity = clampi(gun.laser_intensity, 0, 4)
+	var intensity_btn := Button.new()
+	intensity_btn.text = "⚡  Energy Intensity (%s/%d)" % [_laser_intensity_name(gun.laser_intensity), 5]
+	intensity_btn.custom_minimum_size = Vector2(280, 44)
+	intensity_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	intensity_btn.pressed.connect(_show_laser_intensity_modal.bind(gun))
+	vbox.add_child(intensity_btn)
+
+
+static func _laser_intensity_name(level: int) -> String:
+	match clampi(level, 0, 4):
+		0: return "Flicker"
+		1: return "Low"
+		2: return "Standard"
+		3: return "High"
+		4: return "Overload"
+	return "Standard"
+
+
+static func _laser_intensity_description(level: int) -> String:
+	match clampi(level, 0, 4):
+		0: return "Flicker: 2 energy/s — hairline beam, only effective against unarmoured infantry."
+		1: return "Low: 8 energy/s — reduced draw with light anti-infantry punch."
+		2: return "Standard: 20 energy/s — balanced cutting power and energy economy."
+		3: return "High: 35 energy/s — heavy burn, punches through light armour."
+		4: return "Overload: 50 energy/s — maximum output; devastating damage and penetration."
+	return "Standard: 20 energy/s — balanced cutting power and energy economy."
+
+
+## Per-intensity stats mirroring Laser._INTENSITY_STATS: [energy/s, damage, penetration]
+static func _laser_stats_for_intensity(level: int) -> Array:
+	var table := [
+		[2.0,  2,  1],
+		[8.0,  5,  2],
+		[20.0, 12, 3],
+		[35.0, 22, 5],
+		[50.0, 35, 8],
+	]
+	return table[clampi(level, 0, 4)]
+
+
+func _show_laser_intensity_modal(gun: WeaponData) -> void:
+	gun.laser_intensity = clampi(gun.laser_intensity, 0, 4)
+
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "⚡  ENERGY INTENSITY — %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	# ── Left / Preview / Right ────────────────────────────────────────────────
+	var controls := HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 12)
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(controls)
+
+	var decrease_btn := Button.new()
+	decrease_btn.text = "◀"
+	decrease_btn.custom_minimum_size = Vector2(44, 44)
+	decrease_btn.disabled = gun.laser_intensity <= 0
+	decrease_btn.pressed.connect(_on_laser_intensity_adjusted.bind(-1, gun))
+	controls.add_child(decrease_btn)
+
+	# Preview panel
+	var preview_panel := PanelContainer.new()
+	preview_panel.custom_minimum_size = Vector2(220, 80)
+	preview_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var preview_style := StyleBoxFlat.new()
+	preview_style.bg_color = Color(0.05, 0.04, 0.10, 0.9)
+	preview_style.border_color = Color(0.3, 0.35, 0.55, 0.8)
+	preview_style.set_border_width_all(1)
+	preview_style.set_corner_radius_all(8)
+	preview_style.set_content_margin_all(10)
+	preview_panel.add_theme_stylebox_override("panel", preview_style)
+	controls.add_child(preview_panel)
+
+	var preview_box := VBoxContainer.new()
+	preview_box.add_theme_constant_override("separation", 8)
+	preview_panel.add_child(preview_box)
+
+	# Beam visualisation: a coloured horizontal bar whose thickness and colour
+	# scale with intensity.
+	var beam_row := HBoxContainer.new()
+	beam_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	beam_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_box.add_child(beam_row)
+
+	var lpad := Control.new()
+	lpad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	beam_row.add_child(lpad)
+
+	var beam_h := int(2 + gun.laser_intensity * 3)  # 2 … 14 px
+	var t := float(gun.laser_intensity) / 4.0
+	var beam_color := Color(0.3 + t * 0.5, 0.3 - t * 0.2, 1.0 - t * 0.6, 1.0)
+	var beam_bar := ColorRect.new()
+	beam_bar.color = beam_color
+	beam_bar.custom_minimum_size = Vector2(160, beam_h)
+	beam_row.add_child(beam_bar)
+
+	var rpad := Control.new()
+	rpad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	beam_row.add_child(rpad)
+
+	# Stats line: energy / damage / pen
+	var stats := _laser_stats_for_intensity(gun.laser_intensity)
+	var stats_label := Label.new()
+	stats_label.text = "%s  |  %.0f/s  ·  %d dmg  ·  %d pen" % [
+		_laser_intensity_name(gun.laser_intensity),
+		stats[0], stats[1], stats[2],
+	]
+	stats_label.add_theme_font_size_override("font_size", 11)
+	stats_label.add_theme_color_override("font_color", Color(0.73, 0.77, 0.8))
+	stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	preview_box.add_child(stats_label)
+
+	var increase_btn := Button.new()
+	increase_btn.text = "▶"
+	increase_btn.custom_minimum_size = Vector2(44, 44)
+	increase_btn.disabled = gun.laser_intensity >= 4
+	increase_btn.pressed.connect(_on_laser_intensity_adjusted.bind(1, gun))
+	controls.add_child(increase_btn)
+
+	# Description
+	var desc := Label.new()
+	desc.text = _laser_intensity_description(gun.laser_intensity)
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.add_theme_color_override("font_color", Color(0.65, 0.61, 0.56))
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.custom_minimum_size = Vector2(320, 0)
+	vbox.add_child(desc)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_laser_intensity_adjusted(delta: int, gun: WeaponData) -> void:
+	gun.laser_intensity = clampi(gun.laser_intensity + delta, 0, 4)
+	call_deferred("_show_laser_intensity_modal", gun)
 
 
 func _hide_modify_modal() -> void:
@@ -1279,6 +1453,102 @@ func _show_thrower_element_modal(gun: WeaponData) -> void:
 
 func _on_thrower_element_selected(selected_element: WeaponData.ThrowerElement, gun: WeaponData) -> void:
 	gun.thrower_element = selected_element
+	_hide_sub_modal()
+
+
+func _show_thrower_nozzle_modal(gun: WeaponData) -> void:
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	_sub_modal_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "NOZZLE SHAPE - %s" % gun.name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
+	vbox.add_child(sep)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 18)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(row)
+
+	var nozzles: Array[Dictionary] = [
+		{"type": WeaponData.ThrowerNozzle.LONG_NOZZLE, "label": "LONG NOZZLE", "desc": "Focused stream, longer range", "icon_path": _NOZZLE_LONG_ICON_PATH},
+		{"type": WeaponData.ThrowerNozzle.NOZZLE, "label": "NOZZLE", "desc": "Balanced spread", "icon_path": _NOZZLE_STANDARD_ICON_PATH},
+		{"type": WeaponData.ThrowerNozzle.WIDE_NOZZLE, "label": "WIDE NOZZLE", "desc": "Huge spread, short range", "icon_path": _NOZZLE_WIDE_ICON_PATH},
+	]
+
+	for entry in nozzles:
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 6)
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_child(col)
+
+		var btn := Button.new()
+		btn.flat = true
+		btn.custom_minimum_size = Vector2(120, 92)
+		btn.pressed.connect(_on_thrower_nozzle_selected.bind(entry["type"], gun))
+		col.add_child(btn)
+
+		var selected: bool = gun.thrower_nozzle == entry["type"]
+		var normal_style := StyleBoxFlat.new()
+		normal_style.bg_color = Color(0.22, 0.22, 0.24, 0.96) if selected else Color(0.12, 0.12, 0.14, 0.96)
+		normal_style.border_color = Color(0.93, 0.20, 0.20, 1.0) if selected else Color(0.34, 0.36, 0.42, 0.9)
+		normal_style.set_border_width_all(2)
+		normal_style.set_corner_radius_all(8)
+		normal_style.set_content_margin_all(8)
+		btn.add_theme_stylebox_override("normal", normal_style)
+
+		var hover_style := normal_style.duplicate() as StyleBoxFlat
+		hover_style.bg_color = Color(0.18, 0.18, 0.22, 0.98)
+		hover_style.border_color = Color(0.85, 0.85, 0.92, 1.0) if not selected else Color(0.93, 0.20, 0.20, 1.0)
+		btn.add_theme_stylebox_override("hover", hover_style)
+
+		var pressed_style := normal_style.duplicate() as StyleBoxFlat
+		pressed_style.bg_color = Color(0.24, 0.24, 0.28, 1.0)
+		btn.add_theme_stylebox_override("pressed", pressed_style)
+
+		var icon := TextureRect.new()
+		var icon_path := String(entry["icon_path"])
+		if ResourceLoader.exists(icon_path):
+			icon.texture = load(icon_path) as Texture2D
+		icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.custom_minimum_size = Vector2(90, 52)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn.add_child(icon)
+
+		var lbl := Label.new()
+		lbl.text = entry["label"]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color(0.86, 0.84, 0.8))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(lbl)
+
+		var desc := Label.new()
+		desc.text = entry["desc"]
+		desc.add_theme_font_size_override("font_size", 10)
+		desc.add_theme_color_override("font_color", Color(0.62, 0.6, 0.55))
+		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.custom_minimum_size = Vector2(124, 0)
+		col.add_child(desc)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _on_thrower_nozzle_selected(selected_nozzle: WeaponData.ThrowerNozzle, gun: WeaponData) -> void:
+	gun.thrower_nozzle = selected_nozzle
 	_hide_sub_modal()
 
 

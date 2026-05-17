@@ -27,7 +27,6 @@ const MAX_ENERGY := 100.0
 const ENERGY_REGEN_PER_SECOND := 0.0
 const ENERGY_REGEN_DELAY := 0.1
 const BACKUP_BATTERY_MODULE_NAME := "Backup Battery"
-const BACKUP_BATTERY_ENERGY_GAIN := 90.0
 const DRONE_MODULE_NAME := "Drone"
 const BOOSTER_MODULE_NAME := "Booster"
 const BOOSTER_SPEED := 1250.0
@@ -65,7 +64,9 @@ var _energy_current: float = MAX_ENERGY
 var _energy_regen_block_timer: float = 0.0
 var _energy_regen_bonus: float = 0.0  # Bonus from installed modules
 var _backup_battery_action_indices: Array[int] = []
-var _backup_battery_used: Array[bool] = []
+var _backup_battery_remaining_uses: Array[int] = []
+var _backup_battery_energy_per_use: Array[float] = []
+var _backup_battery_layouts: Array[int] = []
 var _drone_modules_by_action: Dictionary = {}
 var _booster_modules_by_action: Dictionary = {}
 var _active_drone: Node = null
@@ -120,7 +121,9 @@ func _exit_tree() -> void:
 
 func _setup_utility_modules(loadout: MechLoadout) -> void:
 	_backup_battery_action_indices.clear()
-	_backup_battery_used.clear()
+	_backup_battery_remaining_uses.clear()
+	_backup_battery_energy_per_use.clear()
+	_backup_battery_layouts.clear()
 	_drone_modules_by_action.clear()
 	_booster_modules_by_action.clear()
 	if loadout == null:
@@ -134,8 +137,11 @@ func _setup_utility_modules(loadout: MechLoadout) -> void:
 		if module_name.is_empty():
 			continue
 		if module_name == BACKUP_BATTERY_MODULE_NAME:
+			var battery_layout: int = utility_module_data.get_backup_battery_layout(module_data)
 			_backup_battery_action_indices.append(utility_action_index)
-			_backup_battery_used.append(false)
+			_backup_battery_remaining_uses.append(utility_module_data.get_backup_battery_layout_uses(battery_layout))
+			_backup_battery_energy_per_use.append(utility_module_data.get_backup_battery_layout_energy_per_use(battery_layout))
+			_backup_battery_layouts.append(battery_layout)
 		elif module_name == DRONE_MODULE_NAME:
 			_drone_modules_by_action[utility_action_index] = module_data
 		elif module_name == BOOSTER_MODULE_NAME:
@@ -416,9 +422,8 @@ func consume_energy(amount: float) -> bool:
 
 func get_backup_battery_count() -> int:
 	var remaining := 0
-	for used in _backup_battery_used:
-		if not used:
-			remaining += 1
+	for use_count in _backup_battery_remaining_uses:
+		remaining += maxi(0, use_count)
 	return remaining
 
 
@@ -501,8 +506,12 @@ func trigger_drone_explode() -> void:
 ## utility-specific labels.
 func get_consumable_utility_icon_keys() -> Array[String]:
 	var keys: Array[String] = []
-	for _i in get_backup_battery_count():
-		keys.append("backup_battery")
+	for i in _backup_battery_remaining_uses.size():
+		var remaining_uses := maxi(0, _backup_battery_remaining_uses[i])
+		var layout := _backup_battery_layouts[i] if i < _backup_battery_layouts.size() else 0
+		var battery_key := "backup_battery_%d" % layout
+		for _j in remaining_uses:
+			keys.append(battery_key)
 	for _action_index in _drone_modules_by_action:
 		keys.append("drone")
 	for _action_index in _booster_modules_by_action:
@@ -512,12 +521,13 @@ func get_consumable_utility_icon_keys() -> Array[String]:
 
 func _consume_backup_battery_for_action(action_index: int) -> bool:
 	for i in _backup_battery_action_indices.size():
-		if _backup_battery_used[i]:
+		if _backup_battery_remaining_uses[i] <= 0:
 			continue
 		if _backup_battery_action_indices[i] != action_index:
 			continue
-		_backup_battery_used[i] = true
-		add_energy(BACKUP_BATTERY_ENERGY_GAIN)
+		_backup_battery_remaining_uses[i] -= 1
+		var energy_amount := _backup_battery_energy_per_use[i] if i < _backup_battery_energy_per_use.size() else 90.0
+		add_energy(energy_amount)
 		return true
 	return false
 

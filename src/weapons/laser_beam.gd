@@ -10,9 +10,31 @@ const FADE_TIME := 0.25  # seconds for fade-out after stop()
 
 var _fading:  bool  = false
 var _elapsed: float = 0.0
+## Base colours used for both live rendering and alpha-fade; set by set_intensity().
+var _glow_base_color: Color
+var _beam_base_color: Color
 
 func _ready() -> void:
 	add_to_group("level_effect")
+	# Seed base colours from the scene defaults so the beam works without a
+	# set_intensity() call (e.g. in tests or if spawned manually).
+	_glow_base_color = _glow.default_color
+	_beam_base_color = _line.default_color
+
+## Apply visual properties for a given intensity level (0 = Flicker … 4 = Overload).
+## Must be called before fire() so the colours take effect on the first frame.
+func set_intensity(level: int) -> void:
+	var t := float(clampi(level, 0, 4)) / 4.0
+	# Colour: cyan-white at low intensity → deep red at max intensity
+	var glow_rgb := Color(0.0, 0.95, 1.0).lerp(Color(1.0, 0.05, 0.0), t)
+	var beam_rgb := Color(0.6, 0.95, 1.0).lerp(Color(1.0, 0.45, 0.15), t)
+	glow_rgb.a = 0.45
+	beam_rgb.a = 1.0
+	_glow_base_color = glow_rgb
+	_beam_base_color = beam_rgb
+	# Width: narrow hairline at Flicker → thick slab at Overload
+	_glow.width = lerpf(3.0, 16.0, t)
+	_line.width = lerpf(1.0,  6.0, t)
 
 ## Initial setup — called on the first frame the laser fires
 func fire(from: Vector2, to: Vector2) -> void:
@@ -25,8 +47,8 @@ func fire(from: Vector2, to: Vector2) -> void:
 	_line.add_point(from)
 	_line.add_point(to)
 	# Restore full alpha in case a previous fade left it partial
-	var gc := _glow.default_color; gc.a = 0.45; _glow.default_color = gc
-	var lc := _line.default_color; lc.a = 1.00; _line.default_color = lc
+	_glow.default_color = _glow_base_color
+	_line.default_color = _beam_base_color
 
 ## Update endpoints each frame while the laser is firing
 func update_beam(from: Vector2, to: Vector2) -> void:
@@ -52,5 +74,5 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 	var alpha := 1.0 - t
-	var gc := _glow.default_color; gc.a = alpha * 0.45; _glow.default_color = gc
-	var lc := _line.default_color; lc.a = alpha;        _line.default_color = lc
+	var gc := _glow_base_color; gc.a *= alpha; _glow.default_color = gc
+	var lc := _beam_base_color; lc.a *= alpha; _line.default_color = lc

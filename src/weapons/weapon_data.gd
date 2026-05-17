@@ -29,6 +29,12 @@ enum ThrowerElement {
 	CRYOGENICS,    # Cryo stream — cyan/blue tones
 }
 
+enum ThrowerNozzle {
+	LONG_NOZZLE,   # Narrow stream — long reach
+	NOZZLE,        # Balanced default profile
+	WIDE_NOZZLE,   # Broad cone — short reach
+}
+
 enum TargetingType {
 	UNGUIDED,      # Flies straight — default behaviour
 	SEEKING,       # Tracks nearest enemy
@@ -67,6 +73,7 @@ const MISSILE_AOE_PER_EXPLOSIVE := 0.8
 @export var max_level: int = 8
 @export var ammo_type: AmmoType = AmmoType.HE
 @export var thrower_element: ThrowerElement = ThrowerElement.FUEL
+@export var thrower_nozzle: ThrowerNozzle = ThrowerNozzle.NOZZLE
 @export var targeting_type: TargetingType = TargetingType.UNGUIDED
 @export var slot_size: SlotSize = SlotSize.MEDIUM
 @export var barrel_length: BarrelLength = DEFAULT_BARREL_LENGTH
@@ -74,6 +81,9 @@ const MISSILE_AOE_PER_EXPLOSIVE := 0.8
 @export var projectile_lifetime: float = 3.0
 @export var missile_builder_layout: Array[String] = []
 @export var missile_has_explosive: bool = true
+## Laser intensity level (0 = Flicker, 1 = Low, 2 = Standard, 3 = High, 4 = Overload).
+## Controls energy drain, damage, and penetration. Default 2 = Standard (current baseline).
+@export var laser_intensity: int = 2
 
 # Rocket Pod baseline stats retained for reversible missile-builder recalculation.
 @export var _rocket_base_damage: int = -1
