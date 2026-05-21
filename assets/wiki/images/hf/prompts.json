@@ -1,0 +1,72 @@
+[
+  {
+    "output": "weapon/autocannon_1.png",
+    "title": "Autocannon Mk.II",
+    "prompt": "industrial documentary photo plate of a mech autocannon mk ii on factory gantry, civ-wiki archive style, rugged steel textures, archival color grading, no text"
+  },
+  {
+    "output": "weapon/autocannon_2.png",
+    "title": "Feed System Retrofit",
+    "prompt": "technical archive shot of autocannon belt feed retrofit module on workshop bench, industrial documentary style, civ encyclopedia image, muted tones, no text"
+  },
+  {
+    "output": "weapon/chemical_thrower_1.png",
+    "title": "C-Series Thrower",
+    "prompt": "industrial archive image of chemical thrower c-series with pressure tank array, refinery equipment influence, civ-wiki documentary style, no text"
+  },
+  {
+    "output": "weapon/chemical_thrower_2.png",
+    "title": "Nozzle Archive",
+    "prompt": "documentary plate showing three chemical thrower nozzle variants long standard wide, maintenance depot background, industrial civ encyclopedia style, no text"
+  },
+  {
+    "output": "weapon/laser_1.png",
+    "title": "Laser Projector Line",
+    "prompt": "clean-room production line for mech laser projector modules, industrial documentary still, archival civ-wiki illustration realism blend, no text"
+  },
+  {
+    "output": "weapon/laser_2.png",
+    "title": "Cooling Ring Retrofit",
+    "prompt": "close-up of retrofitted cooling ring assembly for battlefield laser weapon, hard industrial lighting, documentary archive style, no text"
+  },
+  {
+    "output": "weapon/plasma_gun_1.png",
+    "title": "Plasma Gun P-4",
+    "prompt": "plasma gun p-4 prototype suspended in test cradle, induction coils glowing, industrial documentary civ wiki style, no text"
+  },
+  {
+    "output": "weapon/plasma_gun_2.png",
+    "title": "Arc Stabilizer Board",
+    "prompt": "engineering archive image of arc stabilizer control board for plasma weapon, rail substation repurposed components, industrial documentary style, no text"
+  },
+  {
+    "output": "weapon/railgun_1.png",
+    "title": "Railgun Proof Range",
+    "prompt": "railgun proof range test still with heavy mech rail cannon and long launch corridor, industrial history documentary look, no text"
+  },
+  {
+    "output": "weapon/railgun_2.png",
+    "title": "Capacitor Block Stack",
+    "prompt": "stacked high-density capacitor blocks for railgun surge system, maintenance bay documentary image, civ-wiki archive style, no text"
+  },
+  {
+    "output": "light_weapon/machinegun_1.png",
+    "title": "L-Pattern Machinegun",
+    "prompt": "light machinegun l-pattern adapted for mech side mount, convoy weapon lineage, industrial documentary archive style, no text"
+  },
+  {
+    "output": "light_weapon/machinegun_2.png",
+    "title": "Receiver Service Chart",
+    "prompt": "field service receiver assembly plate for light machinegun, workshop manual photo style, industrial civ encyclopedia look, no text"
+  },
+  {
+    "output": "light_weapon/rocket_pod_1.png",
+    "title": "Rocket Pod Conversion",
+    "prompt": "rocket pod conversion from aircraft hardpoint to mech mount, depot gantry background, industrial documentary civ wiki style, no text"
+  },
+  {
+    "output": "light_weapon/rocket_pod_2.png",
+    "title": "Module Matrix",
+    "prompt": "rocket module matrix showing guidance fuel explosive components laid out on steel table, documentary archive image style, no text"
+  }
+]

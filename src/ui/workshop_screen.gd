@@ -15,6 +15,7 @@ const _NOZZLE_STANDARD_ICON_PATH := "res://assets/sprites/thrower_nozzle_standar
 const _NOZZLE_WIDE_ICON_PATH := "res://assets/sprites/thrower_nozzle_wide.svg"
 const _WIKI_ROOT := "res://assets/wiki"
 const _WIKI_DEFAULT_PAGE := "res://assets/wiki/default.html"
+const _WIKI_HF_IMAGES_ROOT := "res://assets/wiki/images/hf"
 
 # ── Node refs (from scene) ────────────────────────────────────────────────────
 @onready var _step_label:     Label            = %StepLabel
@@ -1158,7 +1159,7 @@ func _on_part_wiki_requested(data: Variant, part_type: String) -> void:
 	var sprite_path := ""
 	if part_obj.has_method("get_sprite_path"):
 		sprite_path = part_obj.get_sprite_path()
-	_show_wiki_modal(part_name, _resolve_wiki_page_path(part_name, part_type), sprite_path)
+	_show_wiki_modal(part_name, part_type, _resolve_wiki_page_path(part_name, part_type), sprite_path)
 
 
 func _resolve_wiki_page_path(part_name: String, part_type: String) -> String:
@@ -1191,7 +1192,7 @@ func _part_name_to_slug(part_name: String) -> String:
 	return slug
 
 
-func _show_wiki_modal(part_name: String, page_path: String, sprite_path: String = "") -> void:
+func _show_wiki_modal(part_name: String, part_type: String, page_path: String, sprite_path: String = "") -> void:
 	for child in _sub_modal_panel.get_children():
 		_sub_modal_panel.remove_child(child)
 		child.free()
@@ -1212,20 +1213,82 @@ func _show_wiki_modal(part_name: String, page_path: String, sprite_path: String 
 	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
 	root.add_child(sep)
 
+	var tabs := TabContainer.new()
+	tabs.custom_minimum_size = Vector2(760, 390)
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(tabs)
+
+	var info_tab := VBoxContainer.new()
+	info_tab.name = "Information"
+	info_tab.add_theme_constant_override("separation", 10)
+	tabs.add_child(info_tab)
+
 	if not sprite_path.is_empty() and ResourceLoader.exists(sprite_path):
 		var sprite_row := CenterContainer.new()
 		sprite_row.custom_minimum_size = Vector2(0, 128)
-		root.add_child(sprite_row)
+		info_tab.add_child(sprite_row)
 		var tex_rect := TextureRect.new()
 		tex_rect.texture = load(sprite_path)
 		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tex_rect.custom_minimum_size = Vector2(128, 128)
 		sprite_row.add_child(tex_rect)
 
+	if part_type == "weapon" or part_type == "light_weapon":
+		var gallery_entries := _get_wiki_gallery_entries(part_name, part_type)
+		if not gallery_entries.is_empty():
+			var gallery_title := Label.new()
+			gallery_title.text = "Archive Images"
+			gallery_title.add_theme_font_size_override("font_size", 14)
+			gallery_title.add_theme_color_override("font_color", Color(0.75, 0.82, 0.9))
+			gallery_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			info_tab.add_child(gallery_title)
+
+			var gallery_scroll := ScrollContainer.new()
+			gallery_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+			gallery_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			gallery_scroll.custom_minimum_size = Vector2(0, 136)
+			info_tab.add_child(gallery_scroll)
+
+			var gallery_row := HBoxContainer.new()
+			gallery_row.add_theme_constant_override("separation", 12)
+			gallery_scroll.add_child(gallery_row)
+
+			for entry in gallery_entries:
+				var frame := PanelContainer.new()
+				var frame_style := StyleBoxFlat.new()
+				frame_style.bg_color = Color(0.14, 0.13, 0.12, 0.92)
+				frame_style.set_border_width_all(1)
+				frame_style.border_color = Color(0.6, 0.57, 0.5, 0.7)
+				frame_style.set_corner_radius_all(6)
+				frame_style.set_content_margin_all(6)
+				frame.add_theme_stylebox_override("panel", frame_style)
+				gallery_row.add_child(frame)
+
+				var frame_box := VBoxContainer.new()
+				frame_box.add_theme_constant_override("separation", 4)
+				frame.add_child(frame_box)
+
+				var plate := _build_wiki_archive_plate(entry)
+				frame_box.add_child(plate)
+
+				var title_lbl := Label.new()
+				title_lbl.text = str(entry["title"])
+				title_lbl.add_theme_font_size_override("font_size", 11)
+				title_lbl.add_theme_color_override("font_color", Color(0.86, 0.82, 0.74))
+				title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+				frame_box.add_child(title_lbl)
+
+				var caption_lbl := Label.new()
+				caption_lbl.text = str(entry["caption"])
+				caption_lbl.add_theme_font_size_override("font_size", 10)
+				caption_lbl.add_theme_color_override("font_color", Color(0.66, 0.62, 0.56))
+				caption_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				frame_box.add_child(caption_lbl)
+
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(760, 390)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(scroll)
+	info_tab.add_child(scroll)
 
 	var body := RichTextLabel.new()
 	body.bbcode_enabled = true
@@ -1260,6 +1323,187 @@ func _show_wiki_modal(part_name: String, page_path: String, sprite_path: String 
 
 	_sub_modal_open_frame = Engine.get_process_frames()
 	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _get_wiki_gallery_entries(part_name: String, part_type: String) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if part_type != "weapon" and part_type != "light_weapon":
+		return entries
+
+	var slug := _part_name_to_slug(part_name)
+	if slug.is_empty():
+		return entries
+
+	var table := {
+		"autocannon": [
+			{"title": "Autocannon Mk.II", "caption": "Adopted from shipyard anti-drone turrets (2066)."},
+			{"title": "Feed System Retrofit", "caption": "Borrowed mining belt feed because jam recovery was too slow."},
+		],
+		"chemical_thrower": [
+			{"title": "C-Series Thrower", "caption": "Adopted from refinery purge lances for stable pressure delivery."},
+			{"title": "Nozzle Archive", "caption": "Element/nozzle variants documented by safety board teams."},
+		],
+		"laser": [
+			{"title": "Laser Projector Line", "caption": "Adapted from orbital cutter modules for instant travel time."},
+			{"title": "Cooling Ring Retrofit", "caption": "Industrial chill loop adoption reduced lens failures."},
+		],
+		"plasma_gun": [
+			{"title": "Plasma Gun P-4", "caption": "Derived from induction injectors when shell logistics collapsed."},
+			{"title": "Arc Stabilizer Board", "caption": "Rail-substation control logic repurposed for arc stability."},
+		],
+		"railgun": [
+			{"title": "Railgun Proof Range", "caption": "Freight launch rail lineage selected for anti-armor duty."},
+			{"title": "Capacitor Block Stack", "caption": "Subway recovery banks adopted for repeatable surge output."},
+		],
+		"machinegun": [
+			{"title": "L-Pattern Machinegun", "caption": "Convoy pintle design adapted for mech side mounts."},
+			{"title": "Receiver Service Chart", "caption": "Cast receiver simplification enabled one-tool field repair."},
+		],
+		"rocket_pod": [
+			{"title": "Rocket Pod Conversion", "caption": "Aircraft hardpoint pod adapted for mech burst salvos."},
+			{"title": "Module Matrix", "caption": "Slot standardization enabled rapid mission reconfiguration."},
+		],
+	}
+
+	var raw_entries: Array = table.get(slug, [])
+	for i in raw_entries.size():
+		var item := raw_entries[i] as Dictionary
+		entries.append({
+			"title": str(item.get("title", "Archive Plate")),
+			"caption": str(item.get("caption", "Industrial wiki record.")),
+			"seed": "%s_%s_%d" % [part_type, slug, i + 1],
+			"image_path": "%s/%s/%s_%d.png" % [_WIKI_HF_IMAGES_ROOT, part_type, slug, i + 1],
+			"variant": i,
+		})
+
+	return entries
+
+
+func _build_wiki_archive_plate(entry: Dictionary) -> Control:
+	var seed := str(entry.get("seed", "archive"))
+	var variant := int(entry.get("variant", 0))
+	var image_path := str(entry.get("image_path", ""))
+	var image_texture := _load_wiki_archive_texture(image_path)
+
+	var plate := PanelContainer.new()
+	plate.custom_minimum_size = Vector2(164, 92)
+	plate.clip_contents = true
+	var plate_style := StyleBoxFlat.new()
+	plate_style.bg_color = _archive_color_from_seed(seed, 0.03, 0.2)
+	plate_style.set_corner_radius_all(4)
+	plate_style.set_border_width_all(1)
+	plate_style.border_color = _archive_color_from_seed(seed, 0.25, 0.5)
+	plate_style.set_content_margin_all(0)
+	plate.add_theme_stylebox_override("panel", plate_style)
+
+	var bg := ColorRect.new()
+	bg.color = _archive_color_from_seed(seed, 0.10, 0.3)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	plate.add_child(bg)
+
+	var strip := ColorRect.new()
+	strip.color = _archive_color_from_seed(seed, 0.18, 0.55)
+	strip.position = Vector2(-20, 16 + 10 * (variant % 2))
+	strip.size = Vector2(210, 18)
+	strip.rotation = -0.08 if variant % 2 == 0 else 0.06
+	plate.add_child(strip)
+
+	var sprite_layer := Control.new()
+	sprite_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sprite_layer.clip_contents = true
+	plate.add_child(sprite_layer)
+
+	if image_texture != null:
+		var wiki_image := TextureRect.new()
+		wiki_image.texture = image_texture
+		wiki_image.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		wiki_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		wiki_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		wiki_image.custom_minimum_size = Vector2(164, 92)
+		sprite_layer.add_child(wiki_image)
+	else:
+		var missing := Label.new()
+		missing.text = "MISSING HF IMAGE"
+		missing.add_theme_font_size_override("font_size", 11)
+		missing.add_theme_color_override("font_color", Color(0.95, 0.8, 0.62, 0.9))
+		missing.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sprite_layer.add_child(missing)
+
+	var footer := ColorRect.new()
+	footer.color = Color(0.05, 0.05, 0.05, 0.45)
+	footer.position = Vector2(0, 70)
+	footer.size = Vector2(164, 22)
+	plate.add_child(footer)
+
+	return plate
+
+
+func _load_wiki_archive_texture(image_path: String) -> Texture2D:
+	if image_path.is_empty():
+		return null
+
+	if not FileAccess.file_exists(image_path):
+		return null
+
+	var file := FileAccess.open(image_path, FileAccess.READ)
+	if file == null:
+		return null
+	var header := file.get_buffer(12)
+	file.close()
+
+	if not _is_supported_wiki_image(header):
+		return null
+
+	var bytes := FileAccess.get_file_as_bytes(image_path)
+	if bytes.is_empty():
+		return null
+
+	var img := Image.new()
+	var err := ERR_FILE_CORRUPT
+
+	if _is_png_signature(header):
+		err = img.load_png_from_buffer(bytes)
+	elif _is_jpeg_signature(header):
+		err = img.load_jpg_from_buffer(bytes)
+	elif _is_webp_signature(header):
+		err = img.load_webp_from_buffer(bytes)
+	if err != OK:
+		return null
+
+	return ImageTexture.create_from_image(img)
+
+
+func _is_supported_wiki_image(header: PackedByteArray) -> bool:
+	return _is_png_signature(header) or _is_jpeg_signature(header) or _is_webp_signature(header)
+
+
+func _is_png_signature(header: PackedByteArray) -> bool:
+	if header.size() < 8:
+		return false
+	var png_sig := PackedByteArray([137, 80, 78, 71, 13, 10, 26, 10])
+	for i in png_sig.size():
+		if header[i] != png_sig[i]:
+			return false
+	return true
+
+
+func _is_jpeg_signature(header: PackedByteArray) -> bool:
+	if header.size() < 3:
+		return false
+	return header[0] == 255 and header[1] == 216 and header[2] == 255
+
+
+func _is_webp_signature(header: PackedByteArray) -> bool:
+	if header.size() < 12:
+		return false
+	var riff := header[0] == 82 and header[1] == 73 and header[2] == 70 and header[3] == 70
+	var webp := header[8] == 87 and header[9] == 69 and header[10] == 66 and header[11] == 80
+	return riff and webp
+
+
+func _archive_color_from_seed(seed: String, hue_shift: float, value: float) -> Color:
+	var h := fposmod(float(abs(hash(seed))) * 0.00000019 + hue_shift, 1.0)
+	return Color.from_hsv(h, 0.45, value, 1.0)
 
 
 func _load_wiki_html(page_path: String, part_name: String) -> String:
