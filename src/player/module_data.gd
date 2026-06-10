@@ -9,6 +9,9 @@ extends MechPartData
 ## Recharge rate bonus (added to base energy regen per second)
 @export var recharge_rate_bonus: float = 0.0
 
+## Flat energy capacity bonus granted by this module
+@export var max_energy_bonus: float = 0.0
+
 ## Flat armor bonus granted by this module
 @export var armor_bonus: int = 0
 
@@ -18,8 +21,92 @@ extends MechPartData
 ## Icon for visual representation in catalogs and grids
 @export var module_icon_path: String = ""
 
+enum ReactorType {
+	NONE,
+	CONVENTIONAL_FUEL,
+	NUCLEAR,
+	FUSION,
+}
+
+const FUEL_REACTOR_DEFAULT_CAPACITY := 100.0
+const FUEL_REACTOR_DRAIN_PER_SECOND := 1.0
 ## Visual color for grid cells (as hex string or color name)
 @export var grid_cell_color: Color = Color.SKY_BLUE
+## Whether this module opens a reactor customisation flow before placement.
+@export var supports_reactor_customization: bool = false
+## Chosen reactor type for customisable 2x2 reactors.
+@export var reactor_type: int = ReactorType.NONE
+@export var reactor_fuel_current: float = 0.0
+@export var reactor_fuel_max: float = 0.0
+
+func duplicate_module() -> ModuleData:
+	var copy = duplicate(true) as ModuleData
+	copy.grid_shape = grid_shape.duplicate()
+	return copy
+
+func is_customizable_reactor() -> bool:
+	return supports_reactor_customization
+
+func set_reactor_type(value: int) -> void:
+	if not supports_reactor_customization:
+		reactor_type = ReactorType.NONE
+		return
+	reactor_type = clampi(value, ReactorType.CONVENTIONAL_FUEL, ReactorType.FUSION)
+	if reactor_type == ReactorType.CONVENTIONAL_FUEL:
+		if reactor_fuel_max <= 0.0:
+			reactor_fuel_max = FUEL_REACTOR_DEFAULT_CAPACITY
+		if reactor_fuel_current <= 0.0:
+			reactor_fuel_current = reactor_fuel_max
+
+func get_reactor_type_name() -> String:
+	match reactor_type:
+		ReactorType.CONVENTIONAL_FUEL:
+			return "Fuel Reactor"
+		ReactorType.NUCLEAR:
+			return "Nuclear Reactor"
+		ReactorType.FUSION:
+			return "Fusion Reactor"
+		_:
+			return "Standard Reactor"
+
+func get_reactor_core_color() -> Color:
+	match reactor_type:
+		ReactorType.CONVENTIONAL_FUEL:
+			return Color(0.96, 0.62, 0.22, 1.0)
+		ReactorType.NUCLEAR:
+			return Color(0.67, 0.96, 0.26, 1.0)
+		ReactorType.FUSION:
+			return Color(0.95, 0.38, 0.82, 1.0)
+		_:
+			return grid_cell_color.lightened(0.35)
+
+func get_effective_recharge_rate_bonus() -> float:
+	if not supports_reactor_customization:
+		return recharge_rate_bonus
+	if reactor_type == ReactorType.CONVENTIONAL_FUEL:
+		if reactor_fuel_current <= 0.0:
+			return 0.0
+		return recharge_rate_bonus * 2.0
+	if reactor_type == ReactorType.FUSION:
+		return recharge_rate_bonus * 3.0
+	return recharge_rate_bonus
+
+func has_fusion_regen_cooldown() -> bool:
+	return supports_reactor_customization and reactor_type == ReactorType.FUSION
+
+func is_fuel_reactor() -> bool:
+	return supports_reactor_customization and reactor_type == ReactorType.CONVENTIONAL_FUEL
+
+func get_reactor_fuel_current() -> float:
+	return reactor_fuel_current if is_fuel_reactor() else 0.0
+
+func get_reactor_fuel_max() -> float:
+	return reactor_fuel_max if is_fuel_reactor() else 0.0
+
+func consume_reactor_fuel(delta: float) -> void:
+	if not is_fuel_reactor() or delta <= 0.0 or reactor_fuel_current <= 0.0:
+		return
+	reactor_fuel_current = maxf(0.0, reactor_fuel_current - FUEL_REACTOR_DRAIN_PER_SECOND * delta)
 
 ## Get the bounding box of this module's grid shape
 func get_grid_bounds() -> Rect2i:

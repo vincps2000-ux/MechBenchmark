@@ -30,9 +30,12 @@ const _FREEZE_EFFECT_SCRIPT := preload("res://src/enemies/freeze_effect.gd")
 @export var projectile_speed: float = 360.0
 @export var projectile_damage: int = 5
 @export var projectile_penetration: int = 2
+@export var starts_dormant: bool = false
+@export var alert_range: float = 520.0
 
 var health: int
 var _is_frozen: bool = false
+var _is_alerted: bool = true
 var _player: Node2D = null
 var _fire_timer: float = 0.0
 var _burst_shot_timer: float = 0.0
@@ -54,6 +57,7 @@ func _ready() -> void:
 	add_to_group("enemies")
 	# Find the player in the tree (layer 1 / group)
 	_player = _find_player()
+	_is_alerted = not starts_dormant
 	_behaviors = [
 		Callable(self, "_behavior_fire_in_range"),
 		Callable(self, "_behavior_move_into_range")
@@ -69,6 +73,14 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		move_and_slide()
 		return
+
+	if not _is_alerted:
+		if global_position.distance_to(_player.global_position) <= alert_range:
+			_is_alerted = true
+		else:
+			velocity = Vector2.ZERO
+			move_and_slide()
+			return
 
 	_fire_timer -= delta
 	_burst_shot_timer -= delta
@@ -238,6 +250,7 @@ func _shoot(direction: Vector2) -> void:
 ## Called by player projectiles / weapons.  penetration defaults high so
 ## callers that don't pass it always penetrate (backward-compat).
 func take_damage(amount: int, penetration: int = 10) -> void:
+	_is_alerted = true
 	if not ArmorSystem.roll_penetration(penetration, armor):
 		_spawn_deflection()
 		return
@@ -252,6 +265,9 @@ func take_damage(amount: int, penetration: int = 10) -> void:
 		_spawn_blood_splatter()
 		died.emit(self)
 		queue_free()
+
+func alert_to_player() -> void:
+	_is_alerted = true
 
 ## Apply a burning DoT effect.  If already burning, refreshes tick count.
 ## ticks=2 and damage_per_tick=4 kills infantry (health 8) in exactly 2 ticks.

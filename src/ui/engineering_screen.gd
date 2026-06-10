@@ -41,7 +41,19 @@ var grid_display: Control
 var back_button: Button
 var next_button: Button
 var torso_name_label: Label
+var selected_module_label: Label
+var selected_module_description_label: Label
+var selected_module_modify_button: Button
+var selected_grid_module = null
 
+
+## Reactor customisation modal
+var reactor_modal_overlay: ColorRect
+var reactor_summary_label: Label
+var reactor_option_buttons: Dictionary = {}
+var pending_reactor_module = null
+var pending_reactor_drag_start_pos: Vector2 = Vector2.ZERO
+var reactor_modal_edit_mode: bool = false
 ## Drag state
 var dragging_module = null
 var drag_start_pos: Vector2 = Vector2.ZERO
@@ -52,6 +64,7 @@ func _ready() -> void:
 	if not mech_loadout:
 		mech_loadout = GameManager.current_loadout
 	_setup_ui()
+	_build_reactor_modal()
 	if mech_loadout:
 		_load_modules()
 		_setup_torso_selector()
@@ -181,6 +194,44 @@ func _setup_ui() -> void:
 	torso_selector.add_theme_constant_override("separation", 8)
 	right_vbox.add_child(torso_selector)
 
+	var module_details_panel := PanelContainer.new()
+	var details_style := StyleBoxFlat.new()
+	details_style.bg_color = Color(0.07, 0.09, 0.12, 0.88)
+	details_style.set_border_width_all(1)
+	details_style.border_color = C_PANEL_BORDER
+	details_style.set_corner_radius_all(6)
+	details_style.set_content_margin_all(10)
+	module_details_panel.add_theme_stylebox_override("panel", details_style)
+	right_vbox.add_child(module_details_panel)
+
+	var details_vbox := VBoxContainer.new()
+	details_vbox.add_theme_constant_override("separation", 6)
+	module_details_panel.add_child(details_vbox)
+
+	var details_header := HBoxContainer.new()
+	details_vbox.add_child(details_header)
+
+	selected_module_label = Label.new()
+	selected_module_label.text = "No module selected"
+	selected_module_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	selected_module_label.add_theme_font_size_override("font_size", 13)
+	selected_module_label.add_theme_color_override("font_color", C_HEADER)
+	details_header.add_child(selected_module_label)
+
+	selected_module_modify_button = Button.new()
+	selected_module_modify_button.text = "MODIFY"
+	selected_module_modify_button.custom_minimum_size = Vector2(96, 34)
+	selected_module_modify_button.disabled = true
+	selected_module_modify_button.pressed.connect(_on_modify_selected_module_pressed)
+	details_header.add_child(selected_module_modify_button)
+
+	selected_module_description_label = Label.new()
+	selected_module_description_label.text = "Click a placed module to inspect its function and change supported options."
+	selected_module_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	selected_module_description_label.add_theme_font_size_override("font_size", 11)
+	selected_module_description_label.add_theme_color_override("font_color", C_TEXT_DIM)
+	details_vbox.add_child(selected_module_description_label)
+
 	var grid_sep := HSeparator.new()
 	var gs_style := StyleBoxFlat.new()
 	gs_style.bg_color = C_PANEL_BORDER
@@ -196,6 +247,7 @@ func _setup_ui() -> void:
 	grid_display = Control.new()
 	grid_display.mouse_filter = Control.MOUSE_FILTER_STOP
 	grid_display.draw.connect(_on_grid_display_draw)
+	grid_display.gui_input.connect(_on_grid_display_gui_input)
 	grid_center.add_child(grid_display)
 
 	# ── Bottom nav bar ─────────────────────────────────────────────────────
@@ -310,6 +362,9 @@ func _select_torso(index: int) -> void:
 		var pos = placement["position"] as Vector2i
 		if module and _GridLayout.is_position_valid(current_grid_type, pos):
 			module.place_on_grid(current_grid_state, pos)
+
+	selected_grid_module = null
+	_refresh_selected_module_panel()
 	
 	# Update UI
 	_update_module_catalog()
@@ -354,19 +409,19 @@ func _create_module_card(module) -> Control:
 	shape_preview.custom_minimum_size = Vector2(bounds.size.x * preview_cell, bounds.size.y * preview_cell)
 	shape_preview.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	shape_preview.draw.connect(func():
-		for offset in module.grid_shape:
-			var r := Rect2(offset * preview_cell, Vector2(preview_cell - 2, preview_cell - 2))
-			shape_preview.draw_rect(r, module.grid_cell_color)
-			shape_preview.draw_rect(r, module.grid_cell_color.lightened(0.3), false, 1.0)
+		_draw_module_preview(shape_preview, module, float(preview_cell), 2.0)
 	)
 	vbox.add_child(shape_preview)
 	shape_preview.queue_redraw()
 	# Recharge bonus
 	var bonus_label := Label.new()
-	if int(module.recharge_rate_bonus) > 0 and int(module.armor_bonus) > 0:
-		bonus_label.text = "+%d energy/sec, +%d armor" % [int(module.recharge_rate_bonus), int(module.armor_bonus)]
-	elif int(module.recharge_rate_bonus) > 0:
-		bonus_label.text = "+%d energy/sec" % int(module.recharge_rate_bonus)
+	var displayed_recharge_bonus := int(module.get_effective_recharge_rate_bonus()) if module is ModuleData else int(module.recharge_rate_bonus)
+	if displayed_recharge_bonus > 0 and int(module.armor_bonus) > 0:
+		bonus_label.text = "+%d energy/sec, +%d armor" % [displayed_recharge_bonus, int(module.armor_bonus)]
+	elif displayed_recharge_bonus > 0:
+		bonus_label.text = "+%d energy/sec" % displayed_recharge_bonus
+	elif int(module.max_energy_bonus) > 0:
+		bonus_label.text = "+%d max energy" % int(module.max_energy_bonus)
 	elif int(module.armor_bonus) > 0:
 		bonus_label.text = "+%d armor" % int(module.armor_bonus)
 	elif int(module.max_health_bonus) > 0:
@@ -390,7 +445,160 @@ func _create_module_card(module) -> Control:
 
 func _on_card_gui_input(event: InputEvent, module, card: Control) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if module is ModuleData and module.is_customizable_reactor():
+			_show_reactor_modal(module, card.get_global_rect().position)
+			return
 		_start_drag(module, card.get_global_rect().position)
+
+func _build_reactor_modal() -> void:
+	reactor_modal_overlay = ColorRect.new()
+	reactor_modal_overlay.color = Color(0.0, 0.0, 0.0, 0.72)
+	reactor_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	reactor_modal_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	reactor_modal_overlay.visible = false
+	reactor_modal_overlay.gui_input.connect(_on_reactor_modal_overlay_input)
+	add_child(reactor_modal_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reactor_modal_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.08, 0.1, 0.14, 0.98)
+	panel_style.set_border_width_all(2)
+	panel_style.border_color = Color(0.44, 0.76, 0.98, 0.95)
+	panel_style.set_corner_radius_all(10)
+	panel_style.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(420, 0)
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "REACTOR CUSTOMISATION"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", C_HEADER)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var help := Label.new()
+	help.text = "Choose a reactor type for this 2x2 module. Each option changes recharge behavior, and Fuel Reactors also consume fuel over time."
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	help.add_theme_color_override("font_color", C_TEXT_DIM)
+	vbox.add_child(help)
+
+	reactor_option_buttons.clear()
+	var options := [
+		ModuleData.ReactorType.CONVENTIONAL_FUEL,
+		ModuleData.ReactorType.NUCLEAR,
+		ModuleData.ReactorType.FUSION,
+	]
+	for reactor_type in options:
+		var option_panel := PanelContainer.new()
+		var option_style := StyleBoxFlat.new()
+		option_style.bg_color = Color(0.10, 0.12, 0.16, 0.92)
+		option_style.set_border_width_all(1)
+		option_style.border_color = C_PANEL_BORDER
+		option_style.set_corner_radius_all(6)
+		option_style.set_content_margin_all(8)
+		option_panel.add_theme_stylebox_override("panel", option_style)
+		vbox.add_child(option_panel)
+
+		var option_vbox := VBoxContainer.new()
+		option_vbox.add_theme_constant_override("separation", 4)
+		option_panel.add_child(option_vbox)
+
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(360, 38)
+		button.add_theme_font_size_override("font_size", 13)
+		button.pressed.connect(_on_reactor_type_selected.bind(reactor_type))
+		option_vbox.add_child(button)
+
+		var description := Label.new()
+		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		description.add_theme_font_size_override("font_size", 11)
+		description.add_theme_color_override("font_color", C_TEXT_DIM)
+		option_vbox.add_child(description)
+		reactor_option_buttons[reactor_type] = {
+			"button": button,
+			"description": description,
+		}
+
+	reactor_summary_label = Label.new()
+	reactor_summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	reactor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	reactor_summary_label.add_theme_font_size_override("font_size", 13)
+	vbox.add_child(reactor_summary_label)
+
+	var cancel_button := Button.new()
+	cancel_button.text = "CANCEL"
+	cancel_button.custom_minimum_size = Vector2(140, 38)
+	cancel_button.pressed.connect(_hide_reactor_modal)
+	vbox.add_child(cancel_button)
+
+func _show_reactor_modal(module: ModuleData, start_pos: Vector2) -> void:
+	pending_reactor_module = module
+	pending_reactor_drag_start_pos = start_pos
+	reactor_modal_edit_mode = false
+	_refresh_reactor_modal(module.reactor_type)
+	reactor_modal_overlay.visible = true
+
+func _show_reactor_modify_modal(module: ModuleData) -> void:
+	pending_reactor_module = module
+	pending_reactor_drag_start_pos = Vector2.ZERO
+	reactor_modal_edit_mode = true
+	_refresh_reactor_modal(module.reactor_type)
+	reactor_modal_overlay.visible = true
+
+func _on_reactor_modal_overlay_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_hide_reactor_modal()
+
+func _on_reactor_type_selected(reactor_type: int) -> void:
+	if pending_reactor_module == null:
+		return
+	if reactor_modal_edit_mode:
+		pending_reactor_module.set_reactor_type(reactor_type)
+		_refresh_selected_module_panel()
+		_update_module_catalog()
+		grid_display.queue_redraw()
+		_hide_reactor_modal()
+		return
+	var selected_module = pending_reactor_module.duplicate_module()
+	selected_module.set_reactor_type(reactor_type)
+	_hide_reactor_modal()
+	_start_drag(selected_module, pending_reactor_drag_start_pos)
+
+func _refresh_reactor_modal(selected_type: int) -> void:
+	for reactor_type in reactor_option_buttons.keys():
+		var option_controls: Dictionary = reactor_option_buttons[reactor_type]
+		var button: Button = option_controls["button"]
+		var description: Label = option_controls["description"]
+		var preview_module := ModuleData.new()
+		preview_module.supports_reactor_customization = true
+		preview_module.set_reactor_type(int(reactor_type))
+		button.text = "%s" % preview_module.get_reactor_type_name()
+		description.text = _get_reactor_functionality_description(preview_module)
+		button.modulate = preview_module.get_reactor_core_color() if int(reactor_type) == selected_type else Color(0.84, 0.84, 0.84, 1.0)
+
+	var summary_module := ModuleData.new()
+	summary_module.supports_reactor_customization = true
+	summary_module.set_reactor_type(selected_type)
+	reactor_summary_label.add_theme_color_override("font_color", summary_module.get_reactor_core_color())
+	reactor_summary_label.text = "%s selected  •  %s" % [summary_module.get_reactor_type_name(), _get_reactor_functionality_description(summary_module)]
+
+func _hide_reactor_modal() -> void:
+	reactor_modal_overlay.visible = false
+	pending_reactor_module = null
+	pending_reactor_drag_start_pos = Vector2.ZERO
+	reactor_modal_edit_mode = false
 
 func _start_drag(module, start_pos: Vector2) -> void:
 	dragging_module = module
@@ -415,10 +623,7 @@ func _create_drag_preview(module) -> Control:
 	drawer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
 	drawer.draw.connect(func():
-		for offset in module.grid_shape:
-			var rect = Rect2(offset * CELL_SIZE * DRAG_PREVIEW_SCALE, Vector2(CELL_SIZE * DRAG_PREVIEW_SCALE, CELL_SIZE * DRAG_PREVIEW_SCALE))
-			drawer.draw_rect(rect, module.grid_cell_color)
-			drawer.draw_rect(rect, Color.WHITE, false, 1.0)
+		_draw_module_preview(drawer, module, CELL_SIZE * DRAG_PREVIEW_SCALE, 0.0)
 	)
 	
 	preview.add_child(drawer)
@@ -470,12 +675,78 @@ func _try_place_module(world_pos: Vector2) -> void:
 	# Update loadout
 	var grid = mech_loadout.get_or_create_module_grid(current_torso_index)
 	grid.place_module(dragging_module, target_pos)
+	selected_grid_module = dragging_module
+	_refresh_selected_module_panel()
 	
 	grid_display.queue_redraw()
+
+func _on_grid_display_gui_input(event: InputEvent) -> void:
+	if dragging_module != null:
+		return
+	if not (event is InputEventMouseButton):
+		return
+	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var mouse_event := event as InputEventMouseButton
+	var dims = _GridLayout.get_grid_dimensions(current_grid_type)
+	var cell_x := int(mouse_event.position.x / CELL_SIZE)
+	var cell_y := int(mouse_event.position.y / CELL_SIZE)
+	if cell_x < 0 or cell_y < 0 or cell_x >= dims.x or cell_y >= dims.y:
+		return
+	selected_grid_module = current_grid_state[cell_y][cell_x]
+	_refresh_selected_module_panel()
+
+func _on_modify_selected_module_pressed() -> void:
+	if not (selected_grid_module is ModuleData):
+		return
+	var module: ModuleData = selected_grid_module
+	if not module.is_customizable_reactor():
+		return
+	_show_reactor_modify_modal(module)
+
+func _refresh_selected_module_panel() -> void:
+	if selected_module_label == null or selected_module_description_label == null or selected_module_modify_button == null:
+		return
+	if not (selected_grid_module is ModuleData):
+		selected_module_label.text = "No module selected"
+		selected_module_description_label.text = "Click a placed module to inspect its function and change supported options."
+		selected_module_modify_button.disabled = true
+		return
+	var module: ModuleData = selected_grid_module
+	selected_module_label.text = module.name
+	selected_module_description_label.text = _get_module_functionality_description(module)
+	selected_module_modify_button.disabled = not module.is_customizable_reactor()
+
+func _get_module_functionality_description(module: ModuleData) -> String:
+	if module.is_customizable_reactor():
+		return "%s. %s" % [module.get_reactor_type_name(), _get_reactor_functionality_description(module)]
+	var lines: Array[String] = []
+	if not module.description.is_empty():
+		lines.append(module.description)
+	if not module.tutorial_text.is_empty():
+		lines.append(module.tutorial_text)
+	return " ".join(lines) if not lines.is_empty() else "No functionality description available."
+
+func _get_reactor_functionality_description(module: ModuleData) -> String:
+	var nuclear_output := int(round(module.recharge_rate_bonus))
+	if nuclear_output <= 0:
+		nuclear_output = 5
+	var fuel_output := nuclear_output * 2
+	var fusion_output := nuclear_output * 3
+	match module.reactor_type:
+		ModuleData.ReactorType.CONVENTIONAL_FUEL:
+			return "+%d energy/sec. Starts with 100 fuel, burns 1 fuel/sec, and stops generating energy at 0 fuel." % fuel_output
+		ModuleData.ReactorType.NUCLEAR:
+			return "+%d energy/sec with standard recharge timing." % nuclear_output
+		ModuleData.ReactorType.FUSION:
+			return "+%d energy/sec, but it stays offline for 2 seconds after energy is drained." % fusion_output
+		_:
+			return "Standard reactor configuration."
 
 func _on_grid_display_draw() -> void:
 	var dims = _GridLayout.get_grid_dimensions(current_grid_type)
 	var grid_shape = _GridLayout.get_grid_shape(current_grid_type)
+	var reactor_origins := {}
 	
 	# Size the control to exactly fit the grid
 	grid_display.custom_minimum_size = Vector2(dims.x * CELL_SIZE, dims.y * CELL_SIZE)
@@ -491,6 +762,8 @@ func _on_grid_display_draw() -> void:
 			if is_valid_cell:
 				if current_grid_state[y][x] != null:
 					var module = current_grid_state[y][x]
+					if module is ModuleData and module.is_customizable_reactor() and not reactor_origins.has(module):
+						reactor_origins[module] = Vector2(x, y) * CELL_SIZE
 					grid_display.draw_rect(rect, module.grid_cell_color)
 					grid_display.draw_rect(outer, module.grid_cell_color.lightened(0.3), false, 1.0)
 				else:
@@ -498,6 +771,28 @@ func _on_grid_display_draw() -> void:
 					grid_display.draw_rect(outer, C_PANEL_BORDER, false, 1.0)
 			else:
 				grid_display.draw_rect(outer, Color(0.0, 0.0, 0.0, 0.2))
+
+	for module in reactor_origins.keys():
+		_draw_reactor_core(grid_display, module, float(CELL_SIZE), reactor_origins[module])
+
+func _draw_module_preview(target: Control, module: ModuleData, cell_size: float, inset: float) -> void:
+	for offset in module.grid_shape:
+		var outer_rect := Rect2(Vector2(offset.x, offset.y) * cell_size, Vector2(cell_size, cell_size))
+		var inner_rect := Rect2(outer_rect.position + Vector2.ONE * (inset * 0.5), outer_rect.size - Vector2.ONE * inset)
+		target.draw_rect(inner_rect, module.grid_cell_color)
+		target.draw_rect(outer_rect, module.grid_cell_color.lightened(0.3), false, 1.0)
+	if module.is_customizable_reactor():
+		_draw_reactor_core(target, module, cell_size, Vector2.ZERO)
+
+func _draw_reactor_core(target: Control, module: ModuleData, cell_size: float, origin: Vector2) -> void:
+	var bounds := module.get_grid_bounds()
+	var total_size := Vector2(bounds.size.x, bounds.size.y) * cell_size
+	var center := origin + total_size / 2.0
+	var ring_radius := minf(total_size.x, total_size.y) * 0.22
+	var core_radius := ring_radius * 0.68
+	target.draw_circle(center, ring_radius, Color(0.05, 0.07, 0.10, 0.96))
+	target.draw_circle(center, core_radius, module.get_reactor_core_color())
+	target.draw_circle(center, core_radius * 0.42, module.get_reactor_core_color().lightened(0.28))
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/ui/workshop_screen.tscn")

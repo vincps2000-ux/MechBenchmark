@@ -35,6 +35,7 @@ func test_module_grid_data_class() -> void:
 	
 	# Initially empty
 	assert_eq(grid.get_recharge_bonus(), 0.0, "Empty grid should have 0 bonus")
+	assert_eq(grid.get_max_energy_bonus(), 0.0, "Empty grid should have 0 max energy bonus")
 	
 	# Place module
 	grid.place_module(_module_2x2, Vector2i(0, 0))
@@ -69,6 +70,19 @@ func test_mech_loadout_total_recharge_bonus() -> void:
 	
 	var total = loadout.get_total_recharge_bonus()
 	assert_eq(total, 75.0, "Total bonus should be 75 (50 + 25)")
+
+func test_mech_loadout_total_max_energy_bonus() -> void:
+	var loadout = MechLoadout.new()
+	var battery_bank = _ModuleData.new()
+	battery_bank.name = "Battery Bank"
+	var shape_1x1: Array[Vector2i] = [Vector2i(0, 0)]
+	battery_bank.grid_shape = shape_1x1
+	battery_bank.max_energy_bonus = 100.0
+
+	var grid0 = loadout.get_or_create_module_grid(0)
+	grid0.place_module(battery_bank, Vector2i(0, 0))
+
+	assert_eq(loadout.get_total_max_energy_bonus(), 100.0, "Battery bank should add 100 max energy")
 
 func test_module_bounds_single_cell() -> void:
 	var bounds = _module_1x1.get_grid_bounds()
@@ -112,20 +126,35 @@ func test_mech_loadout_total_max_health_bonus() -> void:
 
 func test_catalog_contains_armor_modules_with_expected_bonuses() -> void:
 	var modules = MechCatalog.get_all_modules()
+	var reactor_2x2 = null
+	var battery_bank = null
 	var armor_2x1 = null
 	var armor_1x1 = null
 	var super_structure = null
 	for module in modules:
-		if module.name == "Armor Module (2x1)":
+		if module.name == "Reactor (2x2)":
+			reactor_2x2 = module
+		elif module.name == "Battery Bank Module":
+			battery_bank = module
+		elif module.name == "Armor Module (2x1)":
 			armor_2x1 = module
 		elif module.name == "Armor Module (1x1)":
 			armor_1x1 = module
 		elif module.name == "Redundant Super-Structure":
 			super_structure = module
 
+	assert_not_null(reactor_2x2, "Catalog should include Reactor (2x2)")
+	assert_not_null(battery_bank, "Catalog should include Battery Bank Module")
 	assert_not_null(armor_2x1, "Catalog should include Armor Module (2x1)")
 	assert_not_null(armor_1x1, "Catalog should include Armor Module (1x1)")
 	assert_not_null(super_structure, "Catalog should include Redundant Super-Structure")
+	if reactor_2x2 != null:
+		assert_true(reactor_2x2.supports_reactor_customization, "2x2 reactor should support customisation")
+		assert_eq(reactor_2x2.reactor_type, _ModuleData.ReactorType.CONVENTIONAL_FUEL, "2x2 reactor should default to conventional fuel")
+	if battery_bank != null:
+		assert_eq(battery_bank.max_energy_bonus, 100.0, "Battery bank should grant +100 max energy")
+		assert_eq(battery_bank.recharge_rate_bonus, 0.0, "Battery bank should not grant recharge")
+		assert_eq(battery_bank.grid_shape.size(), 1, "Battery bank should use one cell")
 	if armor_2x1 != null:
 		assert_eq(armor_2x1.armor_bonus, 3, "2x1 armor module should grant +3 armor")
 		assert_eq(armor_2x1.grid_shape.size(), 2, "2x1 armor module should use two cells")
@@ -178,5 +207,36 @@ func test_loadout_apply_stats_includes_module_health_bonus() -> void:
 
 	assert_eq(stats.max_health, 60, "Super-Structure should add +30 max health")
 	assert_eq(stats.health, 60, "Current health should scale with max health bonus")
+
+func test_loadout_apply_stats_includes_module_max_energy_bonus() -> void:
+	var loadout = MechLoadout.new()
+	var battery_bank = _ModuleData.new()
+	battery_bank.name = "Battery Bank"
+	var shape_1x1: Array[Vector2i] = [Vector2i(0, 0)]
+	battery_bank.grid_shape = shape_1x1
+	battery_bank.max_energy_bonus = 100.0
+
+	var grid = loadout.get_or_create_module_grid(0)
+	grid.place_module(battery_bank, Vector2i(0, 0))
+
+	var stats = PlayerStats.new()
+	loadout.apply_to_stats(stats)
+
+	assert_eq(stats.max_energy_bonus, 100.0, "Battery bank should add +100 max energy bonus to stats")
+
+func test_duplicate_module_keeps_reactor_choice_independent() -> void:
+	var reactor = _ModuleData.new()
+	reactor.name = "Reactor (2x2)"
+	reactor.supports_reactor_customization = true
+	var reactor_shape: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]
+	reactor.grid_shape = reactor_shape
+	reactor.set_reactor_type(_ModuleData.ReactorType.CONVENTIONAL_FUEL)
+
+	var duplicate_reactor = reactor.duplicate_module()
+	duplicate_reactor.set_reactor_type(_ModuleData.ReactorType.FUSION)
+
+	assert_eq(reactor.reactor_type, _ModuleData.ReactorType.CONVENTIONAL_FUEL, "Duplicating should not mutate the original reactor type")
+	assert_eq(duplicate_reactor.reactor_type, _ModuleData.ReactorType.FUSION, "Duplicate should keep its own reactor type")
+	assert_ne(reactor.get_reactor_core_color(), duplicate_reactor.get_reactor_core_color(), "Different reactor types should render different core colours")
 
 

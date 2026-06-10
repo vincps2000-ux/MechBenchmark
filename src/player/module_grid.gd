@@ -52,7 +52,47 @@ func get_recharge_bonus() -> float:
 	for placement in placements:
 		var module = placement["module"]
 		if module:
-			total += module.recharge_rate_bonus
+			total += module.get_effective_recharge_rate_bonus()
+	return total
+
+## Get recharge bonus that should be suppressed during fusion cooldown.
+func get_fusion_recharge_bonus() -> float:
+	var total := 0.0
+	for placement in placements:
+		var module = placement["module"]
+		if module and module.has_fusion_regen_cooldown():
+			total += module.get_effective_recharge_rate_bonus()
+	return total
+
+func get_fuel_reactor_current() -> float:
+	var total := 0.0
+	for placement in placements:
+		var module = placement["module"]
+		if module and module.is_fuel_reactor():
+			total += module.get_reactor_fuel_current()
+	return total
+
+func get_fuel_reactor_max() -> float:
+	var total := 0.0
+	for placement in placements:
+		var module = placement["module"]
+		if module and module.is_fuel_reactor():
+			total += module.get_reactor_fuel_max()
+	return total
+
+func consume_fuel_reactors(delta: float) -> void:
+	for placement in placements:
+		var module = placement["module"]
+		if module:
+			module.consume_reactor_fuel(delta)
+
+## Get total max energy bonus from all placed modules
+func get_max_energy_bonus() -> float:
+	var total := 0.0
+	for placement in placements:
+		var module = placement["module"]
+		if module:
+			total += float(module.max_energy_bonus)
 	return total
 
 ## Get total armor bonus from all placed modules

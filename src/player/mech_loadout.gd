@@ -80,15 +80,19 @@ func apply_to_stats(stats: PlayerStats) -> void:
 	
 	# Apply module bonuses
 	var total_recharge_bonus := 0.0
+	var total_max_energy_bonus := 0.0
 	var total_armor_bonus := 0
 	var total_max_health_bonus := 0
 	for grid in module_grids:
 		if grid:
 			total_recharge_bonus += grid.get_recharge_bonus()
+			total_max_energy_bonus += grid.get_max_energy_bonus()
 			total_armor_bonus += grid.get_armor_bonus()
 			total_max_health_bonus += grid.get_max_health_bonus()
 	if total_recharge_bonus > 0:
 		stats.recharge_rate_bonus = total_recharge_bonus
+	if total_max_energy_bonus > 0:
+		stats.max_energy_bonus = total_max_energy_bonus
 	if total_armor_bonus > 0:
 		stats.armor += total_armor_bonus
 	if total_max_health_bonus > 0:
@@ -120,6 +124,41 @@ func get_total_recharge_bonus() -> float:
 	for grid in module_grids:
 		if grid:
 			total += grid.get_recharge_bonus()
+	return total
+
+## Calculate total recharge currently contributed by fusion reactors.
+func get_total_fusion_recharge_bonus() -> float:
+	var total := 0.0
+	for grid in module_grids:
+		if grid:
+			total += grid.get_fusion_recharge_bonus()
+	return total
+
+func get_total_fuel_reactor_current() -> float:
+	var total := 0.0
+	for grid in module_grids:
+		if grid:
+			total += grid.get_fuel_reactor_current()
+	return total
+
+func get_total_fuel_reactor_max() -> float:
+	var total := 0.0
+	for grid in module_grids:
+		if grid:
+			total += grid.get_fuel_reactor_max()
+	return total
+
+func consume_fuel_reactors(delta: float) -> void:
+	for grid in module_grids:
+		if grid:
+			grid.consume_fuel_reactors(delta)
+
+## Calculate total max energy bonus from all modules
+func get_total_max_energy_bonus() -> float:
+	var total := 0.0
+	for grid in module_grids:
+		if grid:
+			total += grid.get_max_energy_bonus()
 	return total
 
 ## Calculate total armor bonus from all modules

@@ -173,14 +173,16 @@ static func get_all_modules() -> Array:
 	var shape_2x2: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]
 	reactor_2x2.grid_shape        = shape_2x2
 	reactor_2x2.grid_cell_color   = Color.DODGER_BLUE
+	reactor_2x2.supports_reactor_customization = true
+	reactor_2x2.set_reactor_type(_ModuleData.ReactorType.CONVENTIONAL_FUEL)
 	reactor_2x2.module_icon_path  = "res://assets/sprites/module_reactor_2x2.svg"
 
 	# 1x1 Reactor Module: Single slot, smaller bonus
 	var reactor_1x1 = _ModuleData.new()
-	reactor_1x1.name              = "Reactor Module"
-	reactor_1x1.description       = "Compact energy module. Modest energy regeneration boost."
-	reactor_1x1.tutorial_text     = "Occupies 1 grid slot. Adds +1 energy per second."
-	reactor_1x1.recharge_rate_bonus = 1.0
+	reactor_1x1.name              = "Battery Bank Module"
+	reactor_1x1.description       = "Compact battery bank. Stores an additional 100 power."
+	reactor_1x1.tutorial_text     = "Occupies 1 grid slot. Adds +100 max energy."
+	reactor_1x1.max_energy_bonus  = 100.0
 	var shape_1x1: Array[Vector2i] = [Vector2i(0, 0)]
 	reactor_1x1.grid_shape        = shape_1x1
 	reactor_1x1.grid_cell_color   = Color.CORNFLOWER_BLUE

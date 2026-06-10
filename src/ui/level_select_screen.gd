@@ -35,6 +35,12 @@ const LEVELS := [
 		"scene":       "res://scenes/levels/level_4.tscn",
 		"color":       Color(0.86, 0.62, 0.24),
 	},
+	{
+		"name":        "BASE ATTACK",
+		"description": "A giant 9x9 battle zone. Push to the central enemy base and hold it for 10 seconds under counterattack.",
+		"scene":       "res://scenes/levels/level_5.tscn",
+		"color":       Color(0.78, 0.34, 0.24),
+	},
 ]
 
 # ─── Lifecycle ──────────────────────────────────────────────────────────────────

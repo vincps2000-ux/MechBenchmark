@@ -239,6 +239,121 @@ func test_double_packed_battery_has_two_charges_and_restores_forty_each():
 		"No charges should remain after consuming both double-packed uses")
 
 
+func test_battery_bank_module_increases_player_max_energy():
+	var loadout := MechLoadout.new()
+	loadout.selected_legs = LegData.new()
+	loadout.selected_torso = TorsoData.new()
+	loadout.selected_torsos = [loadout.selected_torso]
+	loadout.selected_guns = [WeaponData.new()]
+
+	var module_grid = loadout.get_or_create_module_grid(0)
+	for module in MechCatalog.get_all_modules():
+		if module.name == "Battery Bank Module":
+			module_grid.place_module(module, Vector2i(0, 0))
+			break
+
+	GameManager.current_loadout = loadout
+
+	var player = _PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+
+	assert_eq(player.get_max_energy(), 200.0,
+		"Battery bank should increase player max energy by 100")
+	assert_eq(player.get_energy(), 200.0,
+		"Player should start filled to the increased max energy")
+
+
+func test_fusion_reactor_triples_nuclear_output_after_two_second_drain_lockout():
+	var loadout := MechLoadout.new()
+	loadout.selected_legs = LegData.new()
+	loadout.selected_torso = TorsoData.new()
+	loadout.selected_torsos = [loadout.selected_torso]
+	loadout.selected_guns = [WeaponData.new()]
+
+	var module_grid = loadout.get_or_create_module_grid(0)
+	var nuclear_reactor = null
+	var fusion_reactor = null
+	for module in MechCatalog.get_all_modules():
+		if module.name != "Reactor (2x2)":
+			continue
+		nuclear_reactor = module.duplicate_module()
+		nuclear_reactor.set_reactor_type(nuclear_reactor.ReactorType.NUCLEAR)
+		fusion_reactor = module.duplicate_module()
+		fusion_reactor.set_reactor_type(fusion_reactor.ReactorType.FUSION)
+		break
+
+	assert_not_null(nuclear_reactor, "Catalog should provide a 2x2 reactor for runtime tests")
+	assert_not_null(fusion_reactor, "Catalog should provide a 2x2 reactor for runtime tests")
+	module_grid.place_module(nuclear_reactor, Vector2i(0, 0))
+	module_grid.place_module(fusion_reactor, Vector2i(2, 0))
+
+	GameManager.current_loadout = loadout
+	var player = _PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+
+	assert_eq(player.get_max_energy(), 100.0)
+	assert_true(player.consume_energy(40.0), "Player should be able to spend energy before regen test")
+	assert_eq(player.get_energy(), 60.0)
+
+	player._regen_energy(1.0)
+	assert_eq(player.get_energy(), 65.0,
+		"During the fusion cooldown, only the nuclear reactor should contribute energy")
+
+	player._regen_energy(0.9)
+	assert_eq(player.get_energy(), 69.5,
+		"Fusion output should remain blocked until 2 seconds have elapsed since the drain")
+
+	player._regen_energy(0.2)
+	assert_eq(player.get_energy(), 73.5,
+		"After cooldown expires, fusion should add triple the nuclear reactor output")
+
+
+func test_fuel_reactor_doubles_nuclear_output_and_stops_when_empty():
+	var loadout := MechLoadout.new()
+	loadout.selected_legs = LegData.new()
+	loadout.selected_torso = TorsoData.new()
+	loadout.selected_torsos = [loadout.selected_torso]
+	loadout.selected_guns = [WeaponData.new()]
+
+	var module_grid = loadout.get_or_create_module_grid(0)
+	var nuclear_reactor = null
+	var fuel_reactor = null
+	for module in MechCatalog.get_all_modules():
+		if module.name != "Reactor (2x2)":
+			continue
+		nuclear_reactor = module.duplicate_module()
+		nuclear_reactor.set_reactor_type(nuclear_reactor.ReactorType.NUCLEAR)
+		fuel_reactor = module.duplicate_module()
+		fuel_reactor.set_reactor_type(fuel_reactor.ReactorType.CONVENTIONAL_FUEL)
+		fuel_reactor.reactor_fuel_current = 1.0
+		break
+
+	assert_not_null(nuclear_reactor, "Catalog should provide a 2x2 reactor for fuel runtime tests")
+	assert_not_null(fuel_reactor, "Catalog should provide a 2x2 reactor for fuel runtime tests")
+	module_grid.place_module(nuclear_reactor, Vector2i(0, 0))
+	module_grid.place_module(fuel_reactor, Vector2i(2, 0))
+
+	GameManager.current_loadout = loadout
+	var player = _PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+
+	assert_eq(player.get_max_reactor_fuel(), 100.0, "Fuel reactor should expose a default 100 fuel capacity")
+	assert_eq(player.get_reactor_fuel(), 1.0, "Fuel reactor test setup should start nearly empty")
+	assert_true(player.consume_energy(40.0), "Player should be able to spend energy before testing reactor regen")
+
+	player._regen_energy(1.0)
+	assert_eq(player.get_energy(), 75.0,
+		"Fuel reactor should add double the nuclear output while fuel remains")
+
+	player._update_fuel_reactors(1.0)
+	assert_eq(player.get_reactor_fuel(), 0.0, "Fuel reactor should burn 1 fuel per second")
+
+	assert_true(player.consume_energy(10.0), "Player should still be able to spend energy after the reactor runs dry")
+	player._regen_energy(1.0)
+	assert_eq(player.get_energy(), 70.0,
+		"Once fuel is empty, only the nuclear reactor should continue generating energy")
+
+
 func test_booster_action_starts_fast_dash_in_selected_direction():
 	var loadout := MechLoadout.new()
 	loadout.selected_legs = LegData.new()

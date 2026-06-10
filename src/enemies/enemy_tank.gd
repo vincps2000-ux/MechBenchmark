@@ -22,6 +22,8 @@ const HALF_H := 11.0
 @export var path_alert_range: float = 320.0
 @export var path_end_circle_radius: float = 72.0
 @export var path_end_circle_speed: float = 0.9
+@export var starts_dormant: bool = false
+@export var alert_range: float = 560.0
 
 @export var max_health: int = 20
 @export var armor: int = 5
@@ -32,6 +34,7 @@ const COLOR_TREAD := Color(0.25, 0.20, 0.13, 1.0)
 
 var health: int
 var _is_frozen: bool = false
+var _is_alerted: bool = true
 var _player: Node2D = null
 var _autocannon: Autocannon = null
 var _rng := RandomNumberGenerator.new()
@@ -49,6 +52,7 @@ func _ready() -> void:
 	health = max_health
 	add_to_group("enemies")
 	_player = _find_player()
+	_is_alerted = not starts_dormant
 	_rng.randomize()
 	_setup_autocannon()
 	queue_redraw()
@@ -63,6 +67,14 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		move_and_slide()
 		return
+
+	if not _is_alerted:
+		if global_position.distance_to(_player.global_position) <= alert_range:
+			_is_alerted = true
+		else:
+			velocity = Vector2.ZERO
+			move_and_slide()
+			return
 
 	if _level_pathing_enabled and _path_end_circling:
 		_circle_at_path_end(delta)
@@ -111,6 +123,7 @@ func configure_level_path(path_points: Array[Vector2], alert_range: float = 320.
 	path_alert_range = alert_range
 
 func alert_to_player() -> void:
+	_is_alerted = true
 	if _level_pathing_enabled:
 		_path_alerted = true
 		_path_end_circling = false
@@ -176,6 +189,7 @@ func _circle_at_path_end(delta: float) -> void:
 	move_and_slide()
 
 func take_damage(amount: int, penetration: int = 10) -> void:
+	_is_alerted = true
 	if not ArmorSystem.roll_penetration(penetration, armor):
 		_spawn_deflection()
 		return

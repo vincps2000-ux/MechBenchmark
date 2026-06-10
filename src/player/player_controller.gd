@@ -23,9 +23,10 @@ const TORSO_ROTATION_SPEED  := 4.0   # rad/s — torso tracks mouse independentl
 const TORSO_ROTATION_SPEED_NAVAL_TURRET := 0.2  # rad/s — naval turret rotates extremely slowly
 const ROTATION_SPEED_WALKER := 3.0   # rad/s — walker body rotation toward mouse (Q held)
 const TORSO_DEADSPOT_HALF_ANGLE := deg_to_rad(35.0)
-const MAX_ENERGY := 100.0
+const BASE_MAX_ENERGY := 100.0
 const ENERGY_REGEN_PER_SECOND := 0.0
 const ENERGY_REGEN_DELAY := 0.1
+const FUSION_REGEN_DELAY_AFTER_DRAIN := 2.0
 const BACKUP_BATTERY_MODULE_NAME := "Backup Battery"
 const DRONE_MODULE_NAME := "Drone"
 const BOOSTER_MODULE_NAME := "Booster"
@@ -51,6 +52,7 @@ enum TorsoDeadspotSide {
 
 var _movement_type: LegData.MovementType = LegData.MovementType.LEGS
 var _speed: float = BASE_SPEED
+var _loadout: MechLoadout = null
 var _mud_zone_count: int = 0
 var _weapons: Array[Node] = []
 var _weapon_mounts: Array[Node2D] = []
@@ -60,9 +62,12 @@ var _torso_sprites: Array[Sprite2D] = []
 var _torso_data: Array[TorsoData] = []
 var _torso_mount_roots: Array[Node2D] = []
 var _torso_deadspot_sides: Array[TorsoDeadspotSide] = []
-var _energy_current: float = MAX_ENERGY
+var _energy_current: float = BASE_MAX_ENERGY
+var _max_energy: float = BASE_MAX_ENERGY
 var _energy_regen_block_timer: float = 0.0
 var _energy_regen_bonus: float = 0.0  # Bonus from installed modules
+var _fusion_reactor_regen_bonus: float = 0.0
+var _fusion_regen_block_timer: float = 0.0
 var _backup_battery_action_indices: Array[int] = []
 var _backup_battery_remaining_uses: Array[int] = []
 var _backup_battery_energy_per_use: Array[float] = []
@@ -98,6 +103,7 @@ func _ready() -> void:
 	add_child(arrow)
 
 	var loadout: MechLoadout = GameManager.current_loadout
+	_loadout = loadout
 	if loadout and loadout.selected_legs:
 		_speed         = loadout.selected_legs.speed_modifier * BASE_SPEED
 		_movement_type = loadout.selected_legs.movement_type
@@ -107,7 +113,9 @@ func _ready() -> void:
 	
 	# Calculate energy regen bonus from modules
 	if loadout:
-		_energy_regen_bonus = loadout.get_total_recharge_bonus()
+		_refresh_reactor_state()
+		_max_energy = BASE_MAX_ENERGY + loadout.get_total_max_energy_bonus()
+		_energy_current = _max_energy
 	
 	_setup_torsos_and_weapons(loadout)
 	_setup_utility_modules(loadout)
@@ -394,17 +402,27 @@ func get_energy() -> float:
 	return _energy_current
 
 func get_max_energy() -> float:
-	return MAX_ENERGY
+	return _max_energy
+
+func get_reactor_fuel() -> float:
+	if _loadout == null:
+		return 0.0
+	return _loadout.get_total_fuel_reactor_current()
+
+func get_max_reactor_fuel() -> float:
+	if _loadout == null:
+		return 0.0
+	return _loadout.get_total_fuel_reactor_max()
 
 func get_energy_ratio() -> float:
-	return _energy_current / MAX_ENERGY if MAX_ENERGY > 0.0 else 0.0
+	return _energy_current / _max_energy if _max_energy > 0.0 else 0.0
 
 
 func add_energy(amount: float) -> float:
 	if amount <= 0.0:
 		return 0.0
 	var previous := _energy_current
-	_energy_current = minf(MAX_ENERGY, _energy_current + amount)
+	_energy_current = minf(_max_energy, _energy_current + amount)
 	return _energy_current - previous
 
 func has_energy_for(amount: float) -> bool:
@@ -415,9 +433,26 @@ func consume_energy(amount: float) -> bool:
 		return true
 	if not has_energy_for(amount):
 		return false
+	_refresh_reactor_state()
 	_energy_current = maxf(0.0, _energy_current - amount)
 	_energy_regen_block_timer = ENERGY_REGEN_DELAY
+	if _fusion_reactor_regen_bonus > 0.0:
+		_fusion_regen_block_timer = FUSION_REGEN_DELAY_AFTER_DRAIN
 	return true
+
+func _refresh_reactor_state() -> void:
+	if _loadout == null:
+		_energy_regen_bonus = 0.0
+		_fusion_reactor_regen_bonus = 0.0
+		return
+	_energy_regen_bonus = _loadout.get_total_recharge_bonus()
+	_fusion_reactor_regen_bonus = _loadout.get_total_fusion_recharge_bonus()
+
+func _update_fuel_reactors(delta: float) -> void:
+	if _loadout == null or delta <= 0.0:
+		return
+	_loadout.consume_fuel_reactors(delta)
+	_refresh_reactor_state()
 
 
 func get_backup_battery_count() -> int:
@@ -738,6 +773,7 @@ func _apply_leg_texture(mtype: LegData.MovementType) -> void:
 			legs_sprite.texture = tex
 
 func _physics_process(delta: float) -> void:
+	_update_fuel_reactors(delta)
 	_regen_energy(delta)
 	if is_drone_view_active():
 		velocity = Vector2.ZERO
@@ -765,13 +801,20 @@ func _trample_infantry() -> void:
 			body.take_damage(TRAMPLE_DAMAGE, TRAMPLE_PENETRATION)
 
 func _regen_energy(delta: float) -> void:
+	_refresh_reactor_state()
 	if _energy_regen_block_timer > 0.0:
 		_energy_regen_block_timer = maxf(0.0, _energy_regen_block_timer - delta)
+	if _fusion_regen_block_timer > 0.0:
+		_fusion_regen_block_timer = maxf(0.0, _fusion_regen_block_timer - delta)
+	if _energy_regen_block_timer > 0.0:
 		return
-	if _energy_current >= MAX_ENERGY:
+	if _energy_current >= _max_energy:
 		return
 	var total_regen := ENERGY_REGEN_PER_SECOND + _energy_regen_bonus
-	_energy_current = minf(MAX_ENERGY, _energy_current + total_regen * delta)
+	if _fusion_regen_block_timer > 0.0:
+		total_regen -= _fusion_reactor_regen_bonus
+	total_regen = maxf(total_regen, 0.0)
+	_energy_current = minf(_max_energy, _energy_current + total_regen * delta)
 
 # ─── Torso aiming ─────────────────────────────────────────────────────────────
 # The torso sprite rotates in local space so it always faces the mouse,

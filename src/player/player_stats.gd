@@ -10,6 +10,7 @@ extends Resource
 @export var level: int = 1
 @export var pickup_range: float = 50.0
 @export var recharge_rate_bonus: float = 0.0  # Energy regen bonus per second
+@export var max_energy_bonus: float = 0.0
 
 # XP required to reach the next level
 func xp_for_next_level() -> int:

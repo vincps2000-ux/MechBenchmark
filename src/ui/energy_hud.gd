@@ -10,6 +10,9 @@ var _player: Node = null
 var _panel: PanelContainer = null
 var _energy_bar: ProgressBar = null
 var _energy_label: Label = null
+var _fuel_container: VBoxContainer = null
+var _fuel_bar: ProgressBar = null
+var _fuel_label: Label = null
 var _consumable_icons_row: HBoxContainer = null
 var _consumable_icons_box: HBoxContainer = null
 var _last_consumable_signature: String = ""
@@ -77,6 +80,49 @@ func _build_ui() -> void:
 	_energy_label.add_theme_color_override("font_color", Color(0.7, 0.78, 0.86, 0.92))
 	vbox.add_child(_energy_label)
 
+	_fuel_container = VBoxContainer.new()
+	_fuel_container.add_theme_constant_override("separation", 4)
+	_fuel_container.visible = false
+	vbox.add_child(_fuel_container)
+
+	var fuel_header := HBoxContainer.new()
+	fuel_header.add_theme_constant_override("separation", 6)
+	_fuel_container.add_child(fuel_header)
+
+	var fuel_tag := ColorRect.new()
+	fuel_tag.custom_minimum_size = Vector2(10, 10)
+	fuel_tag.color = Color(0.96, 0.62, 0.22, 0.95)
+	fuel_header.add_child(fuel_tag)
+
+	var fuel_title := Label.new()
+	fuel_title.text = "FUEL REACTOR"
+	fuel_title.add_theme_font_size_override("font_size", 11)
+	fuel_title.add_theme_color_override("font_color", Color(0.92, 0.84, 0.72, 0.95))
+	fuel_header.add_child(fuel_title)
+
+	_fuel_bar = ProgressBar.new()
+	_fuel_bar.custom_minimum_size = Vector2(168, 10)
+	_fuel_bar.min_value = 0.0
+	_fuel_bar.max_value = 100.0
+	_fuel_bar.show_percentage = false
+	var fuel_bg := StyleBoxFlat.new()
+	fuel_bg.bg_color = Color(0.06, 0.04, 0.02, 0.98)
+	fuel_bg.set_border_width_all(1)
+	fuel_bg.border_color = Color(0.32, 0.22, 0.12, 1.0)
+	fuel_bg.set_corner_radius_all(1)
+	_fuel_bar.add_theme_stylebox_override("background", fuel_bg)
+	var fuel_fill := StyleBoxFlat.new()
+	fuel_fill.bg_color = Color(0.96, 0.62, 0.22, 0.95)
+	fuel_fill.set_corner_radius_all(1)
+	_fuel_bar.add_theme_stylebox_override("fill", fuel_fill)
+	_fuel_container.add_child(_fuel_bar)
+
+	_fuel_label = Label.new()
+	_fuel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_fuel_label.add_theme_font_size_override("font_size", 10)
+	_fuel_label.add_theme_color_override("font_color", Color(0.92, 0.78, 0.62, 0.92))
+	_fuel_container.add_child(_fuel_label)
+
 	_consumable_icons_row = HBoxContainer.new()
 	_consumable_icons_row.add_theme_constant_override("separation", 3)
 	_consumable_icons_row.visible = false
@@ -110,7 +156,28 @@ func _refresh_energy() -> void:
 	_energy_bar.max_value = maximum
 	_energy_bar.value = current
 	_energy_label.text = "%d / %d" % [roundi(current), roundi(maximum)]
+	_refresh_reactor_fuel()
 	_refresh_consumable_icons()
+
+
+func _refresh_reactor_fuel() -> void:
+	if _fuel_bar == null or _fuel_label == null:
+		return
+	var current := 0.0
+	var maximum := 0.0
+	if _player != null and _player.has_method("get_reactor_fuel") and _player.has_method("get_max_reactor_fuel"):
+		current = float(_player.call("get_reactor_fuel"))
+		maximum = maxf(0.0, float(_player.call("get_max_reactor_fuel")))
+	var show_bar := maximum > 0.0
+	if _fuel_container != null:
+		_fuel_container.visible = show_bar
+	_fuel_bar.visible = show_bar
+	_fuel_label.visible = show_bar
+	if not show_bar:
+		return
+	_fuel_bar.max_value = maxf(1.0, maximum)
+	_fuel_bar.value = clampf(current, 0.0, maximum)
+	_fuel_label.text = "%d / %d" % [roundi(current), roundi(maximum)]
 
 
 func _refresh_consumable_icons() -> void:
