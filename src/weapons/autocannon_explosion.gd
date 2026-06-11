@@ -43,17 +43,9 @@ var target_collision_mask: int = 2
 ## Tracks enemies already damaged so a slow enemy isn't hit twice.
 var _hit_set: Array = []
 
-var _audio: AudioStreamPlayer2D
-
 func _ready() -> void:
 	add_to_group("level_effect")
-	# Procedural explosion boom
-	_audio = AudioStreamPlayer2D.new()
-	_audio.stream = _create_boom_stream()
-	_audio.volume_db = -6.0
-	_audio.max_distance = 800.0
-	add_child(_audio)
-	_audio.play()
+	AudioEventSystem.play_explosion_boom(global_position, blast_scale)
 
 	# ── Collision: no layer (we are not an obstacle), configurable target mask ──
 	set_deferred("collision_layer", 0)

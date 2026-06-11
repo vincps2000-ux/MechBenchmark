@@ -13,6 +13,8 @@ var _elapsed: float = 0.0
 ## Base colours used for both live rendering and alpha-fade; set by set_intensity().
 var _glow_base_color: Color
 var _beam_base_color: Color
+## Current laser intensity level; set by set_intensity() from Laser.setup().
+var _intensity: int = 2
 
 func _ready() -> void:
 	add_to_group("level_effect")
@@ -49,6 +51,7 @@ func fire(from: Vector2, to: Vector2) -> void:
 	# Restore full alpha in case a previous fade left it partial
 	_glow.default_color = _glow_base_color
 	_line.default_color = _beam_base_color
+	AudioEventSystem.queue_laser_state(self, from, _intensity, true)
 
 ## Update endpoints each frame while the laser is firing
 func update_beam(from: Vector2, to: Vector2) -> void:
@@ -59,11 +62,13 @@ func update_beam(from: Vector2, to: Vector2) -> void:
 	_glow.set_point_position(1, to)
 	_line.set_point_position(0, from)
 	_line.set_point_position(1, to)
+	AudioEventSystem.queue_laser_state(self, from, _intensity, true)
 
 ## Begin fade-out; the node frees itself when the fade completes
 func stop() -> void:
 	_fading  = true
 	_elapsed = 0.0
+	AudioEventSystem.queue_laser_state(self, global_position, _intensity, false)
 
 func _process(delta: float) -> void:
 	if not _fading:
@@ -76,3 +81,4 @@ func _process(delta: float) -> void:
 	var alpha := 1.0 - t
 	var gc := _glow_base_color; gc.a *= alpha; _glow.default_color = gc
 	var lc := _beam_base_color; lc.a *= alpha; _line.default_color = lc
+

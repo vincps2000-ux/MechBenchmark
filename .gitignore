@@ -1,7 +1,7 @@
 # MechSurvivors — Godot 4.x project
 .godot/
 *.import
-export_presets.cfg
+build/
 
 # OS
 Thumbs.db
