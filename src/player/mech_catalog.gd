@@ -6,6 +6,7 @@ class_name MechCatalog
 ## Returns all available torso configurations
 static func get_all_torsos() -> Array[TorsoData]:
 	var stealth := TorsoData.new()
+	stealth.id             = "stealth"
 	stealth.name           = "Stealth"
 	stealth.description    = "Sleek triangular hull. Cuts through resistance — fast but thin armour."
 	stealth.torso_type     = TorsoData.TorsoType.STEALTH
@@ -14,6 +15,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	stealth.light_weapon_slots = 1
 
 	var heavy := TorsoData.new()
+	heavy.id             = "heavy_armour"
 	heavy.name           = "Heavy Armour"
 	heavy.description    = "Forward-facing dome hull. Absorbs tremendous punishment."
 	heavy.torso_type     = TorsoData.TorsoType.HEAVY_ARMOUR
@@ -23,6 +25,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	heavy.light_weapon_slots = 0
 
 	var cargo := TorsoData.new()
+	cargo.id             = "cargo"
 	cargo.name           = "Cargo"
 	cargo.description    = "Utility trapezoid hull. Balanced loadout with extra storage."
 	cargo.torso_type     = TorsoData.TorsoType.CARGO
@@ -31,6 +34,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 	cargo.light_weapon_slots = 2
 
 	var naval_turret := TorsoData.new()
+	naval_turret.id             = "naval_turret"
 	naval_turret.name           = "Naval Turret"
 	naval_turret.description    = "WW2-inspired naval gun turret. Mounts three weapons in a broadside layout but traverses extremely slowly."
 	naval_turret.torso_type     = TorsoData.TorsoType.NAVAL_TURRET
@@ -44,6 +48,7 @@ static func get_all_torsos() -> Array[TorsoData]:
 ## Returns all available leg configurations
 static func get_all_legs() -> Array[LegData]:
 	var tank := LegData.new()
+	tank.id             = "tank"
 	tank.name           = "Tank"
 	tank.description    = "Treaded chassis. Incredibly tough but very slow."
 	tank.movement_type  = LegData.MovementType.TANK
@@ -51,6 +56,7 @@ static func get_all_legs() -> Array[LegData]:
 	tank.speed_modifier  = 0.6
 
 	var landship := LegData.new()
+	landship.id             = "landship"
 	landship.name           = "Landship"
 	landship.description    = "Massive treaded behemoth. Extremely slow, built for dual-torso broadsides."
 	landship.movement_type  = LegData.MovementType.LANDSHIP
@@ -59,6 +65,7 @@ static func get_all_legs() -> Array[LegData]:
 	landship.torso_slots    = 2
 
 	var heavy_walker := LegData.new()
+	heavy_walker.id             = "heavy_walker"
 	heavy_walker.name           = "Heavy Walker"
 	heavy_walker.description    = "Bipedal heavy frame. Good armor, moderate speed."
 	heavy_walker.movement_type  = LegData.MovementType.LEGS
@@ -66,6 +73,7 @@ static func get_all_legs() -> Array[LegData]:
 	heavy_walker.speed_modifier  = 0.85
 
 	var light_walker := LegData.new()
+	light_walker.id             = "light_walker"
 	light_walker.name           = "Light Walker"
 	light_walker.description    = "Nimble bipedal frame. Balanced speed and armor."
 	light_walker.movement_type  = LegData.MovementType.LEGS
@@ -73,6 +81,7 @@ static func get_all_legs() -> Array[LegData]:
 	light_walker.speed_modifier  = 1.1
 
 	var spider := LegData.new()
+	spider.id             = "spider"
 	spider.name           = "Spider"
 	spider.description    = "Multi-legged chassis. Very fast but fragile."
 	spider.movement_type  = LegData.MovementType.SPIDER
@@ -84,6 +93,7 @@ static func get_all_legs() -> Array[LegData]:
 ## Returns all available weapon configurations
 static func get_all_guns() -> Array[WeaponData]:
 	var autocannon := WeaponData.new()
+	autocannon.id               = "autocannon"
 	autocannon.name             = "Autocannon"
 	autocannon.weapon_type      = WeaponData.WeaponType.AUTOCANNON
 	autocannon.damage           = 8
@@ -93,6 +103,7 @@ static func get_all_guns() -> Array[WeaponData]:
 	autocannon.pierce           = 1
 
 	var flamethrower := WeaponData.new()
+	flamethrower.id               = "chemical_thrower"
 	flamethrower.name             = "Chemical thrower"
 	flamethrower.weapon_type      = WeaponData.WeaponType.FLAMETHROWER
 	flamethrower.damage           = 3
@@ -103,6 +114,7 @@ static func get_all_guns() -> Array[WeaponData]:
 	flamethrower.area             = 1.5
 
 	var railgun := WeaponData.new()
+	railgun.id               = "railgun"
 	railgun.name             = "Railgun"
 	railgun.weapon_type      = WeaponData.WeaponType.RAILGUN
 	railgun.damage           = 50
@@ -112,6 +124,7 @@ static func get_all_guns() -> Array[WeaponData]:
 	railgun.pierce           = 10
 
 	var laser := WeaponData.new()
+	laser.id               = "laser"
 	laser.name             = "Laser"
 	laser.weapon_type      = WeaponData.WeaponType.LASER
 	laser.damage           = 12
@@ -122,6 +135,7 @@ static func get_all_guns() -> Array[WeaponData]:
 	laser.area             = 0.5
 
 	var plasma_gun := WeaponData.new()
+	plasma_gun.id               = "plasma_gun"
 	plasma_gun.name             = "Plasma Gun"
 	plasma_gun.weapon_type      = WeaponData.WeaponType.PLASMA_GUN
 	plasma_gun.damage           = 24
@@ -132,11 +146,24 @@ static func get_all_guns() -> Array[WeaponData]:
 	plasma_gun.penetration      = 5
 	plasma_gun.projectile_lifetime = 2.2
 
-	return [autocannon, flamethrower, railgun, laser, plasma_gun]
+	var artillery := WeaponData.new()
+	artillery.id               = "artillery"
+	artillery.name             = "Artillery"
+	artillery.weapon_type      = WeaponData.WeaponType.ARTILLERY
+	artillery.damage           = 120
+	artillery.cooldown         = 1.1
+	artillery.projectile_speed = 0.0
+	artillery.projectile_count = 1
+	artillery.pierce           = 1
+	artillery.penetration      = 8
+	artillery.area             = 1.0
+
+	return [autocannon, flamethrower, railgun, laser, plasma_gun, artillery]
 
 ## Returns all available light weapon configurations
 static func get_all_light_guns() -> Array[WeaponData]:
 	var rocket_pod := WeaponData.new()
+	rocket_pod.id               = "rocket_pod"
 	rocket_pod.name             = "Rocket Pod"
 	rocket_pod.weapon_type      = WeaponData.WeaponType.ROCKET_POD
 	rocket_pod.slot_size        = WeaponData.SlotSize.LIGHT
@@ -148,6 +175,7 @@ static func get_all_light_guns() -> Array[WeaponData]:
 	rocket_pod.area             = 1.2
 
 	var machinegun := WeaponData.new()
+	machinegun.id               = "machinegun"
 	machinegun.name             = "Machinegun"
 	machinegun.weapon_type      = WeaponData.WeaponType.MACHINEGUN
 	machinegun.slot_size        = WeaponData.SlotSize.LIGHT
@@ -166,6 +194,7 @@ static func get_all_modules() -> Array:
 	
 	# 2x2 Reactor: Larger footprint, bigger bonus
 	var reactor_2x2 = _ModuleData.new()
+	reactor_2x2.id                = "reactor_2x2"
 	reactor_2x2.name              = "Reactor (2x2)"
 	reactor_2x2.description       = "Large power reactor. Significantly boosts energy regeneration."
 	reactor_2x2.tutorial_text     = "Occupies 4 grid slots. Adds +5 energy per second."
@@ -179,6 +208,7 @@ static func get_all_modules() -> Array:
 
 	# 1x1 Reactor Module: Single slot, smaller bonus
 	var reactor_1x1 = _ModuleData.new()
+	reactor_1x1.id                = "battery_bank_1x1"
 	reactor_1x1.name              = "Battery Bank Module"
 	reactor_1x1.description       = "Compact battery bank. Stores an additional 100 power."
 	reactor_1x1.tutorial_text     = "Occupies 1 grid slot. Adds +100 max energy."
@@ -190,6 +220,7 @@ static func get_all_modules() -> Array:
 
 	# 2x1 Armor Module: Two slots, strong armor bonus
 	var armor_2x1 = _ModuleData.new()
+	armor_2x1.id                = "armor_2x1"
 	armor_2x1.name              = "Armor Module (2x1)"
 	armor_2x1.description       = "Reinforced plating strip. Improves survivability."
 	armor_2x1.tutorial_text     = "Occupies 2 grid slots. Adds +3 armor."
@@ -201,6 +232,7 @@ static func get_all_modules() -> Array:
 
 	# 1x1 Armor Module: Single slot, light armor bonus
 	var armor_1x1 = _ModuleData.new()
+	armor_1x1.id                = "armor_1x1"
 	armor_1x1.name              = "Armor Module (1x1)"
 	armor_1x1.description       = "Compact armor tile. Adds a small armor boost."
 	armor_1x1.tutorial_text     = "Occupies 1 grid slot. Adds +1 armor."
@@ -211,6 +243,7 @@ static func get_all_modules() -> Array:
 
 	# Diagonal 1-1 Super-Structure Module: two diagonal cells, large structure bonus
 	var redundant_super_structure = _ModuleData.new()
+	redundant_super_structure.id                = "super_structure"
 	redundant_super_structure.name              = "Redundant Super-Structure"
 	redundant_super_structure.description       = "Diagonal cross-brace frame. Increases maximum hull HP by 30."
 	redundant_super_structure.tutorial_text     = "Diagonal 1-1 footprint. Adds +30 structure HP."
@@ -221,4 +254,38 @@ static func get_all_modules() -> Array:
 	redundant_super_structure.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
 
 	return [reactor_2x2, reactor_1x1, armor_2x1, armor_1x1, redundant_super_structure]
+
+# ── ID lookups (used by MechFactory / blueprint deserialization) ─────────────
+
+## Returns a fresh LegData for the given catalog id, or null if unknown.
+static func get_leg_by_id(id: String) -> LegData:
+	for part in get_all_legs():
+		if part.id == id:
+			return part
+	return null
+
+## Returns a fresh TorsoData for the given catalog id, or null if unknown.
+static func get_torso_by_id(id: String) -> TorsoData:
+	for part in get_all_torsos():
+		if part.id == id:
+			return part
+	return null
+
+## Returns a fresh WeaponData for the given catalog id (searches both medium
+## and light weapon lists), or null if unknown.
+static func get_gun_by_id(id: String) -> WeaponData:
+	for part in get_all_guns():
+		if part.id == id:
+			return part
+	for part in get_all_light_guns():
+		if part.id == id:
+			return part
+	return null
+
+## Returns a fresh ModuleData for the given catalog id, or null if unknown.
+static func get_module_by_id(id: String):
+	for part in get_all_modules():
+		if part.id == id:
+			return part
+	return null
 

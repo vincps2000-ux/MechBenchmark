@@ -10,6 +10,7 @@ enum WeaponType {
 	PLASMA_GUN,   # Arcing plasma lobber — high damage, medium penetration
 	ROCKET_POD,   # Light multi-rocket launcher — fits medium & light slots
 	MACHINEGUN,   # Light rapid-fire — high fire rate, low damage per bullet
+	ARTILLERY,    # Long-range bombardment — paints a target circle, then a huge delayed blast
 }
 
 enum SlotSize {
@@ -60,6 +61,8 @@ const MISSILE_DAMAGE_PER_EXPLOSIVE := 34
 const MISSILE_AOE_BASE_WITH_EXPLOSIVE := 1.0
 const MISSILE_AOE_PER_EXPLOSIVE := 0.8
 
+## Stable catalog identifier used by MechBlueprint serialization.
+@export var id: String = ""
 @export var name: String = "Unnamed"
 @export var weapon_type: WeaponType = WeaponType.AUTOCANNON
 @export var damage: int = 10
@@ -116,6 +119,7 @@ func get_sprite_path() -> String:
 		WeaponType.PLASMA_GUN:               return "res://assets/sprites/weapon_plasma.svg"
 		WeaponType.ROCKET_POD:               return "res://assets/sprites/weapon_rocket_pod.svg"
 		WeaponType.MACHINEGUN:               return "res://assets/sprites/weapon_gun.svg"
+		WeaponType.ARTILLERY:                return "res://assets/sprites/weapon_artillery.svg"
 		_:                                    return "res://assets/sprites/weapon_gun.svg"
 
 func can_level_up() -> bool:

@@ -141,6 +141,8 @@ func _shoot() -> void:
 	fire_dir = fire_dir.rotated(spread)
 	var muzzle_pos : Vector2 = global_position + fire_dir * _muzzle_distance
 
+	AudioEventSystem.play_weapon_fire(muzzle_pos, AudioEventSystem.WeaponSound.AUTOCANNON)
+
 	match _ammo_type:
 		WeaponData.AmmoType.SOLID:
 			_shoot_solid(fire_dir, muzzle_pos)

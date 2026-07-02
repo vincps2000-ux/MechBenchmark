@@ -174,6 +174,9 @@ func _on_level_selected(scene_path: String) -> void:
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 0.45).set_ease(Tween.EASE_IN)
 	tween.tween_callback(func():
+		# Persist the finished mech so the player doesn't have to rebuild it
+		# next time (and so it can be downloaded/uploaded later).
+		MechPersistence.save_current()
 		GameManager.start_game()
 		get_tree().change_scene_to_file(scene_path)
 	)

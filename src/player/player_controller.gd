@@ -9,6 +9,7 @@ const RAILGUN_SCENE      := preload("res://scenes/weapons/railgun.tscn")
 const PLASMA_GUN_SCENE   := preload("res://scenes/weapons/plasma_gun.tscn")
 const ROCKET_POD_SCENE   := preload("res://scenes/weapons/rocket_pod.tscn")
 const MACHINEGUN_SCENE   := preload("res://scenes/weapons/machinegun.tscn")
+const ARTILLERY_SCENE    := preload("res://scenes/weapons/artillery.tscn")
 const RECON_DRONE_SCENE  := preload("res://scenes/player/recon_drone.tscn")
 const DRONE_EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
 const _DirectionArrow    := preload("res://src/player/direction_arrow.gd")
@@ -323,6 +324,7 @@ func _instantiate_weapon(weapon_type: WeaponData.WeaponType) -> Node:
 		WeaponData.WeaponType.PLASMA_GUN:   return PLASMA_GUN_SCENE.instantiate()
 		WeaponData.WeaponType.ROCKET_POD:   return ROCKET_POD_SCENE.instantiate()
 		WeaponData.WeaponType.MACHINEGUN:   return MACHINEGUN_SCENE.instantiate()
+		WeaponData.WeaponType.ARTILLERY:    return ARTILLERY_SCENE.instantiate()
 		_:                                  return FLAMETHROWER_SCENE.instantiate()
 
 static func _get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2]:

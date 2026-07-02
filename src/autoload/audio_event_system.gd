@@ -10,6 +10,14 @@ enum EventKind {
 	EXPLOSION,
 }
 
+enum WeaponSound {
+	AUTOCANNON,
+	MACHINEGUN,
+	PLASMA,
+	ROCKET,
+	RAILGUN,
+}
+
 class LaserVoice:
 	extends RefCounted
 
@@ -27,12 +35,16 @@ var _laser_voices: Dictionary = {}
 var _laser_stream_cache: Dictionary = {}
 var _deflection_stream: AudioStreamWAV = null
 var _explosion_stream_cache: Dictionary = {}
+var _weapon_stream_cache: Dictionary = {}
+var _flame_voices: Dictionary = {}
+var _flame_stream: AudioStreamWAV = null
 
 
 func _process(delta: float) -> void:
 	_clock_sec += maxf(delta, 0.0)
 	_drain_ready_events()
 	_prune_orphaned_laser_voices()
+	_prune_orphaned_flame_voices()
 
 
 func now() -> float:
@@ -70,6 +82,51 @@ func play_explosion_boom(position: Vector2, scale: float = 1.0, event_time: floa
 	queue_event(event)
 
 
+## Plays a one-shot firing sound for the given weapon kind (WeaponSound enum).
+## `scale` nudges pitch/volume (e.g. railgun charge 0..1).
+func play_weapon_fire(position: Vector2, kind: int, scale: float = 1.0) -> void:
+	var stream := _get_weapon_stream(kind)
+	if stream == null:
+		return
+	var t := clampf(scale, 0.0, 1.0)
+	var volume_db := -8.0
+	var pitch := randf_range(0.96, 1.04)
+	match kind:
+		WeaponSound.MACHINEGUN:
+			volume_db = -12.0
+			pitch = randf_range(0.92, 1.08)
+		WeaponSound.AUTOCANNON:
+			volume_db = -7.0
+		WeaponSound.PLASMA:
+			volume_db = -9.0
+		WeaponSound.ROCKET:
+			volume_db = -6.5
+		WeaponSound.RAILGUN:
+			volume_db = lerpf(-10.0, -3.0, t)
+			pitch = lerpf(1.12, 0.92, t)
+	_play_one_shot(position, stream, volume_db, 900.0, pitch)
+
+
+## Starts/updates/stops the looping flamethrower roar for `source`.
+func set_flame_active(source: Object, position: Vector2, active: bool) -> void:
+	var source_id := _source_id(source)
+	if source_id == 0:
+		return
+	if not active:
+		_stop_flame_voice(source_id)
+		return
+	var voice: LaserVoice = _flame_voices.get(source_id)
+	if voice == null or not is_instance_valid(voice.player):
+		voice = LaserVoice.new()
+		voice.player = _create_player(position, _get_flame_stream(), -9.0, 700.0, randf_range(0.95, 1.05))
+		voice.source_ref = weakref(source)
+		_flame_voices[source_id] = voice
+		return
+	voice.player.global_position = position
+	if not voice.player.playing:
+		voice.player.play()
+
+
 func stop_event(event) -> void:
 	if event == null:
 		return
@@ -83,20 +140,20 @@ func stop_event(event) -> void:
 
 static func get_laser_volume_db(level: int) -> float:
 	match clampi(level, 0, 4):
-		0: return -32.0
-		1: return -26.0
-		2: return -16.0
+		0: return -30.0
+		1: return -24.0
+		2: return -14.0
 		3: return -5.0
-		_: return 1.5
+		_: return -2.0
 
 
 static func get_laser_pitch_scale(level: int) -> float:
 	match clampi(level, 0, 4):
-		0: return 0.74
-		1: return 0.82
-		2: return 1.0
-		3: return 1.24
-		_: return 1.42
+		0: return 0.78
+		1: return 0.85
+		2: return 1.05
+		3: return 1.22
+		_: return 1.28
 
 
 static func get_deflection_volume_db(level: int) -> float:
@@ -202,6 +259,30 @@ func _stop_laser_voice(source_id: int) -> void:
 		voice.player.queue_free()
 
 
+func _stop_flame_voice(source_id: int) -> void:
+	if not _flame_voices.has(source_id):
+		return
+	var voice: LaserVoice = _flame_voices[source_id]
+	_flame_voices.erase(source_id)
+	if voice != null and is_instance_valid(voice.player):
+		voice.player.stop()
+		voice.player.queue_free()
+
+
+func _prune_orphaned_flame_voices() -> void:
+	var removed: Array[int] = []
+	for source_id in _flame_voices.keys():
+		var voice: LaserVoice = _flame_voices[source_id]
+		if voice == null:
+			removed.append(source_id)
+			continue
+		var source: Object = voice.source_ref.get_ref() if voice.source_ref != null else null
+		if source == null or not is_instance_valid(source) or not is_instance_valid(voice.player):
+			removed.append(source_id)
+	for source_id in removed:
+		_stop_flame_voice(source_id)
+
+
 func _prune_orphaned_laser_voices() -> void:
 	var removed: Array[int] = []
 	for source_id in _laser_voices.keys():
@@ -247,6 +328,33 @@ func _get_deflection_stream() -> AudioStreamWAV:
 		return _deflection_stream
 	_deflection_stream = _create_deflection_stream()
 	return _deflection_stream
+
+
+func _get_weapon_stream(kind: int) -> AudioStreamWAV:
+	if _weapon_stream_cache.has(kind):
+		return _weapon_stream_cache[kind]
+	var stream: AudioStreamWAV = null
+	match kind:
+		WeaponSound.AUTOCANNON:
+			stream = _create_autocannon_fire_stream()
+		WeaponSound.MACHINEGUN:
+			stream = _create_machinegun_fire_stream()
+		WeaponSound.PLASMA:
+			stream = _create_plasma_fire_stream()
+		WeaponSound.ROCKET:
+			stream = _create_rocket_fire_stream()
+		WeaponSound.RAILGUN:
+			stream = _create_railgun_fire_stream()
+	if stream != null:
+		_weapon_stream_cache[kind] = stream
+	return stream
+
+
+func _get_flame_stream() -> AudioStreamWAV:
+	if _flame_stream != null:
+		return _flame_stream
+	_flame_stream = _create_flame_loop_stream()
+	return _flame_stream
 
 
 func _get_explosion_stream(scale: float) -> AudioStreamWAV:
@@ -390,6 +498,123 @@ static func _create_deflection_stream() -> AudioStreamWAV:
 	stream.mix_rate = sample_rate
 	stream.data = data
 	return stream
+
+
+static func _make_wav(data: PackedByteArray, num_samples: int, looped: bool = false) -> AudioStreamWAV:
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = _AUDIO_SAMPLE_RATE
+	if looped:
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		stream.loop_begin = 0
+		stream.loop_end = num_samples
+	stream.data = data
+	return stream
+
+
+static func _write_sample(data: PackedByteArray, i: int, sample: float) -> void:
+	var val := clampi(int(sample * 32767.0), -32768, 32767)
+	data[i * 2] = val & 0xFF
+	data[i * 2 + 1] = (val >> 8) & 0xFF
+
+
+# Punchy cannon thump: low sine sweep + sharp noise transient.
+static func _create_autocannon_fire_stream() -> AudioStreamWAV:
+	var num_samples := int(_AUDIO_SAMPLE_RATE * 0.14)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+	for i in num_samples:
+		var t := float(i) / float(_AUDIO_SAMPLE_RATE)
+		var envelope := exp(-t * 26.0)
+		var freq := 110.0 + 180.0 * exp(-t * 60.0)
+		var thump := sin(t * freq * TAU) * 0.78
+		var crack := (randf() * 2.0 - 1.0) * 0.45 * exp(-t * 90.0)
+		_write_sample(data, i, (thump + crack) * envelope)
+	return _make_wav(data, num_samples)
+
+
+# Short rifle crack: bright noise burst with a quick mid pop.
+static func _create_machinegun_fire_stream() -> AudioStreamWAV:
+	var num_samples := int(_AUDIO_SAMPLE_RATE * 0.06)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+	for i in num_samples:
+		var t := float(i) / float(_AUDIO_SAMPLE_RATE)
+		var envelope := exp(-t * 80.0)
+		var crack := (randf() * 2.0 - 1.0) * 0.62
+		var pop := sin(t * (340.0 + 220.0 * exp(-t * 120.0)) * TAU) * 0.35
+		_write_sample(data, i, (crack + pop) * envelope)
+	return _make_wav(data, num_samples)
+
+
+# Energetic pew: descending sine sweep with a wobbly harmonic.
+static func _create_plasma_fire_stream() -> AudioStreamWAV:
+	var num_samples := int(_AUDIO_SAMPLE_RATE * 0.16)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+	var phase := 0.0
+	for i in num_samples:
+		var t := float(i) / float(_AUDIO_SAMPLE_RATE)
+		var envelope := exp(-t * 24.0)
+		var freq := 1250.0 * exp(-t * 9.0) + 220.0
+		phase += freq / float(_AUDIO_SAMPLE_RATE)
+		var pew := sin(phase * TAU) * 0.6
+		var wobble := sin(phase * 2.0 * TAU + sin(t * 40.0 * TAU) * 0.8) * 0.22
+		_write_sample(data, i, (pew + wobble) * envelope)
+	return _make_wav(data, num_samples)
+
+
+# Rocket launch: swelling rumble + hissing exhaust.
+static func _create_rocket_fire_stream() -> AudioStreamWAV:
+	var num_samples := int(_AUDIO_SAMPLE_RATE * 0.32)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+	var lp := 0.0
+	for i in num_samples:
+		var t := float(i) / float(_AUDIO_SAMPLE_RATE)
+		var attack := minf(t * 30.0, 1.0)
+		var envelope := attack * exp(-t * 9.0)
+		var raw := randf() * 2.0 - 1.0
+		lp += (raw - lp) * 0.18
+		var rumble := sin(t * (70.0 + 40.0 * exp(-t * 6.0)) * TAU) * 0.45
+		var hiss := lp * 0.65
+		_write_sample(data, i, (rumble + hiss) * envelope)
+	return _make_wav(data, num_samples)
+
+
+# Railgun discharge: electric zap into a low boom tail.
+static func _create_railgun_fire_stream() -> AudioStreamWAV:
+	var num_samples := int(_AUDIO_SAMPLE_RATE * 0.28)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+	for i in num_samples:
+		var t := float(i) / float(_AUDIO_SAMPLE_RATE)
+		var zap_env := exp(-t * 45.0)
+		var boom_env := exp(-t * 12.0)
+		var zap := sin(t * (2400.0 * exp(-t * 18.0) + 400.0) * TAU) * 0.5 * zap_env
+		var crackle := (randf() * 2.0 - 1.0) * 0.4 * zap_env
+		var boom := sin(t * (85.0 + 50.0 * exp(-t * 20.0)) * TAU) * 0.6 * boom_env
+		_write_sample(data, i, zap + crackle + boom)
+	return _make_wav(data, num_samples)
+
+
+# Looping flamethrower roar: turbulent filtered noise + low flutter.
+static func _create_flame_loop_stream() -> AudioStreamWAV:
+	var num_samples := int(_AUDIO_SAMPLE_RATE * 0.30)
+	var data := PackedByteArray()
+	data.resize(num_samples * 2)
+	var lp := 0.0
+	for i in num_samples:
+		var phase := float(i) / float(num_samples)
+		var raw := randf() * 2.0 - 1.0
+		lp += (raw - lp) * 0.22
+		var flutter := sin(phase * 6.0 * TAU) * 0.10 + sin(phase * 13.0 * TAU) * 0.06
+		var roar := lp * (0.55 + flutter)
+		var low := sin(phase * 3.0 * TAU) * 0.12
+		# Crossfade tail into head so the loop point is seamless for the noise bed.
+		var fade := minf(phase * 12.0, minf((1.0 - phase) * 12.0, 1.0))
+		_write_sample(data, i, (roar + low) * (0.65 + 0.35 * fade))
+	return _make_wav(data, num_samples, true)
 
 
 static func _create_explosion_stream(scale: float) -> AudioStreamWAV:

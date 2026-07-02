@@ -1,5 +1,33 @@
 <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="16,2 24,7 24,25 16,30 8,25 8,7" fill="#daa520" stroke="#b8860b" stroke-width="2"/>
-  <circle cx="16" cy="16" r="6" fill="#111111"/>
-  <circle cx="16" cy="16" r="5" fill="#333333"/>
+  <!-- Brass cog with 8 teeth, spokes, and a glowing arcane core -->
+  <g stroke="#8a6508" stroke-width="0.75">
+    <!-- Teeth: 8 radial blocks -->
+    <g fill="#c9941a">
+      <rect x="13.5" y="0.5"  width="5" height="5" rx="1"/>
+      <rect x="13.5" y="26.5" width="5" height="5" rx="1"/>
+      <rect x="0.5"  y="13.5" width="5" height="5" rx="1"/>
+      <rect x="26.5" y="13.5" width="5" height="5" rx="1"/>
+      <g transform="rotate(45 16 16)">
+        <rect x="13.5" y="0.5"  width="5" height="5" rx="1"/>
+        <rect x="13.5" y="26.5" width="5" height="5" rx="1"/>
+        <rect x="0.5"  y="13.5" width="5" height="5" rx="1"/>
+        <rect x="26.5" y="13.5" width="5" height="5" rx="1"/>
+      </g>
+    </g>
+    <!-- Gear body -->
+    <circle cx="16" cy="16" r="11.5" fill="#daa520"/>
+    <!-- Spoke cut-outs -->
+    <g fill="#2a2118" stroke="none">
+      <circle cx="16" cy="8.5"  r="2.4"/>
+      <circle cx="16" cy="23.5" r="2.4"/>
+      <circle cx="8.5"  cy="16" r="2.4"/>
+      <circle cx="23.5" cy="16" r="2.4"/>
+    </g>
+    <!-- Hub ring -->
+    <circle cx="16" cy="16" r="5.5" fill="#b8860b"/>
+  </g>
+  <!-- Arcane core: teal mana glow -->
+  <circle cx="16" cy="16" r="4.2" fill="#0d3a36"/>
+  <circle cx="16" cy="16" r="3.2" fill="#26a69a" opacity="0.85"/>
+  <circle cx="16" cy="16" r="1.6" fill="#a7ffeb"/>
 </svg>

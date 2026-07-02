@@ -56,6 +56,39 @@
                 "args": ["--path", "${workspaceFolder}"],
                 "group": "build",
                 "problemMatcher": []
+            },
+            {
+                "label": "Web: Export Local Build",
+                "type": "shell",
+                "command": "godot --headless --path . --export-release \"Web\" build/web/index.html",
+                "options": { "cwd": "${workspaceFolder}" },
+                "group": "build",
+                "problemMatcher": []
+            },
+            {
+                "label": "Web: Run in Browser (local server)",
+                "type": "shell",
+                "command": "Start-Process \"http://localhost:8060\"; python -m http.server 8060 --directory build/web",
+                "options": { "cwd": "${workspaceFolder}" },
+                "group": "build",
+                "isBackground": true,
+                "problemMatcher": []
+            },
+            {
+                "label": "Web: Deploy Update (push → GitHub Pages)",
+                "type": "shell",
+                "command": "git add -A; git commit -m \"${input:deployMessage}\"; git push origin main",
+                "options": { "cwd": "${workspaceFolder}" },
+                "group": "build",
+                "problemMatcher": []
+            }
+        ],
+        "inputs": [
+            {
+                "id": "deployMessage",
+                "type": "promptString",
+                "description": "Commit message for the web deploy",
+                "default": "Update web build"
             }
         ]
     }

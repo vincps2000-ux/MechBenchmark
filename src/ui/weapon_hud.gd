@@ -128,6 +128,12 @@ func _get_ammo_strip_spec(weapon_node: Node, _weapon_data: WeaponData, capacity:
 			"pip_count": capacity,
 			"unit_ammo": 1.0,
 		}
+	if script_path.ends_with("artillery.gd"):
+		return {
+			"style": "shell",
+			"pip_count": capacity,
+			"unit_ammo": 1.0,
+		}
 	if script_path.ends_with("flamethrower.gd"):
 		return {}  # Flamethrower now uses canister display instead of pips
 	return {}

@@ -4,6 +4,8 @@
 class_name MechPartData
 extends Resource
 
+## Stable catalog identifier used by MechBlueprint serialization.
+@export var id: String = ""
 @export var name: String = "Unnamed"
 @export var description: String = ""
 @export var tutorial_text: String = ""

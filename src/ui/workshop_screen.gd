@@ -38,6 +38,11 @@ var _all_torsos: Array[TorsoData]  = []
 var _all_guns:   Array[WeaponData] = []
 var _all_light_guns: Array[WeaponData] = []
 
+# ── Undo history (blueprint snapshots — every build step can be undone) ──────
+var _history: Array[Dictionary] = []
+var _last_state: Dictionary = {}
+var _restoring := false
+
 # ── Preview texture layers ────────────────────────────────────────────────────
 var _legs_rect:     TextureRect = null
 var _torso_rects:   Array[TextureRect] = []
@@ -129,6 +134,8 @@ func _ready() -> void:
 	_build_modify_modal()
 	_build_sub_modal()
 	_update_stats_preview()
+	_last_state = _capture_state()
+	_update_undo_button()
 
 # ── Parts catalog (left panel) ────────────────────────────────────────────────
 
@@ -518,13 +525,15 @@ static func _weapon_preview_rotation(gun: WeaponData) -> float:
 	match gun.weapon_type:
 		WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER, \
 		WeaponData.WeaponType.PLASMA_GUN, \
-		WeaponData.WeaponType.ROCKET_POD, WeaponData.WeaponType.MACHINEGUN:
+		WeaponData.WeaponType.ROCKET_POD, WeaponData.WeaponType.MACHINEGUN, \
+		WeaponData.WeaponType.ARTILLERY:
 			return deg_to_rad(-90.0)
 	return 0.0
 
 # ── UI refresh ────────────────────────────────────────────────────────────────
 
 func _refresh_ui() -> void:
+	_record_step()
 	_update_card_highlights()
 	_deploy_button.disabled = not _loadout.is_valid()
 	_update_info_text()
@@ -630,17 +639,64 @@ func _update_stats_preview() -> void:
 # ── Undo ──────────────────────────────────────────────────────────────────────
 
 func _on_undo_pressed() -> void:
-	if _loadout.selected_light_guns.size() > 0 or _loadout.selected_guns.size() > 0:
-		_rebuild_weapon_zones()
-	elif _has_any_torso():
-		_rebuild_torso_zones()
-	elif _loadout.selected_legs != null:
-		_loadout.selected_legs = null
-		_legs_rect.modulate.a = 0.0
-		_legs_zone.clear()
-		_legs_zone.visible = true
-		_rebuild_torso_zones()
+	if _history.is_empty():
+		return
+	var state: Dictionary = _history.pop_back()
+	_restore_state(state)
 	_refresh_ui()
+
+
+## Captures the current mech design as a JSON-like blueprint dictionary.
+func _capture_state() -> Dictionary:
+	return MechFactory.blueprint_from_loadout(_loadout).data
+
+
+## Pushes the previous state onto the history if the mech actually changed.
+## Called for every mutation (equips, weapon customizations, missile builder …)
+## so every build step can be undone.
+func _record_step() -> void:
+	if _restoring:
+		return
+	var state := _capture_state()
+	if JSON.stringify(state, "", true) == JSON.stringify(_last_state, "", true):
+		return
+	_history.append(_last_state.duplicate(true))
+	_last_state = state
+	_update_undo_button()
+
+
+## Regenerates the gameplay loadout from a blueprint snapshot and replays the
+## equip steps to rebuild the preview, drop zones and highlights.
+func _restore_state(state: Dictionary) -> void:
+	_restoring = true
+
+	var restored := MechFactory.build_loadout_from_dict(state)
+
+	# Reset to an empty mech.
+	_loadout = MechLoadout.new()
+	_legs_rect.modulate.a = 0.0
+	_legs_zone.clear()
+	_legs_zone.visible = true
+	_rebuild_torso_zones()
+
+	# Replay the equips through the normal handlers.
+	if restored.selected_legs:
+		_on_legs_equipped(restored.selected_legs)
+		for slot in restored.selected_torsos.size():
+			if restored.selected_torsos[slot]:
+				_on_torso_equipped(restored.selected_torsos[slot], slot)
+		for slot in restored.selected_guns.size():
+			if restored.selected_guns[slot]:
+				_on_weapon_equipped(restored.selected_guns[slot], slot)
+		for slot in restored.selected_light_guns.size():
+			if restored.selected_light_guns[slot]:
+				_on_light_weapon_equipped(restored.selected_light_guns[slot], slot)
+
+	_loadout.selected_utility_modules = restored.selected_utility_modules
+	_loadout.module_grids = restored.module_grids
+
+	_restoring = false
+	_last_state = state
 
 
 func _has_any_torso() -> bool:
@@ -651,7 +707,7 @@ func _has_any_torso() -> bool:
 
 
 func _update_undo_button() -> void:
-	_left_arrow.visible = _loadout.selected_legs != null
+	_left_arrow.visible = _history.size() > 0
 
 # ── Deploy ────────────────────────────────────────────────────────────────────
 
@@ -1050,6 +1106,7 @@ func _show_laser_intensity_modal(gun: WeaponData) -> void:
 
 func _on_laser_intensity_adjusted(delta: int, gun: WeaponData) -> void:
 	gun.laser_intensity = clampi(gun.laser_intensity + delta, 0, 4)
+	_record_step()
 	call_deferred("_show_laser_intensity_modal", gun)
 
 
@@ -1639,6 +1696,7 @@ func _show_ammo_type_modal(gun: WeaponData) -> void:
 
 func _on_ammo_selected(selected_type: WeaponData.AmmoType, gun: WeaponData) -> void:
 	gun.ammo_type = selected_type
+	_record_step()
 	_hide_sub_modal()
 
 
@@ -1697,6 +1755,7 @@ func _show_thrower_element_modal(gun: WeaponData) -> void:
 
 func _on_thrower_element_selected(selected_element: WeaponData.ThrowerElement, gun: WeaponData) -> void:
 	gun.thrower_element = selected_element
+	_record_step()
 	_hide_sub_modal()
 
 
@@ -1793,6 +1852,7 @@ func _show_thrower_nozzle_modal(gun: WeaponData) -> void:
 
 func _on_thrower_nozzle_selected(selected_nozzle: WeaponData.ThrowerNozzle, gun: WeaponData) -> void:
 	gun.thrower_nozzle = selected_nozzle
+	_record_step()
 	_hide_sub_modal()
 
 
@@ -1864,6 +1924,7 @@ func _show_targeting_type_modal(gun: WeaponData) -> void:
 
 func _on_targeting_selected(selected_type: WeaponData.TargetingType, gun: WeaponData) -> void:
 	gun.targeting_type = selected_type
+	_record_step()
 	_hide_sub_modal()
 
 
@@ -1983,6 +2044,7 @@ func _show_barrel_length_modal(gun: WeaponData) -> void:
 
 func _on_barrel_length_adjusted(delta: int, gun: WeaponData) -> void:
 	gun.barrel_length = WeaponData.clamp_barrel_length(gun.barrel_length + delta)
+	_record_step()
 	call_deferred("_show_barrel_length_modal", gun)
 
 
@@ -2451,4 +2513,5 @@ func _on_toggle_laser_pointer(gun: WeaponData) -> void:
 		var att := AttachmentData.new()
 		att.attachment_type = AttachmentData.AttachmentType.LASER_POINTER
 		gun.attachments.append(att)
+	_record_step()
 	call_deferred("_show_attachment_modal", gun)

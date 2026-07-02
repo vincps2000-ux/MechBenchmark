@@ -92,6 +92,7 @@ func setup(data: WeaponData) -> void:
 
 func stop_firing() -> void:
 	_firing = false
+	AudioEventSystem.set_flame_active(self, global_position, false)
 	_flame_poly.visible  = false
 	_flame_inner.visible = false
 	for poly in _tongues:
@@ -108,6 +109,8 @@ func _process(delta: float) -> void:
 			_fire_cone()
 		else:
 			_firing = false
+
+	AudioEventSystem.set_flame_active(self, global_position, _firing)
 
 	_animate_flame()
 

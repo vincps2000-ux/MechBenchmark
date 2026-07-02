@@ -10,8 +10,9 @@ extends Resource
 @export var selected_light_guns: Array[WeaponData] = []
 @export var selected_utility_modules: Array = []
 
-## Module grids per torso (not exported to avoid type resolution issues)
-var module_grids: Array = []  # Array of ModuleGrid objects
+## Module grids per torso. Exported (untyped) so the loadout round-trips through
+## ResourceSaver/ResourceLoader for save/load and mech import/export.
+@export var module_grids: Array = []  # Array of ModuleGrid objects
 
 ## Backward-compat property: get/set the first weapon.
 var selected_gun: WeaponData:

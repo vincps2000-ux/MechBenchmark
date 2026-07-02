@@ -120,6 +120,8 @@ func _shoot() -> void:
 	fire_dir = fire_dir.rotated(spread)
 	var muzzle_pos: Vector2 = global_position + fire_dir * _muzzle_distance
 
+	AudioEventSystem.play_weapon_fire(muzzle_pos, AudioEventSystem.WeaponSound.MACHINEGUN)
+
 	var proj: MachinegunProjectile = PROJECTILE_SCENE.instantiate()
 	proj.damage      = _damage
 	proj.pierce      = _pierce
