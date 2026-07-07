@@ -1,5 +1,6 @@
 # part_drop_zone.gd — Drop target for equipping mech parts in the workshop.
-# Visual feedback updates automatically during drag hover.
+# While a compatible part is being dragged anywhere on screen, the zone lights
+# up and pulses so the player immediately sees where the part can go.
 class_name PartDropZone
 extends Panel
 
@@ -17,6 +18,8 @@ var slot_index: int = 0
 
 var _label: Label = null
 var _is_hover: bool = false
+var _is_candidate: bool = false   # A compatible part is being dragged somewhere
+var _pulse_tween: Tween = null
 
 
 func setup(type: String, label: String, zone_size: Vector2, index: int = 0) -> void:
@@ -43,6 +46,14 @@ func clear() -> void:
 	_refresh()
 
 
+## True when this zone accepts parts of the given drag category.
+func _accepts(drag_type: String) -> bool:
+	if drag_type == accepted_type:
+		return true
+	# Light weapons can also be dropped in medium weapon slots
+	return accepted_type == "weapon" and drag_type == "light_weapon"
+
+
 # ── Drag-and-drop callbacks ──────────────────────────────────────────────────
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
@@ -51,13 +62,7 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 			_is_hover = false
 			_apply_style()
 		return false
-	var drag_type: String = data.get("type", "")
-	var ok := false
-	if drag_type == accepted_type:
-		ok = true
-	elif accepted_type == "weapon" and drag_type == "light_weapon":
-		# Light weapons can also be dropped in medium weapon slots
-		ok = true
+	var ok := _accepts(data.get("type", ""))
 	if _is_hover != ok:
 		_is_hover = ok
 		_apply_style()
@@ -72,9 +77,36 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END and _is_hover:
-		_is_hover = false
-		_apply_style()
+	match what:
+		NOTIFICATION_DRAG_BEGIN:
+			var data: Variant = get_viewport().gui_get_drag_data()
+			if data is Dictionary and _accepts(data.get("type", "")):
+				_is_candidate = true
+				_start_pulse()
+				_apply_style()
+		NOTIFICATION_DRAG_END:
+			_is_candidate = false
+			_is_hover = false
+			_stop_pulse()
+			_apply_style()
+
+
+# ── Pulse animation while a compatible drag is active ────────────────────────
+
+func _start_pulse() -> void:
+	_stop_pulse()
+	_pulse_tween = create_tween().set_loops()
+	_pulse_tween.tween_property(self, "self_modulate:a", 0.55, 0.4) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_pulse_tween.tween_property(self, "self_modulate:a", 1.0, 0.4) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _stop_pulse() -> void:
+	if _pulse_tween:
+		_pulse_tween.kill()
+		_pulse_tween = null
+	self_modulate.a = 1.0
 
 
 # ── Visuals ───────────────────────────────────────────────────────────────────
@@ -93,11 +125,19 @@ func _refresh() -> void:
 
 func _apply_style() -> void:
 	var s := StyleBoxFlat.new()
-	s.set_corner_radius_all(6)
+	s.set_corner_radius_all(8)
 	if _is_hover:
-		s.bg_color = Color(0.3, 0.22, 0.08, 0.8)
+		s.bg_color = Color(0.32, 0.24, 0.08, 0.9)
 		s.set_border_width_all(3)
 		s.border_color = Color(1.0, 0.85, 0.3, 1.0)
+		s.shadow_color = Color(1.0, 0.85, 0.3, 0.45)
+		s.shadow_size = 10
+	elif _is_candidate:
+		s.bg_color = Color(0.1, 0.2, 0.18, 0.75)
+		s.set_border_width_all(2)
+		s.border_color = Color(0.35, 0.9, 0.8, 0.95)
+		s.shadow_color = Color(0.3, 0.85, 0.75, 0.3)
+		s.shadow_size = 8
 	elif equipped_data:
 		s.bg_color = Color(0.15, 0.12, 0.08, 0.5)
 		s.set_border_width_all(2)

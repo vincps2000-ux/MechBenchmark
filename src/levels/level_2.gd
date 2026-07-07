@@ -4,6 +4,7 @@ extends Node2D
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const ENEMY_INFANTRY_SCENE := preload("res://scenes/enemies/enemy_infantry.tscn")
+const ENEMY_FPV_DRONE_SCENE := preload("res://scenes/enemies/enemy_fpv_drone.tscn")
 const EnergyHUD := preload("res://src/ui/energy_hud.gd")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 const DroneBatteryHUD := preload("res://src/ui/drone_battery_hud.gd")
@@ -37,6 +38,10 @@ const MAX_ENEMIES_ALIVE := 20
 const TOP_EDGE_SPAWN_INSET := 90.0
 const SPAWN_X_MARGIN := 110.0
 
+# FPV drones dive in over the trenches in periodic pairs.
+const FPV_DRONE_SPAWN_INTERVAL := 9.0
+const FPV_DRONE_SPAWN_BATCH := 2
+
 const XP_PER_KILL := 5
 
 @onready var background_rect: ColorRect = %BackgroundRect
@@ -57,6 +62,7 @@ var _arena_half_height: float = 1500.0
 var _level_won := false
 var _enemies_alive := 0
 var _spawn_timer := 0.0
+var _drone_spawn_timer := 0.0
 
 func _ready() -> void:
 	get_tree().call_group("level_effect", "queue_free")
@@ -101,6 +107,7 @@ func _ready() -> void:
 	_spawn_initial_enemies()
 
 	_spawn_timer = TOP_EDGE_SPAWN_INTERVAL
+	_drone_spawn_timer = FPV_DRONE_SPAWN_INTERVAL
 
 	_victory_screen = VictoryScreen.new()
 	$HUD/HUDControl.add_child(_victory_screen)
@@ -139,6 +146,13 @@ func _process(delta: float) -> void:
 		if _enemies_alive < MAX_ENEMIES_ALIVE:
 			for _i in TOP_EDGE_SPAWN_BATCH:
 				_spawn_top_edge_enemy()
+
+	_drone_spawn_timer -= delta
+	if _drone_spawn_timer <= 0.0:
+		_drone_spawn_timer = FPV_DRONE_SPAWN_INTERVAL
+		if _enemies_alive < MAX_ENEMIES_ALIVE:
+			for _i in FPV_DRONE_SPAWN_BATCH:
+				_spawn_top_edge_enemy(ENEMY_FPV_DRONE_SCENE)
 
 func _compute_arena_half_height() -> float:
 	if not is_instance_valid(_player_camera):
@@ -361,20 +375,20 @@ func _spawn_initial_enemies() -> void:
 		var x := randf_range(-ARENA_HALF_WIDTH + 100.0, ARENA_HALF_WIDTH - 100.0)
 		_spawn_enemy(Vector2(x, y))
 
-func _spawn_top_edge_enemy() -> void:
+func _spawn_top_edge_enemy(enemy_scene: PackedScene = ENEMY_INFANTRY_SCENE) -> void:
 	var x := randf_range(-ARENA_HALF_WIDTH + SPAWN_X_MARGIN, ARENA_HALF_WIDTH - SPAWN_X_MARGIN)
 	var y := -_arena_half_height + TOP_EDGE_SPAWN_INSET
-	_spawn_enemy(Vector2(x, y))
+	_spawn_enemy(Vector2(x, y), enemy_scene)
 
-func _spawn_enemy(pos: Vector2) -> void:
-	var enemy := ENEMY_INFANTRY_SCENE.instantiate() as CharacterBody2D
+func _spawn_enemy(pos: Vector2, enemy_scene: PackedScene = ENEMY_INFANTRY_SCENE) -> void:
+	var enemy := enemy_scene.instantiate() as CharacterBody2D
 	enemy.global_position = pos
 	enemy.died.connect(_on_enemy_died)
 	_enemies_node.add_child(enemy)
 	_enemies_alive += 1
 	GameManager.enemies_alive += 1
 
-func _on_enemy_died(_enemy: EnemyInfantry) -> void:
+func _on_enemy_died(_enemy: Node) -> void:
 	_enemies_alive = max(0, _enemies_alive - 1)
 	GameManager.on_enemy_killed(XP_PER_KILL)
 

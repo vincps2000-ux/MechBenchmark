@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://workshop_screen_001"]
+[gd_scene load_steps=6 format=3 uid="uid://workshop_screen_001"]
 
 [ext_resource type="Script" path="res://src/ui/workshop_screen.gd" id="1"]
 [ext_resource type="Shader" path="res://src/ui/start_background.gdshader" id="2"]
@@ -10,6 +10,36 @@ shader_parameter/color_dark = Color(0.06, 0.07, 0.1, 1)
 shader_parameter/color_mid = Color(0.14, 0.16, 0.22, 1)
 shader_parameter/color_accent = Color(0.75, 0.5, 0.15, 1)
 shader_parameter/color_teal = Color(0.15, 0.55, 0.55, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview"]
+bg_color = Color(0.05, 0.06, 0.09, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.5, 0.5, 0.4)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_parts"]
+bg_color = Color(0.05, 0.06, 0.09, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.35)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
 
 [node name="WorkshopScreen" type="Control"]
 layout_mode = 3
@@ -99,6 +129,7 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_parts")
 
 [node name="PartsBox" type="VBoxContainer" parent="MarginContainer/MainVBox/ContentHBox/PartsPanel/PartsScroll"]
 unique_name_in_owner = true
@@ -134,6 +165,7 @@ horizontal_alignment = 1
 layout_mode = 2
 size_flags_vertical = 3
 custom_minimum_size = Vector2(0, 300)
+theme_override_styles/panel = SubResource("StyleBoxFlat_preview")
 
 [node name="PreviewCenter" type="CenterContainer" parent="MarginContainer/MainVBox/ContentHBox/RightPanel/PreviewBG"]
 layout_mode = 1

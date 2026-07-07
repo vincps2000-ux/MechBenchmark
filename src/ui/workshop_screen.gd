@@ -61,6 +61,17 @@ var _torso_cards:  Array[DragPartCard] = []
 var _weapon_cards: Array[DragPartCard] = []
 var _light_weapon_cards: Array[DragPartCard] = []
 
+# ── Catalog category tabs ─────────────────────────────────────────────────────
+const _CATALOG_CATEGORIES := [
+	{"id": "legs",         "label": "LEGS"},
+	{"id": "torso",        "label": "TORSO"},
+	{"id": "weapon",       "label": "WEAPONS"},
+	{"id": "light_weapon", "label": "LIGHT"},
+]
+var _catalog_tab_bar: HBoxContainer = null
+var _catalog_tab_buttons: Dictionary = {}   # id -> Button
+var _catalog_pages: Dictionary = {}         # id -> VBoxContainer
+
 # ── Modify modal ──────────────────────────────────────────────────────────────
 var _modal_overlay: ColorRect = null
 var _modal_panel:   PanelContainer = null
@@ -120,8 +131,8 @@ func _ready() -> void:
 	_left_arrow.visible = false
 	_left_arrow.pressed.connect(_on_undo_pressed)
 
-	_step_label.text     = "DRAG PARTS ONTO THE MECH"
-	_selection_info.text = "Drag a part from the catalog and drop it on a slot"
+	_step_label.text     = "DRAG PARTS ONTO THE MECH — OR DOUBLE-CLICK TO EQUIP"
+	_selection_info.text = "Drag a part onto a glowing slot, or double-click it in the catalog"
 
 	_build_parts_catalog()
 	_build_preview_layers()
@@ -142,65 +153,187 @@ func _ready() -> void:
 func _build_parts_catalog() -> void:
 	for child in _parts_box.get_children():
 		child.queue_free()
-	_parts_label.text = "PARTS CATALOG"
+	if _catalog_tab_bar:
+		_catalog_tab_bar.queue_free()
+	_catalog_tab_buttons.clear()
+	_catalog_pages.clear()
+	_parts_label.text = "PARTS CATALOG  ·  drag or double-click to equip"
 	_leg_cards.clear()
 	_torso_cards.clear()
 	_weapon_cards.clear()
 	_light_weapon_cards.clear()
 
-	var legs_body := _add_section_header("── MOVEMENT ──")
+	# ── Category tab bar (above the scroll area) ──────────────────────────
+	var parts_panel := _parts_scroll.get_parent()
+	_catalog_tab_bar = HBoxContainer.new()
+	_catalog_tab_bar.add_theme_constant_override("separation", 6)
+	parts_panel.add_child(_catalog_tab_bar)
+	parts_panel.move_child(_catalog_tab_bar, _parts_scroll.get_index())
+
+	var group := ButtonGroup.new()
+	for cat in _CATALOG_CATEGORIES:
+		var id: String = cat["id"]
+		var btn := Button.new()
+		btn.toggle_mode = true
+		btn.button_group = group
+		btn.text = cat["label"]
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0, 36)
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		_style_tab_button(btn)
+		btn.toggled.connect(func(on: bool):
+			if on:
+				_show_catalog_page(id)
+		)
+		_catalog_tab_bar.add_child(btn)
+		_catalog_tab_buttons[id] = btn
+
+		var page := VBoxContainer.new()
+		page.add_theme_constant_override("separation", 8)
+		page.visible = false
+		_parts_box.add_child(page)
+		_catalog_pages[id] = page
+
+	# ── Cards ──────────────────────────────────────────────────────────────
 	for i in _all_legs.size():
-		var card := DragPartCard.new()
-		card.setup(_all_legs[i], "legs", i)
-		card.wiki_pressed.connect(_on_part_wiki_requested)
-		legs_body.add_child(card)
-		_leg_cards.append(card)
-
-	var torsos_body := _add_section_header("── TORSO ──")
+		_leg_cards.append(_add_part_card(_all_legs[i], "legs", i))
 	for i in _all_torsos.size():
-		var card := DragPartCard.new()
-		card.setup(_all_torsos[i], "torso", i)
-		card.wiki_pressed.connect(_on_part_wiki_requested)
-		torsos_body.add_child(card)
-		_torso_cards.append(card)
-
-	var weapons_body := _add_section_header("── WEAPONS ──")
+		_torso_cards.append(_add_part_card(_all_torsos[i], "torso", i))
 	for i in _all_guns.size():
-		var card := DragPartCard.new()
-		card.setup(_all_guns[i], "weapon", i)
-		card.modify_pressed.connect(_on_modify_weapon)
-		card.wiki_pressed.connect(_on_part_wiki_requested)
-		weapons_body.add_child(card)
-		_weapon_cards.append(card)
-
-	var light_body := _add_section_header("── LIGHT WEAPONS ──")
+		_weapon_cards.append(_add_part_card(_all_guns[i], "weapon", i))
 	for i in _all_light_guns.size():
-		var card := DragPartCard.new()
-		card.setup(_all_light_guns[i], "light_weapon", i)
+		_light_weapon_cards.append(_add_part_card(_all_light_guns[i], "light_weapon", i))
+
+	_select_catalog_tab("legs")
+	_update_catalog_tab_badges()
+
+
+func _add_part_card(data: Variant, type: String, index: int) -> DragPartCard:
+	var card := DragPartCard.new()
+	card.setup(data, type, index)
+	card.wiki_pressed.connect(_on_part_wiki_requested)
+	card.quick_equip.connect(_on_quick_equip)
+	if type == "weapon" or type == "light_weapon":
 		card.modify_pressed.connect(_on_modify_weapon)
-		card.wiki_pressed.connect(_on_part_wiki_requested)
-		light_body.add_child(card)
-		_light_weapon_cards.append(card)
+	(_catalog_pages[type] as VBoxContainer).add_child(card)
+	return card
 
 
-func _add_section_header(text: String) -> VBoxContainer:
-	var btn := Button.new()
-	btn.text = "▼ " + text
-	btn.flat = true
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.add_theme_color_override("font_color", Color(0.6, 0.8, 0.75, 0.65))
-	btn.custom_minimum_size = Vector2(0, 30)
-	_parts_box.add_child(btn)
+static func _style_tab_button(btn: Button) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.1, 0.11, 0.15, 0.7)
+	normal.set_border_width_all(1)
+	normal.border_color = Color(0.32, 0.35, 0.4, 0.5)
+	normal.set_corner_radius_all(8)
+	normal.set_content_margin_all(6)
+	btn.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.16, 0.19, 0.24, 0.9)
+	hover.border_color = Color(0.4, 0.75, 0.75, 0.8)
+	btn.add_theme_stylebox_override("hover", hover)
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.26, 0.2, 0.08, 0.95)
+	pressed.border_color = Color(0.95, 0.7, 0.2, 1.0)
+	btn.add_theme_stylebox_override("pressed", pressed)
+	btn.add_theme_stylebox_override("hover_pressed", pressed)
+	btn.add_theme_color_override("font_color", Color(0.7, 0.72, 0.7))
+	btn.add_theme_color_override("font_pressed_color", Color(0.95, 0.85, 0.6))
+	btn.add_theme_color_override("font_hover_color", Color(0.85, 0.9, 0.9))
+	btn.add_theme_color_override("font_hover_pressed_color", Color(0.95, 0.85, 0.6))
+	btn.add_theme_font_size_override("font_size", 13)
 
-	var body := VBoxContainer.new()
-	_parts_box.add_child(body)
 
-	btn.pressed.connect(func():
-		body.visible = !body.visible
-		btn.text = ("▼ " if body.visible else "▶ ") + text
-	)
-	return body
+func _select_catalog_tab(id: String) -> void:
+	var btn: Button = _catalog_tab_buttons.get(id)
+	if btn == null:
+		return
+	btn.button_pressed = true
+	_show_catalog_page(id)
+
+
+func _show_catalog_page(id: String) -> void:
+	for page_id in _catalog_pages:
+		(_catalog_pages[page_id] as VBoxContainer).visible = page_id == id
+	_parts_scroll.scroll_vertical = 0
+
+
+## Updates each tab with an equipped/total badge, e.g. "WEAPONS 1/2".
+func _update_catalog_tab_badges() -> void:
+	if _catalog_tab_buttons.is_empty():
+		return
+	var counts := {
+		"legs":         [1 if _loadout.selected_legs else 0, 1],
+		"torso":        [0, 0],
+		"weapon":       [0, _weapon_zones.size()],
+		"light_weapon": [0, _light_weapon_zones.size()],
+	}
+	if _loadout.selected_legs:
+		counts["torso"][1] = _loadout.selected_legs.torso_slots
+	for torso in _loadout.selected_torsos:
+		if torso:
+			counts["torso"][0] += 1
+	for gun in _loadout.selected_guns:
+		if gun:
+			counts["weapon"][0] += 1
+	for gun in _loadout.selected_light_guns:
+		if gun:
+			counts["light_weapon"][0] += 1
+	for cat in _CATALOG_CATEGORIES:
+		var id: String = cat["id"]
+		var btn := _catalog_tab_buttons[id] as Button
+		var filled: int = counts[id][0]
+		var total: int = counts[id][1]
+		if total <= 0:
+			btn.text = cat["label"]
+		elif filled >= total:
+			btn.text = "%s ✓" % cat["label"]
+		else:
+			btn.text = "%s %d/%d" % [cat["label"], filled, total]
+
+
+# ── Quick equip (double-click a catalog card) ─────────────────────────────────
+
+## Equips the part into the first free matching slot, mirroring a drag-drop.
+func _on_quick_equip(data: Variant, type: String) -> void:
+	match type:
+		"legs":
+			if _loadout.selected_legs == null:
+				_on_legs_equipped(data)
+		"torso":
+			if _loadout.selected_legs == null:
+				return
+			for i in _loadout.selected_legs.torso_slots:
+				var occupied: bool = i < _loadout.selected_torsos.size() \
+						and _loadout.selected_torsos[i] != null
+				if not occupied:
+					_on_torso_equipped(data, i)
+					return
+		"weapon":
+			_quick_equip_weapon(data)
+		"light_weapon":
+			if not _quick_equip_light_weapon(data):
+				_quick_equip_weapon(data)
+
+
+func _quick_equip_weapon(data: Variant) -> bool:
+	for i in _weapon_zones.size():
+		var occupied: bool = i < _loadout.selected_guns.size() \
+				and _loadout.selected_guns[i] != null
+		if not occupied:
+			_on_weapon_equipped(data, i)
+			return true
+	return false
+
+
+func _quick_equip_light_weapon(data: Variant) -> bool:
+	for i in _light_weapon_zones.size():
+		var occupied: bool = i < _loadout.selected_light_guns.size() \
+				and _loadout.selected_light_guns[i] != null
+		if not occupied:
+			_on_light_weapon_equipped(data, i)
+			return true
+	return false
 
 # ── Preview sprite layers ────────────────────────────────────────────────────
 
@@ -458,6 +591,8 @@ func _on_legs_equipped(data: Variant) -> void:
 	_update_preview_layer(_legs_rect, _loadout.selected_legs.get_sprite_path())
 	_legs_zone.visible = false
 	_rebuild_torso_zones()
+	if not _restoring:
+		_select_catalog_tab("torso")
 	_refresh_ui()
 
 
@@ -477,7 +612,18 @@ func _on_torso_equipped(data: Variant, slot: int) -> void:
 		_torso_zones[slot].visible = false
 
 	_rebuild_weapon_zones()
+	if not _restoring and _all_torso_slots_filled():
+		_select_catalog_tab("weapon")
 	_refresh_ui()
+
+
+func _all_torso_slots_filled() -> bool:
+	if _loadout.selected_legs == null:
+		return false
+	for i in _loadout.selected_legs.torso_slots:
+		if i >= _loadout.selected_torsos.size() or _loadout.selected_torsos[i] == null:
+			return false
+	return true
 
 
 func _on_weapon_equipped(data: Variant, slot: int) -> void:
@@ -535,6 +681,7 @@ static func _weapon_preview_rotation(gun: WeaponData) -> float:
 func _refresh_ui() -> void:
 	_record_step()
 	_update_card_highlights()
+	_update_catalog_tab_badges()
 	_deploy_button.disabled = not _loadout.is_valid()
 	_update_info_text()
 	_update_stats_preview()
@@ -585,7 +732,7 @@ func _update_info_text() -> void:
 		if gun:
 			parts.append(gun.name)
 	if parts.is_empty():
-		_selection_info.text = "Drag a part from the catalog and drop it on a slot"
+		_selection_info.text = "Drag a part onto a glowing slot, or double-click it in the catalog"
 	else:
 		_selection_info.text = " + ".join(parts)
 

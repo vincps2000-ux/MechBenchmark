@@ -5,6 +5,7 @@ extends Node2D
 
 const PLAYER_SCENE  := preload("res://scenes/player/player.tscn")
 const ENEMY_INFANTRY_SCENE := preload("res://scenes/enemies/enemy_infantry.tscn")
+const ENEMY_FPV_DRONE_SCENE := preload("res://scenes/enemies/enemy_fpv_drone.tscn")
 const EnergyHUD := preload("res://src/ui/energy_hud.gd")
 const WeaponHUD := preload("res://src/ui/weapon_hud.gd")
 const DroneBatteryHUD := preload("res://src/ui/drone_battery_hud.gd")
@@ -28,6 +29,9 @@ const TOTAL_WAVES := 3
 
 ## Enemy counts per wave (escalating)
 const WAVE_ENEMY_COUNTS: Array[int] = [4, 6, 10]
+
+## FPV drone counts per wave — kamikaze pressure ramps up with later ambushes
+const WAVE_DRONE_COUNTS: Array[int] = [0, 3, 5]
 
 ## Seconds between waves
 const WAVE_DELAY := 3.0
@@ -271,13 +275,15 @@ func _start_next_wave() -> void:
 	var count: int = WAVE_ENEMY_COUNTS[_current_wave - 1] if _current_wave - 1 < WAVE_ENEMY_COUNTS.size() else 8
 	var dirs: Array = WAVE_SPAWN_DIRS[_current_wave - 1] if _current_wave - 1 < WAVE_SPAWN_DIRS.size() else [Vector2(1,0)]
 	_spawn_wave(count, dirs)
+	var drone_count: int = WAVE_DRONE_COUNTS[_current_wave - 1] if _current_wave - 1 < WAVE_DRONE_COUNTS.size() else 3
+	_spawn_wave(drone_count, dirs, ENEMY_FPV_DRONE_SCENE)
 	_update_objective_hud()
 
 	# Flash "SURPRISE!" for ambush waves (wave 2+)
 	if _current_wave >= 2 and wave_label:
 		_flash_surprise()
 
-func _spawn_wave(count: int, directions: Array) -> void:
+func _spawn_wave(count: int, directions: Array, enemy_scene: PackedScene = ENEMY_INFANTRY_SCENE) -> void:
 	var player_pos := _player.global_position if is_instance_valid(_player) else Vector2.ZERO
 	for i in count:
 		var dir_idx := i % directions.size()
@@ -291,14 +297,14 @@ func _spawn_wave(count: int, directions: Array) -> void:
 		spawn_pos.x = clampf(spawn_pos.x, -ARENA_HALF_SIZE + 50, ARENA_HALF_SIZE - 50)
 		spawn_pos.y = clampf(spawn_pos.y, -ARENA_HALF_SIZE + 50, ARENA_HALF_SIZE - 50)
 
-		var enemy: CharacterBody2D = ENEMY_INFANTRY_SCENE.instantiate()
+		var enemy: CharacterBody2D = enemy_scene.instantiate()
 		enemy.global_position = spawn_pos
 		enemy.died.connect(_on_enemy_died)
 		_enemies_node.add_child(enemy)
 		_enemies_alive += 1
 		GameManager.enemies_alive += 1
 
-func _on_enemy_died(_enemy: EnemyInfantry) -> void:
+func _on_enemy_died(_enemy: Node) -> void:
 	_enemies_alive -= 1
 	_total_killed += 1
 	GameManager.on_enemy_killed(XP_PER_KILL)
