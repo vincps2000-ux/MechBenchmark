@@ -10,6 +10,8 @@ const PLASMA_GUN_SCENE   := preload("res://scenes/weapons/plasma_gun.tscn")
 const ROCKET_POD_SCENE   := preload("res://scenes/weapons/rocket_pod.tscn")
 const MACHINEGUN_SCENE   := preload("res://scenes/weapons/machinegun.tscn")
 const ARTILLERY_SCENE    := preload("res://scenes/weapons/artillery.tscn")
+const POM_POM_SCENE      := preload("res://scenes/weapons/pom_pom_gun.tscn")
+const C4_SCENE           := preload("res://scenes/weapons/c4_launcher.tscn")
 const RECON_DRONE_SCENE  := preload("res://scenes/player/recon_drone.tscn")
 const DRONE_EXPLOSION_SCENE := preload("res://scenes/weapons/autocannon_explosion.tscn")
 const _DirectionArrow    := preload("res://src/player/direction_arrow.gd")
@@ -22,6 +24,7 @@ const ROTATION_SPEED_LANDSHIP := 0.45  # rad/s — landship turns even slower th
 const TANK_FORWARD_MULT     := 1.3   # extra power in straight-line tank drive
 const TORSO_ROTATION_SPEED  := 4.0   # rad/s — torso tracks mouse independently
 const TORSO_ROTATION_SPEED_NAVAL_TURRET := 0.2  # rad/s — naval turret rotates extremely slowly
+const CYCLONE_SPIN_SPEED := 2.5      # rad/s — cyclone carousel spins continuously, ignoring aim
 const ROTATION_SPEED_WALKER := 3.0   # rad/s — walker body rotation toward mouse (Q held)
 const TORSO_DEADSPOT_HALF_ANGLE := deg_to_rad(35.0)
 const BASE_MAX_ENERGY := 100.0
@@ -245,6 +248,7 @@ func _apply_torso_texture_to_sprite(target: Sprite2D, torso: TorsoData) -> void:
 # Heavy torso supports two mounts (left + right flank), others have one.
 func _mount_weapons(torso_type: TorsoData.TorsoType) -> void:
 	var offsets := MechAssembler.get_weapon_offsets(torso_type)
+	var mount_rotations := MechAssembler.get_weapon_mount_rotations(torso_type)
 	var loadout: MechLoadout = GameManager.current_loadout
 	var guns: Array[WeaponData] = loadout.selected_guns if loadout else []
 
@@ -267,6 +271,8 @@ func _mount_weapons(torso_type: TorsoData.TorsoType) -> void:
 			mount.name = "WeaponMount%d" % (i + 1)
 			torso_sprite.add_child(mount)
 		mount.position = offsets[i]
+		if i < mount_rotations.size():
+			mount.rotation = mount_rotations[i]
 		_weapon_mounts.append(mount)
 
 		var weapon: Node = _instantiate_weapon(gun_data.weapon_type)
@@ -287,6 +293,7 @@ func _mount_weapons_for_torsos(torsos: Array[TorsoData], loadout: MechLoadout) -
 	var gun_index := 0
 	for torso_index in mini(torsos.size(), _torso_mount_roots.size()):
 		var offsets := MechAssembler.get_weapon_offsets(torsos[torso_index].torso_type)
+		var mount_rotations := MechAssembler.get_weapon_mount_rotations(torsos[torso_index].torso_type)
 		var mount_root := _torso_mount_roots[torso_index]
 		for mount_index in offsets.size():
 			if gun_index >= guns.size():
@@ -307,6 +314,8 @@ func _mount_weapons_for_torsos(torsos: Array[TorsoData], loadout: MechLoadout) -
 				mount_root.get_parent().add_child(mount)
 
 			mount.position = offsets[mount_index]
+			if mount_index < mount_rotations.size():
+				mount.rotation = mount_rotations[mount_index]
 			_weapon_mounts.append(mount)
 
 			var weapon: Node = _instantiate_weapon(gun_data.weapon_type)
@@ -325,6 +334,8 @@ func _instantiate_weapon(weapon_type: WeaponData.WeaponType) -> Node:
 		WeaponData.WeaponType.ROCKET_POD:   return ROCKET_POD_SCENE.instantiate()
 		WeaponData.WeaponType.MACHINEGUN:   return MACHINEGUN_SCENE.instantiate()
 		WeaponData.WeaponType.ARTILLERY:    return ARTILLERY_SCENE.instantiate()
+		WeaponData.WeaponType.POM_POM:      return POM_POM_SCENE.instantiate()
+		WeaponData.WeaponType.C4:           return C4_SCENE.instantiate()
 		_:                                  return FLAMETHROWER_SCENE.instantiate()
 
 static func _get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2]:
@@ -824,17 +835,26 @@ func _regen_energy(delta: float) -> void:
 func _rotate_torso_toward_mouse(delta: float) -> void:
 	var mouse_world := get_global_mouse_position()
 	var to_mouse := mouse_world - global_position
-	if to_mouse.length_squared() < 16.0:
-		return
+	var has_aim := to_mouse.length_squared() >= 16.0
 	# Desired angle in world space → convert to torso local space
 	var desired_local := to_mouse.angle() - global_rotation
 	for i in _torso_sprites.size():
 		var torso_type := _torso_data[i].torso_type if i < _torso_data.size() else TorsoData.TorsoType.CARGO
+		var sprite := _torso_sprites[i]
+		if torso_type == TorsoData.TorsoType.CYCLONE:
+			# Carousel spins continuously — mouse aim is ignored entirely.
+			sprite.rotation = wrapf(sprite.rotation + CYCLONE_SPIN_SPEED * delta, -PI, PI)
+			continue
+		if torso_type == TorsoData.TorsoType.BASTION:
+			# Casemate is welded to the hull — no traverse at all.
+			sprite.rotation = 0.0
+			continue
+		if not has_aim:
+			continue
 		var rotation_speed := TORSO_ROTATION_SPEED_NAVAL_TURRET if torso_type == TorsoData.TorsoType.NAVAL_TURRET else TORSO_ROTATION_SPEED
 		var step := rotation_speed * delta
 		var side := _torso_deadspot_sides[i] if i < _torso_deadspot_sides.size() else TorsoDeadspotSide.NONE
 		var clamped_local := apply_torso_deadspot(desired_local, side)
-		var sprite := _torso_sprites[i]
 		var diff := _compute_deadspot_safe_diff(sprite.rotation, clamped_local, side)
 		sprite.rotation += clampf(diff, -step, step)
 
@@ -922,8 +942,15 @@ func _update_weapon_deadspot_blocks() -> void:
 	for i in _weapons.size():
 		var torso_index := _weapon_torso_indices[i] if i < _weapon_torso_indices.size() else 0
 		var side := _torso_deadspot_sides[torso_index] if torso_index < _torso_deadspot_sides.size() else TorsoDeadspotSide.NONE
-		var blocked := _is_angle_in_deadspot(desired_local, side)
 		var weapon := _weapons[i]
+		# Cyclone/Bastion weapons fire along their mount facing, not the mouse —
+		# block on the weapon's actual heading instead of the desired aim angle.
+		var torso_type := _torso_data[torso_index].torso_type if torso_index < _torso_data.size() else TorsoData.TorsoType.CARGO
+		var check_angle := desired_local
+		if torso_type == TorsoData.TorsoType.CYCLONE or torso_type == TorsoData.TorsoType.BASTION:
+			if weapon is Node2D:
+				check_angle = wrapf(weapon.global_rotation - global_rotation, -PI, PI)
+		var blocked := _is_angle_in_deadspot(check_angle, side)
 		if blocked:
 			weapon.set("fire_action", "__deadspot_blocked__")
 			if weapon.has_method("stop_firing"):

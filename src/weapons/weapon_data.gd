@@ -11,6 +11,8 @@ enum WeaponType {
 	ROCKET_POD,   # Light multi-rocket launcher — fits medium & light slots
 	MACHINEGUN,   # Light rapid-fire — high fire rate, low damage per bullet
 	ARTILLERY,    # Long-range bombardment — paints a target circle, then a huge delayed blast
+	POM_POM,      # Light quad flak gun — rhythmic 4-round bursts of airbursting shells
+	C4,           # Light charge launcher — sticky C4 bricks, manual remote detonation, huge blast
 }
 
 enum SlotSize {
@@ -120,6 +122,8 @@ func get_sprite_path() -> String:
 		WeaponType.ROCKET_POD:               return "res://assets/sprites/weapon_rocket_pod.svg"
 		WeaponType.MACHINEGUN:               return "res://assets/sprites/weapon_gun.svg"
 		WeaponType.ARTILLERY:                return "res://assets/sprites/weapon_artillery.svg"
+		WeaponType.POM_POM:                  return "res://assets/sprites/weapon_pom_pom.svg"
+		WeaponType.C4:                       return "res://assets/sprites/weapon_c4.svg"
 		_:                                    return "res://assets/sprites/weapon_gun.svg"
 
 func can_level_up() -> bool:

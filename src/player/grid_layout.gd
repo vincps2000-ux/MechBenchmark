@@ -5,7 +5,9 @@ class_name GridLayout
 enum GridType {
 	HEAVY_3X3,
 	STEALTH_T,
-	CARGO_PYRAMID
+	CARGO_PYRAMID,
+	CYCLONE_RING,
+	BASTION_BLOCK
 }
 
 ## Get the grid type for a torso type string
@@ -17,6 +19,10 @@ static func get_grid_type(torso_type) -> GridType:
 			return GridType.STEALTH_T
 		TorsoData.TorsoType.CARGO:
 			return GridType.CARGO_PYRAMID
+		TorsoData.TorsoType.CYCLONE:
+			return GridType.CYCLONE_RING
+		TorsoData.TorsoType.BASTION:
+			return GridType.BASTION_BLOCK
 	return GridType.HEAVY_3X3  # Default
 
 ## Get all valid grid cells for a given grid type
@@ -28,6 +34,10 @@ static func get_grid_shape(grid_type: GridType) -> Array[Vector2i]:
 			return get_stealth_grid()
 		GridType.CARGO_PYRAMID:
 			return get_cargo_grid()
+		GridType.CYCLONE_RING:
+			return get_cyclone_grid()
+		GridType.BASTION_BLOCK:
+			return get_bastion_grid()
 	return []
 
 ## Heavy: 3x3 grid (all 9 cells)
@@ -67,6 +77,31 @@ static func get_cargo_grid() -> Array[Vector2i]:
 	cells.append(Vector2i(2, 2))
 	return cells
 
+## Cyclone: 3x3 ring — the spindle occupies the centre (8 cells)
+## Layout:
+##  XXX
+##  X.X
+##  XXX
+static func get_cyclone_grid() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in range(3):
+		for x in range(3):
+			if x == 1 and y == 1:
+				continue  # centre spindle
+			cells.append(Vector2i(x, y))
+	return cells
+
+## Bastion: deep 4x2 casemate block (8 cells)
+## Layout:
+##  XXXX
+##  XXXX
+static func get_bastion_grid() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in range(2):
+		for x in range(4):
+			cells.append(Vector2i(x, y))
+	return cells
+
 ## Get the grid dimensions (width, height) for a given grid type
 static func get_grid_dimensions(grid_type: GridType) -> Vector2i:
 	match grid_type:
@@ -76,6 +111,10 @@ static func get_grid_dimensions(grid_type: GridType) -> Vector2i:
 			return Vector2i(3, 3)
 		GridType.CARGO_PYRAMID:
 			return Vector2i(5, 3)
+		GridType.CYCLONE_RING:
+			return Vector2i(3, 3)
+		GridType.BASTION_BLOCK:
+			return Vector2i(4, 2)
 	return Vector2i(1, 1)
 
 ## Create an empty grid (2D array of nulls) for the given grid type

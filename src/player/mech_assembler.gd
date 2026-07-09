@@ -37,8 +37,26 @@ static func get_weapon_offsets(torso_type: TorsoData.TorsoType) -> Array[Vector2
 		TorsoData.TorsoType.NAVAL_TURRET:
 			# Center, left flank, right flank — turret configuration
 			return [Vector2(8.0, 0.0), Vector2(4.0, 16.0), Vector2(4.0, -16.0)]
+		TorsoData.TorsoType.CYCLONE:
+			# Back-to-back carousel mounts — rear mount is rotated 180°
+			return [Vector2(12.0, 0.0), Vector2(-12.0, 0.0)]
+		TorsoData.TorsoType.BASTION:
+			# Fixed twin guns behind the sloped casemate front
+			return [Vector2(8.0, 9.0), Vector2(8.0, -9.0)]
 		_:
 			return [Vector2.ZERO]
+
+## Weapon mount rotations (radians, sprite-local) per mount index.
+## Cyclone mounts point in opposite directions so its spin sweeps 360°.
+static func get_weapon_mount_rotations(torso_type: TorsoData.TorsoType) -> Array[float]:
+	match torso_type:
+		TorsoData.TorsoType.CYCLONE:
+			return [0.0, PI]
+		_:
+			var rotations: Array[float] = []
+			for _offset in get_weapon_offsets(torso_type):
+				rotations.append(0.0)
+			return rotations
 
 ## Light weapon mount offsets in sprite-local space.
 ## Stealth: one light slot on the right flank of the torso.
@@ -72,9 +90,11 @@ static func light_weapon_rect_size(container_px: float) -> float:
 	return container_px * (LIGHT_WEAPON_NATIVE_PX / TORSO_NATIVE_PX)
 
 ## Utility slot count granted by a torso type.
-## Cargo = 2, Stealth = 3, all others = 1.
+## Bastion = 4, Stealth = 3, Cargo = 2, all others = 1.
 static func get_utility_slots(torso_type: TorsoData.TorsoType) -> int:
 	match torso_type:
+		TorsoData.TorsoType.BASTION:
+			return 4
 		TorsoData.TorsoType.CARGO:
 			return 2
 		TorsoData.TorsoType.STEALTH:

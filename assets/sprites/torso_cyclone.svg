@@ -1,0 +1,17 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cyclone torso: spinning weapon carousel, facing +X -->
+  <!-- Bearing ring -->
+  <circle cx="32" cy="32" r="24" fill="#3a2f4a" stroke="#5a4a72" stroke-width="2"/>
+  <circle cx="32" cy="32" r="19" fill="#463a58" stroke="#5a4a72" stroke-width="1"/>
+  <!-- Rotor blades (pinwheel) -->
+  <path d="M32 32 L54 26 L54 38 Z" fill="#6a5a86" stroke="#8a76ae" stroke-width="1"/>
+  <path d="M32 32 L10 38 L10 26 Z" fill="#6a5a86" stroke="#8a76ae" stroke-width="1"/>
+  <path d="M32 32 L26 10 L38 10 Z" fill="#584a70" stroke="#8a76ae" stroke-width="1" opacity="0.85"/>
+  <path d="M32 32 L38 54 L26 54 Z" fill="#584a70" stroke="#8a76ae" stroke-width="1" opacity="0.85"/>
+  <!-- Motion arcs -->
+  <path d="M32 8 A24 24 0 0 1 52 20" fill="none" stroke="#b09ad8" stroke-width="1.5" opacity="0.6"/>
+  <path d="M32 56 A24 24 0 0 1 12 44" fill="none" stroke="#b09ad8" stroke-width="1.5" opacity="0.6"/>
+  <!-- Centre spindle -->
+  <circle cx="32" cy="32" r="6.5" fill="#2a2138" stroke="#8a76ae" stroke-width="1.5"/>
+  <circle cx="32" cy="32" r="2.5" fill="#c8b4ec"/>
+</svg>

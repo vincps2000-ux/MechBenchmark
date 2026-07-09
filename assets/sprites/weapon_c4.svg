@@ -1,0 +1,23 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <!-- C4 Launcher — cartoony charge thrower with clacker, top-down, muzzle faces up -->
+  <!-- Detonator clacker box (rear) -->
+  <rect x="14" y="32" width="20" height="12" rx="3" fill="#8a3b2a" stroke="#4a1e14" stroke-width="2.5"/>
+  <!-- Clacker plunger handle (exaggerated T-bar) -->
+  <rect x="21.5" y="36" width="5" height="8" rx="1.5" fill="#c2503a" stroke="#4a1e14" stroke-width="1.5"/>
+  <rect x="17" y="42" width="14" height="4" rx="2" fill="#d96a4e" stroke="#4a1e14" stroke-width="1.8"/>
+  <!-- Receiver body -->
+  <rect x="13" y="18" width="22" height="16" rx="3" fill="#5c6249" stroke="#24281c" stroke-width="2.5"/>
+  <!-- C4 brick loaded on the rail (tan block with black tape) -->
+  <rect x="17" y="8" width="14" height="13" rx="2" fill="#c9bd93" stroke="#24281c" stroke-width="2.2"/>
+  <rect x="22" y="8" width="4" height="13" fill="#2a2d28"/>
+  <!-- Blinking LED on the brick -->
+  <circle cx="29" cy="11" r="1.8" fill="#ff2a1a" stroke="#4a1e14" stroke-width="0.8"/>
+  <!-- Coiled wire from brick to clacker (cartoony squiggle) -->
+  <path d="M34 20 Q38 22 35 25 Q32 28 36 30 Q39 32 34 34" fill="none" stroke="#d96a4e" stroke-width="1.8"/>
+  <!-- Warning stripes on the receiver -->
+  <path d="M15 30 L19 24" stroke="#d8c96a" stroke-width="2"/>
+  <path d="M20 30 L24 24" stroke="#d8c96a" stroke-width="2"/>
+  <!-- "DANGER" stencil dot -->
+  <circle cx="30" cy="27" r="2.4" fill="#d8c96a"/>
+  <circle cx="30" cy="27" r="1.2" fill="#5c6249"/>
+</svg>

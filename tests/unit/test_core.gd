@@ -69,6 +69,48 @@ func test_torso_stealth_has_one_slot():
 	t.torso_type = TorsoData.TorsoType.STEALTH
 	assert_eq(t.weapon_slots, 1)
 
+func test_catalog_cyclone_torso():
+	var t := MechCatalog.get_torso_by_id("cyclone")
+	assert_not_null(t, "Cyclone torso should exist in catalog")
+	assert_eq(t.torso_type, TorsoData.TorsoType.CYCLONE)
+	assert_eq(t.weapon_slots, 2)
+	assert_eq(t.light_weapon_slots, 0)
+
+func test_catalog_bastion_torso():
+	var t := MechCatalog.get_torso_by_id("bastion")
+	assert_not_null(t, "Bastion torso should exist in catalog")
+	assert_eq(t.torso_type, TorsoData.TorsoType.BASTION)
+	assert_eq(t.weapon_slots, 2)
+
+func test_cyclone_mounts_are_opposed():
+	var offsets := MechAssembler.get_weapon_offsets(TorsoData.TorsoType.CYCLONE)
+	var rotations := MechAssembler.get_weapon_mount_rotations(TorsoData.TorsoType.CYCLONE)
+	assert_eq(offsets.size(), 2, "Cyclone has two mounts")
+	assert_eq(rotations.size(), 2)
+	assert_almost_eq(rotations[0], 0.0, 0.001)
+	assert_almost_eq(rotations[1], PI, 0.001, "Rear mount points backward")
+
+func test_default_mount_rotations_are_zero():
+	var rotations := MechAssembler.get_weapon_mount_rotations(TorsoData.TorsoType.HEAVY_ARMOUR)
+	assert_eq(rotations.size(), 2)
+	for r in rotations:
+		assert_almost_eq(r, 0.0, 0.001)
+
+func test_bastion_has_four_utility_slots():
+	assert_eq(MechAssembler.get_utility_slots(TorsoData.TorsoType.BASTION), 4)
+
+func test_cyclone_grid_is_ring_without_centre():
+	assert_eq(GridLayout.get_grid_type(TorsoData.TorsoType.CYCLONE), GridLayout.GridType.CYCLONE_RING)
+	var cells := GridLayout.get_grid_shape(GridLayout.GridType.CYCLONE_RING)
+	assert_eq(cells.size(), 8, "Ring has 8 cells")
+	assert_false(cells.has(Vector2i(1, 1)), "Centre spindle cell is blocked")
+
+func test_bastion_grid_is_4x2_block():
+	assert_eq(GridLayout.get_grid_type(TorsoData.TorsoType.BASTION), GridLayout.GridType.BASTION_BLOCK)
+	var cells := GridLayout.get_grid_shape(GridLayout.GridType.BASTION_BLOCK)
+	assert_eq(cells.size(), 8, "Block has 8 cells")
+	assert_eq(GridLayout.get_grid_dimensions(GridLayout.GridType.BASTION_BLOCK), Vector2i(4, 2))
+
 # ── LegData ───────────────────────────────────────────────────────────────────
 
 func test_leg_default_torso_slots():

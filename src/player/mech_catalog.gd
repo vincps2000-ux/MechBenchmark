@@ -43,7 +43,27 @@ static func get_all_torsos() -> Array[TorsoData]:
 	naval_turret.weapon_slots    = 3
 	naval_turret.light_weapon_slots = 0
 
-	return [stealth, heavy, cargo, naval_turret]
+	var cyclone := TorsoData.new()
+	cyclone.id             = "cyclone"
+	cyclone.name           = "Cyclone"
+	cyclone.description    = "Rotary weapon carousel. Two opposed mounts spin continuously — total 360° coverage, but you cannot aim it."
+	cyclone.torso_type     = TorsoData.TorsoType.CYCLONE
+	cyclone.tutorial_text  = "Carousel spins on its own — mouse aim is ignored\nTwin opposed guns sweep the full circle"
+	cyclone.speed_modifier  = 1.0
+	cyclone.weapon_slots    = 2
+	cyclone.light_weapon_slots = 0
+
+	var bastion := TorsoData.new()
+	bastion.id             = "bastion"
+	bastion.name           = "Bastion"
+	bastion.description    = "Hull-locked casemate. Twin fixed guns aim only where the hull points, but its deep bays hold the most utility modules of any torso."
+	bastion.torso_type     = TorsoData.TorsoType.BASTION
+	bastion.tutorial_text  = "No turret traverse — steer the hull to aim\nDeep utility bays (4 slots)"
+	bastion.speed_modifier  = 0.9
+	bastion.weapon_slots    = 2
+	bastion.light_weapon_slots = 0
+
+	return [stealth, heavy, cargo, naval_turret, cyclone, bastion]
 
 ## Returns all available leg configurations
 static func get_all_legs() -> Array[LegData]:
@@ -186,7 +206,33 @@ static func get_all_light_guns() -> Array[WeaponData]:
 	machinegun.pierce           = 1
 	machinegun.penetration      = 4
 
-	return [rocket_pod, machinegun]
+	var pom_pom := WeaponData.new()
+	pom_pom.id               = "pom_pom"
+	pom_pom.name             = "Pom-Pom Gun"
+	pom_pom.weapon_type      = WeaponData.WeaponType.POM_POM
+	pom_pom.slot_size        = WeaponData.SlotSize.LIGHT
+	pom_pom.damage           = 6
+	pom_pom.cooldown         = 0.9
+	pom_pom.projectile_speed = 440.0
+	pom_pom.projectile_count = 4
+	pom_pom.pierce           = 1
+	pom_pom.penetration      = 3
+	pom_pom.area             = 0.6
+
+	var c4 := WeaponData.new()
+	c4.id               = "c4_charges"
+	c4.name             = "C4 Charges"
+	c4.weapon_type      = WeaponData.WeaponType.C4
+	c4.slot_size        = WeaponData.SlotSize.LIGHT
+	c4.damage           = 120
+	c4.cooldown         = 0.4
+	c4.projectile_speed = 260.0
+	c4.projectile_count = 1
+	c4.pierce           = 1
+	c4.penetration      = 10
+	c4.area             = 3.0
+
+	return [rocket_pod, machinegun, pom_pom, c4]
 
 ## Returns all available module configurations
 static func get_all_modules() -> Array:

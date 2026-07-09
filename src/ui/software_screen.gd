@@ -683,6 +683,8 @@ func _make_weapon_type_icon(data: WeaponData) -> ColorRect:
 			WeaponData.WeaponType.ROCKET_POD:   icon.color = Color(0.85, 0.75, 0.2, 0.9)
 			WeaponData.WeaponType.MACHINEGUN:   icon.color = Color(0.5, 0.7, 0.4, 0.9)
 			WeaponData.WeaponType.ARTILLERY:    icon.color = Color(0.8, 0.18, 0.14, 0.9)
+			WeaponData.WeaponType.POM_POM:      icon.color = Color(0.55, 0.6, 0.35, 0.9)
+			WeaponData.WeaponType.C4:           icon.color = Color(0.78, 0.72, 0.5, 0.9)
 			_: icon.color = Color(0.5, 0.5, 0.5, 0.9)
 	else:
 		icon.color = Color(0.3, 0.3, 0.3, 0.9)
@@ -775,6 +777,8 @@ func _get_weapon_type_string(wtype: WeaponData.WeaponType) -> String:
 		WeaponData.WeaponType.ROCKET_POD:   return "ORDNANCE  •  MULTI-ROCKET"
 		WeaponData.WeaponType.MACHINEGUN:   return "BALLISTIC  •  RAPID FIRE"
 		WeaponData.WeaponType.ARTILLERY:    return "ORDNANCE  •  BOMBARDMENT"
+		WeaponData.WeaponType.POM_POM:      return "BALLISTIC  •  FLAK BURST"
+		WeaponData.WeaponType.C4:           return "ORDNANCE  •  REMOTE DETONATION"
 		_: return "UNKNOWN SYSTEM"
 
 

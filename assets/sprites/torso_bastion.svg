@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bastion torso: hull-locked casemate with sloped front glacis, facing +X -->
+  <!-- Main casemate body -->
+  <path d="M8 16 L44 16 L58 26 L58 38 L44 48 L8 48 Z" fill="#3d4436" stroke="#5c6650" stroke-width="2"/>
+  <!-- Sloped front glacis plate -->
+  <path d="M44 16 L58 26 L58 38 L44 48 Z" fill="#4b5442" stroke="#5c6650" stroke-width="1"/>
+  <!-- Roof plate -->
+  <rect x="12" y="20" width="28" height="24" fill="#485140" stroke="#5c6650" stroke-width="1"/>
+  <!-- Twin fixed gun ports on the glacis -->
+  <rect x="50" y="21" width="7" height="5" rx="1" fill="#242a1f" stroke="#6c7660" stroke-width="1"/>
+  <rect x="50" y="38" width="7" height="5" rx="1" fill="#242a1f" stroke="#6c7660" stroke-width="1"/>
+  <!-- Utility bay hatches (rear) -->
+  <rect x="12" y="22" width="6" height="8" fill="#333a2c" stroke="#5c6650" stroke-width="0.8"/>
+  <rect x="12" y="34" width="6" height="8" fill="#333a2c" stroke="#5c6650" stroke-width="0.8"/>
+  <rect x="20" y="22" width="6" height="8" fill="#333a2c" stroke="#5c6650" stroke-width="0.8"/>
+  <rect x="20" y="34" width="6" height="8" fill="#333a2c" stroke="#5c6650" stroke-width="0.8"/>
+  <!-- Bolt heads along the hull weld line -->
+  <circle cx="10" cy="18" r="1.2" fill="#6c7660"/>
+  <circle cx="10" cy="32" r="1.2" fill="#6c7660"/>
+  <circle cx="10" cy="46" r="1.2" fill="#6c7660"/>
+  <!-- Top highlight -->
+  <path d="M10 18 L44 18 L54 25" fill="none" stroke="#7e8a6e" stroke-width="1.2" opacity="0.5"/>
+</svg>

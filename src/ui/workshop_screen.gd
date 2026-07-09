@@ -672,7 +672,8 @@ static func _weapon_preview_rotation(gun: WeaponData) -> float:
 		WeaponData.WeaponType.AUTOCANNON, WeaponData.WeaponType.FLAMETHROWER, \
 		WeaponData.WeaponType.PLASMA_GUN, \
 		WeaponData.WeaponType.ROCKET_POD, WeaponData.WeaponType.MACHINEGUN, \
-		WeaponData.WeaponType.ARTILLERY:
+		WeaponData.WeaponType.ARTILLERY, \
+		WeaponData.WeaponType.POM_POM, WeaponData.WeaponType.C4:
 			return deg_to_rad(-90.0)
 	return 0.0
 
