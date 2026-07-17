@@ -16,6 +16,9 @@ const AMMO_TYPE_NAMES := {
 	WeaponData.AmmoType.HE: "he",
 	WeaponData.AmmoType.SOLID: "solid",
 	WeaponData.AmmoType.CANISTER: "canister",
+	WeaponData.AmmoType.NORMAL: "normal",
+	WeaponData.AmmoType.RIOT: "riot",
+	WeaponData.AmmoType.SMART: "smart",
 }
 
 const THROWER_ELEMENT_NAMES := {
@@ -207,6 +210,8 @@ static func weapon_to_dict(gun: WeaponData) -> Dictionary:
 		dict["targeting"] = _enum_to_name(TARGETING_TYPE_NAMES, gun.targeting_type, "unguided")
 	if baseline == null or gun.barrel_length != baseline.barrel_length:
 		dict["barrel_length"] = _enum_to_name(BARREL_LENGTH_NAMES, gun.barrel_length, "standard")
+	if baseline == null or gun.barrel_count != baseline.barrel_count:
+		dict["barrel_count"] = WeaponData.clamp_barrel_count(gun.barrel_count)
 	if baseline == null or gun.laser_intensity != baseline.laser_intensity:
 		dict["laser_intensity"] = gun.laser_intensity
 
@@ -254,6 +259,8 @@ static func weapon_from_dict(dict: Dictionary) -> WeaponData:
 	if dict.has("barrel_length"):
 		gun.barrel_length = WeaponData.clamp_barrel_length(
 			_name_to_enum(BARREL_LENGTH_NAMES, str(dict["barrel_length"]), gun.barrel_length))
+	if dict.has("barrel_count"):
+		gun.barrel_count = WeaponData.clamp_barrel_count(int(dict["barrel_count"]))
 	if dict.has("laser_intensity"):
 		gun.laser_intensity = clampi(int(dict["laser_intensity"]), 0, 4)
 

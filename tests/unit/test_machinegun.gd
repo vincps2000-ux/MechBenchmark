@@ -1,6 +1,26 @@
 # test_machinegun.gd — Unit tests for the Machinegun weapon using GUT.
 extends GutTest
 
+const MACHINEGUN_SCENE := preload("res://scenes/weapons/machinegun.tscn")
+
+class SmartTestMachinegun:
+	extends Machinegun
+	var target_available := false
+
+	func _has_smart_target() -> bool:
+		return target_available
+
+class ProjectileTarget:
+	extends Node2D
+	var damage_received := 0
+	var knockback_received := Vector2.ZERO
+
+	func take_damage(amount: int, _penetration: int) -> void:
+		damage_received += amount
+
+	func apply_knockback(impulse: Vector2) -> void:
+		knockback_received = impulse
+
 var _machinegun: Machinegun
 var _projectile: MachinegunProjectile
 
@@ -48,6 +68,44 @@ func test_setup_with_zero_damage() -> void:
 	_machinegun.setup(data)
 	assert_eq(_machinegun._damage, 0, "Zero damage should be stored as-is")
 
+func test_normal_ammo_preserves_baseline_damage_and_penetration() -> void:
+	var data := WeaponData.new()
+	data.damage = 6
+	data.penetration = 4
+	data.ammo_type = WeaponData.AmmoType.NORMAL
+	_machinegun.setup(data)
+	assert_eq(_machinegun._damage, 6, "Normal ammunition should use baseline damage")
+	assert_eq(_machinegun._penetration, 4, "Normal ammunition should use baseline penetration")
+
+func test_riot_rounds_deal_no_damage_and_enable_knockback() -> void:
+	var data := WeaponData.new()
+	data.damage = 6
+	data.ammo_type = WeaponData.AmmoType.RIOT
+	_machinegun.setup(data)
+	assert_eq(_machinegun._damage, 0, "Riot rounds must deal no damage")
+	assert_gt(_machinegun._knockback_force, 0.0, "Riot rounds should push enemies")
+
+func test_smart_rounds_only_fire_with_cursor_lock() -> void:
+	var smart_gun := SmartTestMachinegun.new()
+	add_child_autofree(smart_gun)
+	var data := WeaponData.new()
+	data.ammo_type = WeaponData.AmmoType.SMART
+	smart_gun.setup(data)
+	smart_gun.target_available = false
+	assert_false(smart_gun.can_fire(), "Smart rounds must not fire without an enemy under the cursor")
+	smart_gun.target_available = true
+	assert_true(smart_gun.can_fire(), "Smart rounds should fire while the cursor is over an enemy")
+
+func test_smart_rounds_report_lock_state_for_hud() -> void:
+	var smart_gun := SmartTestMachinegun.new()
+	add_child_autofree(smart_gun)
+	var data := WeaponData.new()
+	data.ammo_type = WeaponData.AmmoType.SMART
+	smart_gun.setup(data)
+	assert_true(smart_gun.uses_smart_rounds())
+	smart_gun.target_available = true
+	assert_true(smart_gun.has_smart_lock())
+
 func test_try_fire_once_consumes_one_ammo() -> void:
 	var before := _machinegun.get_ammo_count()
 	var fired := _machinegun.try_fire_once()
@@ -59,6 +117,28 @@ func test_try_fire_once_fails_when_out_of_ammo() -> void:
 	_machinegun._ammo_current = 0
 	assert_false(_machinegun.try_fire_once(),
 			"Machinegun should not fire when ammo is empty")
+
+func test_four_barrels_fire_four_rounds_per_cycle() -> void:
+	var data := WeaponData.new()
+	data.barrel_count = 4
+	_machinegun.setup(data)
+	var before := _machinegun.get_ammo_count()
+	assert_true(_machinegun.try_fire_once())
+	assert_eq(_machinegun.get_ammo_count(), before - 4,
+			"Each fitted barrel should fire and consume one round")
+
+func test_more_barrels_increase_rate_and_spread() -> void:
+	var data := WeaponData.new()
+	data.barrel_count = 4
+	_machinegun.setup(data)
+	assert_lt(_machinegun._fire_interval, Machinegun.FIRE_INTERVAL,
+			"A four-barrel cluster should cycle faster")
+	assert_gt(_machinegun._spread_deg, Machinegun.SPREAD_DEG,
+			"A four-barrel cluster should have a wider grouping")
+
+func test_barrel_count_is_clamped_to_workbench_limits() -> void:
+	assert_eq(WeaponData.clamp_barrel_count(0), 1)
+	assert_eq(WeaponData.clamp_barrel_count(99), 4)
 
 func test_short_barrel_is_fast_and_inaccurate() -> void:
 	var data := WeaponData.new()
@@ -121,6 +201,38 @@ func test_projectile_does_not_explode() -> void:
 	add_child_autofree(_projectile)
 	assert_false(_projectile.has_method("_spawn_explosion"),
 			"Machinegun bullets should not explode")
+
+func test_riot_projectile_pushes_without_damage() -> void:
+	_projectile = MachinegunProjectile.new()
+	add_child_autofree(_projectile)
+	_projectile.damage = 0
+	_projectile.knockback_force = 240.0
+	_projectile.velocity = Vector2.RIGHT * 600.0
+	var target := ProjectileTarget.new()
+	add_child_autofree(target)
+	_projectile._on_body_entered(target)
+	assert_eq(target.damage_received, 0, "Riot rounds must not damage their target")
+	assert_gt(target.knockback_received.x, 0.0, "Riot rounds should push along their travel direction")
+
+func test_in_game_visual_uses_one_sprite_per_selected_barrel() -> void:
+	var scene_gun := MACHINEGUN_SCENE.instantiate() as Machinegun
+	var data := WeaponData.new()
+	data.barrel_count = 4
+	scene_gun.setup(data)
+	add_child_autofree(scene_gun)
+	await get_tree().process_frame
+	assert_eq(scene_gun.get_node("WeaponVisuals").get_child_count(), 4,
+			"In-game model should show each selected barrel")
+
+func test_in_game_visual_length_tracks_selected_barrel_length() -> void:
+	var scene_gun := MACHINEGUN_SCENE.instantiate() as Machinegun
+	var data := WeaponData.new()
+	data.barrel_length = WeaponData.BarrelLength.VERY_LONG
+	scene_gun.setup(data)
+	add_child_autofree(scene_gun)
+	await get_tree().process_frame
+	var visual := scene_gun.get_node("WeaponVisuals").get_child(0) as Sprite2D
+	assert_gt(visual.scale.y, 0.65, "Long barrels should lengthen the original in-game model")
 
 # ─── Balance: kills infantry in 3 shots ──────────────────────────────────────
 

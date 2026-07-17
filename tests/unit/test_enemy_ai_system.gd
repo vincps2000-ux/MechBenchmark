@@ -55,6 +55,17 @@ func test_base_apply_freeze_freezes_enemy() -> void:
 	await get_tree().process_frame
 	assert_true(drone._is_frozen, "Freeze effect should freeze any EnemyBase enemy")
 
+func test_base_knockback_temporarily_overrides_enemy_ai_velocity() -> void:
+	_make_player(Vector2(5000, 5000))
+	var infantry := INFANTRY_SCENE.instantiate() as EnemyInfantry
+	add_child_autofree(infantry)
+	infantry.set_physics_process(false)
+	await get_tree().process_frame
+	infantry.apply_knockback(Vector2(300.0, 0.0))
+	infantry._physics_process(0.016)
+	assert_gt(infantry.velocity.x, 0.0, "Knockback should push the enemy away from impact")
+	assert_gt(infantry._knockback_timer, 0.0, "Knockback should persist beyond one AI frame")
+
 # ── FPV drone behavior ────────────────────────────────────────────────────────
 
 func test_drone_is_fast_and_fragile() -> void:

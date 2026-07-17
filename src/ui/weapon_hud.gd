@@ -12,6 +12,7 @@ var _charge_bars: Dictionary = {}
 var _weapon_name_labels: Dictionary = {}
 var _ammo_labels: Dictionary = {}
 var _ammo_markers: Dictionary = {}
+var _smart_lock_labels: Dictionary = {}
 var _ammo_pip_lists: Dictionary = {}  # index -> {"pips": Array, "unit_ammo": float}
 var _flamethrower_canisters: Dictionary = {}  # index -> Control
 
@@ -71,6 +72,17 @@ func _make_weapon_row(weapon_name: String, index: int, weapon_node: Node, weapon
 
 	var header := _make_weapon_header(weapon_name, index)
 	row.add_child(header)
+
+	if weapon_node and weapon_node.has_method("uses_smart_rounds") \
+			and bool(weapon_node.call("uses_smart_rounds")):
+		var lock_label := Label.new()
+		lock_label.text = "WEAPON FREE"
+		lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lock_label.add_theme_font_size_override("font_size", 11)
+		lock_label.add_theme_color_override("font_color", Color(0.95, 0.58, 0.22))
+		row.add_child(lock_label)
+		row.move_child(lock_label, 0)
+		_smart_lock_labels[index] = lock_label
 
 	# Ammo pip strip for low-capacity weapons (Enter the Gungeon style).
 	if weapon_node and weapon_node.has_method("get_ammo_capacity"):
@@ -287,6 +299,15 @@ func _refresh_weapon_status(index: int) -> void:
 		if weapon_label:
 			var out_of_ammo := weapon != null and weapon.has_method("is_out_of_ammo") and bool(weapon.call("is_out_of_ammo"))
 			weapon_label.modulate = Color(1.0, 1.0, 1.0, 0.6) if out_of_ammo else Color(1.0, 1.0, 1.0, 1.0)
+	if _smart_lock_labels.has(index):
+		var lock_label := _smart_lock_labels[index] as Label
+		var locked := weapon != null and weapon.has_method("has_smart_lock") \
+				and bool(weapon.call("has_smart_lock"))
+		lock_label.text = "LOCKED" if locked else "WEAPON FREE"
+		lock_label.add_theme_color_override(
+			"font_color",
+			Color(0.35, 1.0, 0.48) if locked else Color(0.95, 0.58, 0.22)
+		)
 
 func _process(_delta: float) -> void:
 	if _panel and _panel.size.x > 0:

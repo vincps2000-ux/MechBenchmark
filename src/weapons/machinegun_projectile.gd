@@ -11,6 +11,8 @@ var damage: int = 3
 var pierce: int = 1
 var penetration: int = 4
 var max_lifetime: float = MAX_LIFETIME
+var bullet_color: Color = COLOR_BULLET
+var knockback_force: float = 0.0
 
 var _elapsed: float = 0.0
 var _pierced: int   = 0
@@ -24,7 +26,7 @@ func _ready() -> void:
 
 	var visual := get_node_or_null("BulletVisual") as Polygon2D
 	if visual:
-		visual.color = COLOR_BULLET
+		visual.color = bullet_color
 
 func _physics_process(delta: float) -> void:
 	position += velocity * delta
@@ -33,16 +35,21 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _on_area_entered(area: Area2D) -> void:
-	if area.has_method("take_damage"):
-		area.take_damage(damage, penetration)
-	elif area.get_parent() != null and area.get_parent().has_method("take_damage"):
-		area.get_parent().take_damage(damage, penetration)
+	_apply_impact(area)
 	_deferred_pierce()
 
 func _on_body_entered(body: Node2D) -> void:
-	if body.has_method("take_damage"):
-		body.take_damage(damage, penetration)
+	_apply_impact(body)
 	call_deferred("_deferred_pierce")
+
+func _apply_impact(collider: Node) -> void:
+	var target := collider
+	if not target.has_method("take_damage") and target.get_parent() != null:
+		target = target.get_parent()
+	if damage > 0 and target.has_method("take_damage"):
+		target.take_damage(damage, penetration)
+	if knockback_force > 0.0 and target.has_method("apply_knockback"):
+		target.apply_knockback(velocity.normalized() * knockback_force)
 
 func _deferred_pierce() -> void:
 	_pierced += 1

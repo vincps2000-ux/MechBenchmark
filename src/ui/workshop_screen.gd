@@ -10,6 +10,7 @@ signal deploy_pressed(loadout: MechLoadout)
 const _MISSILE_BUILDER_PART_CARD_SCRIPT := preload("res://src/ui/missile_builder_part_card.gd")
 const _MISSILE_BUILDER_SLOT_SCRIPT := preload("res://src/ui/missile_builder_slot.gd")
 const _THROWER_TANK_SCRIPT := preload("res://src/ui/thrower_tank.gd")
+const _MACHINEGUN_WORKBENCH_PREVIEW_SCRIPT := preload("res://src/ui/machinegun_workbench_preview.gd")
 const _NOZZLE_LONG_ICON_PATH := "res://assets/sprites/thrower_nozzle_long.svg"
 const _NOZZLE_STANDARD_ICON_PATH := "res://assets/sprites/thrower_nozzle_standard.svg"
 const _NOZZLE_WIDE_ICON_PATH := "res://assets/sprites/thrower_nozzle_wide.svg"
@@ -982,6 +983,9 @@ static func _ammo_type_label(ammo: WeaponData.AmmoType) -> String:
 		WeaponData.AmmoType.HE: return "HE"
 		WeaponData.AmmoType.SOLID: return "Solid"
 		WeaponData.AmmoType.CANISTER: return "Canister"
+		WeaponData.AmmoType.NORMAL: return "Normal Ammo"
+		WeaponData.AmmoType.RIOT: return "Riot Rounds"
+		WeaponData.AmmoType.SMART: return "Smart Rounds"
 	return "Unknown"
 
 
@@ -1005,6 +1009,12 @@ static func _weapon_variant_label(gun: WeaponData) -> String:
 		return "Element: %s | %s" % [_thrower_element_label(gun.thrower_element), _thrower_nozzle_label(gun.thrower_nozzle)]
 	if gun.weapon_type == WeaponData.WeaponType.PLASMA_GUN:
 		return "Core: Plasma"
+	if gun.weapon_type == WeaponData.WeaponType.MACHINEGUN:
+		return "%s | %d barrel%s" % [
+			_ammo_type_label(gun.ammo_type),
+			WeaponData.clamp_barrel_count(gun.barrel_count),
+			"" if gun.barrel_count == 1 else "s",
+		]
 	return _ammo_type_label(gun.ammo_type)
 
 
@@ -1074,7 +1084,274 @@ func _add_autocannon_options(vbox: VBoxContainer, gun: WeaponData) -> void:
 
 
 func _add_machinegun_options(vbox: VBoxContainer, gun: WeaponData) -> void:
-	_add_barrel_length_button(vbox, gun)
+	gun.barrel_count = WeaponData.clamp_barrel_count(gun.barrel_count)
+	var bench_btn := Button.new()
+	bench_btn.text = "ARMOURER'S BENCH  |  %s  |  %d BARREL%s" % [
+		_ammo_type_label(gun.ammo_type).to_upper(),
+		gun.barrel_count,
+		"" if gun.barrel_count == 1 else "S",
+	]
+	bench_btn.custom_minimum_size = Vector2(380, 54)
+	bench_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bench_btn.tooltip_text = "Field-strip, service, and rebuild this machinegun"
+	bench_btn.pressed.connect(_show_machinegun_workbench.bind(gun))
+	vbox.add_child(bench_btn)
+
+	var service_note := Label.new()
+	service_note.text = "Service card: bore clean | feed timed | headspace checked"
+	service_note.add_theme_font_size_override("font_size", 11)
+	service_note.add_theme_color_override("font_color", Color(0.53, 0.68, 0.57))
+	service_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(service_note)
+
+
+func _show_machinegun_workbench(gun: WeaponData) -> void:
+	gun.barrel_count = WeaponData.clamp_barrel_count(gun.barrel_count)
+	gun.barrel_length = WeaponData.clamp_barrel_length(gun.barrel_length)
+
+	for child in _sub_modal_panel.get_children():
+		_sub_modal_panel.remove_child(child)
+		child.free()
+
+	var root := VBoxContainer.new()
+	root.custom_minimum_size = Vector2(760, 610)
+	root.add_theme_constant_override("separation", 9)
+	_sub_modal_panel.add_child(root)
+
+	var title := Label.new()
+	title.text = "ARMOURER'S BENCH // %s" % gun.name.to_upper()
+	title.add_theme_font_size_override("font_size", 21)
+	title.add_theme_color_override("font_color", Color(0.95, 0.73, 0.25))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(title)
+
+	var shift_log := Label.new()
+	shift_log.text = "SHIFT LOG  18:40  |  RECEIVER OPENED  |  FEED PAWL CLEANED  |  BUILD READY"
+	shift_log.add_theme_font_size_override("font_size", 10)
+	shift_log.add_theme_color_override("font_color", Color(0.48, 0.67, 0.59))
+	shift_log.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(shift_log)
+
+	var preview_frame := PanelContainer.new()
+	var preview_style := StyleBoxFlat.new()
+	preview_style.bg_color = Color(0.055, 0.045, 0.035)
+	preview_style.set_border_width_all(2)
+	preview_style.border_color = Color(0.48, 0.3, 0.1)
+	preview_style.set_corner_radius_all(5)
+	preview_style.set_content_margin_all(0)
+	preview_frame.add_theme_stylebox_override("panel", preview_style)
+	root.add_child(preview_frame)
+
+	var preview = _MACHINEGUN_WORKBENCH_PREVIEW_SCRIPT.new()
+	preview.configure(gun)
+	preview_frame.add_child(preview)
+
+	var service_status := Label.new()
+	service_status.text = "MAINTENANCE RECORD  /  FIELD STRIP COMPLETE  /  BORE CLEAN  /  HEADSPACE VERIFIED"
+	service_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	service_status.add_theme_font_size_override("font_size", 10)
+	service_status.add_theme_color_override("font_color", Color(0.48, 0.67, 0.59))
+	root.add_child(service_status)
+
+	var controls := HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 12)
+	root.add_child(controls)
+
+	var ammo_column := VBoxContainer.new()
+	ammo_column.custom_minimum_size = Vector2(330, 0)
+	ammo_column.add_theme_constant_override("separation", 5)
+	controls.add_child(ammo_column)
+
+	var ammo_title := Label.new()
+	ammo_title.text = "AMMUNITION BELT"
+	ammo_title.add_theme_font_size_override("font_size", 13)
+	ammo_title.add_theme_color_override("font_color", Color(0.83, 0.68, 0.39))
+	ammo_column.add_child(ammo_title)
+
+	for entry in _machinegun_ammo_entries():
+		var ammo_btn := Button.new()
+		ammo_btn.text = "%s\n%s" % [entry["label"], entry["factors"]]
+		ammo_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		ammo_btn.custom_minimum_size = Vector2(330, 45)
+		ammo_btn.toggle_mode = true
+		ammo_btn.button_pressed = gun.ammo_type == entry["type"]
+		ammo_btn.tooltip_text = entry["description"]
+		ammo_btn.pressed.connect(_on_machinegun_ammo_selected.bind(entry["type"], gun))
+		ammo_column.add_child(ammo_btn)
+
+	var build_column := VBoxContainer.new()
+	build_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_column.add_theme_constant_override("separation", 8)
+	controls.add_child(build_column)
+
+	var count_title := Label.new()
+	count_title.text = "BARREL CLUSTER"
+	count_title.add_theme_font_size_override("font_size", 13)
+	count_title.add_theme_color_override("font_color", Color(0.83, 0.68, 0.39))
+	build_column.add_child(count_title)
+
+	var count_row := HBoxContainer.new()
+	count_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	count_row.add_theme_constant_override("separation", 8)
+	build_column.add_child(count_row)
+	var count_down := Button.new()
+	count_down.text = "-"
+	count_down.custom_minimum_size = Vector2(42, 38)
+	count_down.disabled = gun.barrel_count <= WeaponData.MIN_BARREL_COUNT
+	count_down.pressed.connect(_on_machinegun_barrel_count_adjusted.bind(-1, gun))
+	count_row.add_child(count_down)
+	var count_value := Label.new()
+	count_value.text = "%d BARREL%s" % [gun.barrel_count, "" if gun.barrel_count == 1 else "S"]
+	count_value.custom_minimum_size = Vector2(118, 38)
+	count_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	count_value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	count_value.add_theme_font_size_override("font_size", 15)
+	count_value.add_theme_color_override("font_color", Color(0.9, 0.82, 0.66))
+	count_row.add_child(count_value)
+	var count_up := Button.new()
+	count_up.text = "+"
+	count_up.custom_minimum_size = Vector2(42, 38)
+	count_up.disabled = gun.barrel_count >= WeaponData.MAX_BARREL_COUNT
+	count_up.pressed.connect(_on_machinegun_barrel_count_adjusted.bind(1, gun))
+	count_row.add_child(count_up)
+
+	var count_factors := Label.new()
+	count_factors.text = _machinegun_barrel_factor_text(gun.barrel_count)
+	count_factors.add_theme_font_size_override("font_size", 11)
+	count_factors.add_theme_color_override("font_color", Color(0.66, 0.63, 0.56))
+	count_factors.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_column.add_child(count_factors)
+
+	var length_title := Label.new()
+	length_title.text = "BARREL LENGTH / GAS TIMING"
+	length_title.add_theme_font_size_override("font_size", 13)
+	length_title.add_theme_color_override("font_color", Color(0.83, 0.68, 0.39))
+	build_column.add_child(length_title)
+
+	var length_row := HBoxContainer.new()
+	length_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	length_row.add_theme_constant_override("separation", 8)
+	build_column.add_child(length_row)
+	var length_down := Button.new()
+	length_down.text = "-"
+	length_down.custom_minimum_size = Vector2(42, 38)
+	length_down.disabled = gun.barrel_length <= WeaponData.BarrelLength.VERY_SHORT
+	length_down.pressed.connect(_on_machinegun_barrel_length_adjusted.bind(-1, gun))
+	length_row.add_child(length_down)
+	var length_value := Label.new()
+	length_value.text = "SIZE %s / %d" % [
+		WeaponData.get_barrel_length_label(gun.barrel_length),
+		WeaponData.BARREL_LENGTH_COUNT,
+	]
+	length_value.custom_minimum_size = Vector2(118, 38)
+	length_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	length_value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	length_value.add_theme_font_size_override("font_size", 15)
+	length_value.add_theme_color_override("font_color", Color(0.9, 0.82, 0.66))
+	length_row.add_child(length_value)
+	var length_up := Button.new()
+	length_up.text = "+"
+	length_up.custom_minimum_size = Vector2(42, 38)
+	length_up.disabled = gun.barrel_length >= WeaponData.BarrelLength.VERY_LONG
+	length_up.pressed.connect(_on_machinegun_barrel_length_adjusted.bind(1, gun))
+	length_row.add_child(length_up)
+
+	var length_factors := Label.new()
+	length_factors.text = _barrel_length_description(gun.barrel_length)
+	length_factors.add_theme_font_size_override("font_size", 10)
+	length_factors.add_theme_color_override("font_color", Color(0.66, 0.63, 0.56))
+	length_factors.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	length_factors.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_column.add_child(length_factors)
+
+	var stats_panel := PanelContainer.new()
+	var stats_style := StyleBoxFlat.new()
+	stats_style.bg_color = Color(0.07, 0.095, 0.085, 0.95)
+	stats_style.set_border_width_all(1)
+	stats_style.border_color = Color(0.27, 0.58, 0.43)
+	stats_style.set_corner_radius_all(4)
+	stats_style.set_content_margin_all(7)
+	stats_panel.add_theme_stylebox_override("panel", stats_style)
+	root.add_child(stats_panel)
+	var stats := Label.new()
+	stats.text = _machinegun_live_stats(gun)
+	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stats.add_theme_font_size_override("font_size", 12)
+	stats.add_theme_color_override("font_color", Color(0.68, 0.86, 0.73))
+	stats_panel.add_child(stats)
+
+	var close_btn := Button.new()
+	close_btn.text = "SIGN SERVICE CARD & RETURN"
+	close_btn.custom_minimum_size = Vector2(250, 36)
+	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close_btn.pressed.connect(_hide_sub_modal)
+	root.add_child(close_btn)
+
+	_sub_modal_open_frame = Engine.get_process_frames()
+	_sub_modal_overlay.set_deferred("visible", true)
+
+
+func _machinegun_ammo_entries() -> Array[Dictionary]:
+	return [
+		{
+			"type": WeaponData.AmmoType.NORMAL,
+			"label": "NORMAL AMMO",
+			"factors": "Standard automatic fire  |  Deals normal damage",
+			"description": "Reliable general-purpose belt. Fires whenever the trigger is held.",
+		},
+		{
+			"type": WeaponData.AmmoType.RIOT,
+			"label": "RIOT ROUNDS",
+			"factors": "No damage  |  Pushes enemies away",
+			"description": "Non-lethal impact belt for controlling space and breaking enemy advances.",
+		},
+		{
+			"type": WeaponData.AmmoType.SMART,
+			"label": "SMART ROUNDS",
+			"factors": "Only fires with enemy under cursor  |  HUD lock indicator",
+			"description": "Trigger interlock prevents wasted fire until the cursor acquires an enemy.",
+		},
+	]
+
+
+func _on_machinegun_ammo_selected(selected_type: WeaponData.AmmoType, gun: WeaponData) -> void:
+	gun.ammo_type = selected_type
+	_record_step()
+	call_deferred("_show_machinegun_workbench", gun)
+
+
+func _on_machinegun_barrel_count_adjusted(delta: int, gun: WeaponData) -> void:
+	gun.barrel_count = WeaponData.clamp_barrel_count(gun.barrel_count + delta)
+	_record_step()
+	call_deferred("_show_machinegun_workbench", gun)
+
+
+func _on_machinegun_barrel_length_adjusted(delta: int, gun: WeaponData) -> void:
+	gun.barrel_length = WeaponData.clamp_barrel_length(gun.barrel_length + delta)
+	_record_step()
+	call_deferred("_show_machinegun_workbench", gun)
+
+
+func _machinegun_barrel_factor_text(count: int) -> String:
+	var profile: Dictionary = Machinegun.BARREL_COUNT_PROFILES[WeaponData.clamp_barrel_count(count) - 1]
+	var cycle_percent := roundi(100.0 / float(profile["interval_factor"]))
+	var spread_percent := roundi(100.0 * float(profile["spread_factor"]))
+	return "Volley x%d  |  Cycle %d%%  |  Grouping %d%%" % [
+		WeaponData.clamp_barrel_count(count), cycle_percent, spread_percent]
+
+
+func _machinegun_live_stats(gun: WeaponData) -> String:
+	var count_profile: Dictionary = Machinegun.BARREL_COUNT_PROFILES[
+		WeaponData.clamp_barrel_count(gun.barrel_count) - 1]
+	var length_profile: Dictionary = Machinegun.BARREL_PROFILES[
+		WeaponData.clamp_barrel_length(gun.barrel_length)]
+	var damage := 0 if gun.ammo_type == WeaponData.AmmoType.RIOT else gun.damage
+	var interval := float(length_profile["fire_interval"]) * float(count_profile["interval_factor"])
+	var spread := float(length_profile["spread_deg"]) * float(count_profile["spread_factor"])
+	var mode := "PUSH / NO DAMAGE" if gun.ammo_type == WeaponData.AmmoType.RIOT \
+			else ("CURSOR INTERLOCK" if gun.ammo_type == WeaponData.AmmoType.SMART else "FREE FIRE")
+	return "%d RPM  |  %d ROUND VOLLEY  |  DMG %d  |  PEN %d  |  SPREAD %.1f DEG  |  %s" % [
+		roundi(60.0 / interval), gun.barrel_count, damage, gun.penetration, spread, mode]
 
 
 func _add_chemical_thrower_options(vbox: VBoxContainer, gun: WeaponData) -> void:
