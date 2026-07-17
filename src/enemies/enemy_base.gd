@@ -13,6 +13,8 @@ const _BURN_EFFECT_SCRIPT := preload("res://src/enemies/burn_effect.gd")
 const _FREEZE_EFFECT_SCRIPT := preload("res://src/enemies/freeze_effect.gd")
 
 const ENVIRONMENT_MASK := 16
+const KNOCKBACK_DURATION := 0.22
+const KNOCKBACK_DECELERATION := 900.0
 
 ## Movement
 @export var move_speed: float = 60.0
@@ -36,6 +38,8 @@ var _is_frozen: bool = false
 var _is_alerted: bool = true
 var _player: Node2D = null
 var _behaviors: Array[Callable] = []
+var _knockback_velocity := Vector2.ZERO
+var _knockback_timer := 0.0
 
 # A* path state
 var _path_rebuild_timer: float = 0.0
@@ -54,6 +58,14 @@ func _ready() -> void:
 	_enemy_ready()
 
 func _physics_process(delta: float) -> void:
+	if _knockback_timer > 0.0:
+		_knockback_timer = maxf(0.0, _knockback_timer - delta)
+		velocity = _knockback_velocity
+		move_and_slide()
+		_knockback_velocity = _knockback_velocity.move_toward(
+			Vector2.ZERO, KNOCKBACK_DECELERATION * delta)
+		return
+
 	if not is_instance_valid(_player):
 		_player = _find_player()
 		if not _player:
@@ -129,6 +141,13 @@ func take_damage(amount: int, penetration: int = 10) -> void:
 
 func alert_to_player() -> void:
 	_is_alerted = true
+
+func apply_knockback(impulse: Vector2) -> void:
+	if impulse.is_zero_approx():
+		return
+	_is_alerted = true
+	_knockback_velocity = impulse
+	_knockback_timer = KNOCKBACK_DURATION
 
 ## Apply a burning DoT effect.  If already burning, refreshes tick count.
 func apply_burn(ticks: int = 2, damage_per_tick: int = 4) -> void:

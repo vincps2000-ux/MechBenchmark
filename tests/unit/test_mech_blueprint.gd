@@ -71,7 +71,11 @@ func _customized_loadout() -> MechLoadout:
 
 	var rocket_pod := MechCatalog.get_gun_by_id("rocket_pod")
 	rocket_pod.apply_missile_builder(["fuel", "explosive", "explosive", "homing", "", ""] as Array[String])
-	loadout.selected_light_guns = [rocket_pod]
+	var machinegun := MechCatalog.get_gun_by_id("machinegun")
+	machinegun.ammo_type = WeaponData.AmmoType.SMART
+	machinegun.barrel_count = 4
+	machinegun.barrel_length = WeaponData.BarrelLength.LONG
+	loadout.selected_light_guns = [rocket_pod, machinegun]
 
 	return loadout
 
@@ -85,7 +89,7 @@ func test_round_trip_preserves_structure() -> void:
 	assert_eq(restored.selected_torsos[0].id, "heavy_armour")
 	assert_eq(restored.selected_torsos[1].id, "stealth")
 	assert_eq(restored.selected_guns.size(), 1)
-	assert_eq(restored.selected_light_guns.size(), 1)
+	assert_eq(restored.selected_light_guns.size(), 2)
 	assert_true(restored.is_valid(), "Restored loadout should be playable")
 
 
@@ -112,6 +116,15 @@ func test_round_trip_preserves_missile_builder() -> void:
 	assert_eq(rocket.targeting_type, WeaponData.TargetingType.SEEKING, "Homing guidance should round-trip")
 	assert_eq(rocket.projectile_speed, expected_speed, "Derived missile speed should be regenerated")
 	assert_eq(rocket.damage, expected_damage, "Derived missile damage should be regenerated")
+
+func test_round_trip_preserves_machinegun_workbench_configuration() -> void:
+	var restored := MechFactory.build_loadout(MechFactory.blueprint_from_loadout(_customized_loadout()))
+	var machinegun := restored.selected_light_guns[1]
+	assert_eq(machinegun.ammo_type, WeaponData.AmmoType.SMART,
+			"Machinegun ammo type should round-trip")
+	assert_eq(machinegun.barrel_count, 4, "Machinegun barrel count should round-trip")
+	assert_eq(machinegun.barrel_length, WeaponData.BarrelLength.LONG,
+			"Machinegun barrel length should round-trip")
 
 
 func test_round_trip_preserves_weapon_level() -> void:

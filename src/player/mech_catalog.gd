@@ -205,6 +205,8 @@ static func get_all_light_guns() -> Array[WeaponData]:
 	machinegun.projectile_count = 1
 	machinegun.pierce           = 1
 	machinegun.penetration      = 4
+	machinegun.ammo_type        = WeaponData.AmmoType.NORMAL
+	machinegun.barrel_count     = 1
 
 	var pom_pom := WeaponData.new()
 	pom_pom.id               = "pom_pom"
@@ -334,4 +336,3 @@ static func get_module_by_id(id: String):
 		if part.id == id:
 			return part
 	return null
-

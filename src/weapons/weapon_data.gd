@@ -24,6 +24,9 @@ enum AmmoType {
 	HE,            # High-Explosive — red round tip
 	SOLID,         # Solid shot — pointed tip
 	CANISTER,      # Canister shot — boxy blue shell
+	NORMAL,         # Machinegun standard ammunition — direct damage
+	RIOT,           # Machinegun riot ammunition — knockback without damage
+	SMART,          # Machinegun smart ammunition — fires only with cursor lock
 }
 
 enum ThrowerElement {
@@ -54,6 +57,8 @@ enum BarrelLength {
 
 const DEFAULT_BARREL_LENGTH := BarrelLength.STANDARD
 const BARREL_LENGTH_COUNT := 5
+const MIN_BARREL_COUNT := 1
+const MAX_BARREL_COUNT := 4
 const MISSILE_SLOT_COUNT := 6
 const MISSILE_SPEED_NO_FUEL := 95.0
 const MISSILE_SPEED_PER_FUEL := 185.0
@@ -82,6 +87,7 @@ const MISSILE_AOE_PER_EXPLOSIVE := 0.8
 @export var targeting_type: TargetingType = TargetingType.UNGUIDED
 @export var slot_size: SlotSize = SlotSize.MEDIUM
 @export var barrel_length: BarrelLength = DEFAULT_BARREL_LENGTH
+@export_range(MIN_BARREL_COUNT, MAX_BARREL_COUNT) var barrel_count: int = MIN_BARREL_COUNT
 @export var attachments: Array[AttachmentData] = []
 @export var projectile_lifetime: float = 3.0
 @export var missile_builder_layout: Array[String] = []
@@ -106,6 +112,9 @@ static func get_barrel_length_label(value: int) -> String:
 		BarrelLength.LONG: return "IV"
 		BarrelLength.VERY_LONG: return "V"
 	return "III"
+
+static func clamp_barrel_count(value: int) -> int:
+	return clampi(value, MIN_BARREL_COUNT, MAX_BARREL_COUNT)
 
 ## Returns true if this weapon can be placed in the given slot size.
 func fits_slot(slot: SlotSize) -> bool:
