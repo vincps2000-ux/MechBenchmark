@@ -60,6 +60,7 @@ var _cooldown: float = 0.0
 ## Muzzle-flash timer; >0 while flash is showing.
 var _flash_timer: float = 0.0
 var _ammo_current: int = MAX_AMMO
+var _ammo_capacity: int = MAX_AMMO
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -72,7 +73,8 @@ func setup(data: WeaponData) -> void:
 	_damage      = data.damage
 	_pierce      = data.pierce
 	_penetration = data.penetration
-	_ammo_current = MAX_AMMO
+	_ammo_capacity = MAX_AMMO
+	_ammo_current = _ammo_capacity
 	_apply_barrel_profile(data.barrel_length)
 	_apply_ammo_behavior(data.ammo_type)
 	_apply_barrel_count_profile(data.barrel_count)
@@ -184,7 +186,11 @@ func get_ammo_count() -> int:
 	return _ammo_current
 
 func get_ammo_capacity() -> int:
-	return MAX_AMMO
+	return _ammo_capacity
+
+func set_ammo_capacity_multiplier(multiplier: float) -> void:
+	_ammo_capacity = maxi(1, int(round(float(MAX_AMMO) * maxf(multiplier, 0.0))))
+	_ammo_current = _ammo_capacity
 
 func has_ammo() -> bool:
 	return _ammo_current > 0

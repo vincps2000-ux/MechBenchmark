@@ -152,3 +152,98 @@ func test_fire_rocket_passes_targeting_to_projectile() -> void:
 	# but we verify the pod stores the targeting type for passing
 	assert_eq(_pod._targeting_type, WeaponData.TargetingType.SEEKING,
 		"Pod should store targeting type for passing to projectiles")
+
+
+# ─── Missile builder blocks ───────────────────────────────────────────────────
+
+func test_empty_builder_keeps_baseline_fuel_and_explosion_power() -> void:
+	var data := MechCatalog.get_gun_by_id("rocket_pod")
+	data.apply_missile_builder([] as Array[String])
+
+	assert_gt(data.projectile_speed, 0.0, "A bare missile should retain baseline fuel")
+	assert_gt(data.projectile_lifetime, 0.0, "Baseline fuel should provide flight time")
+	assert_gt(data.damage, 0, "A bare missile should retain a small warhead")
+	assert_gt(data.area, 0.0, "The baseline warhead should still explode")
+	assert_true(data.missile_has_explosive, "Rocket warheads can no longer be made inert")
+
+
+func test_fuel_and_explosive_blocks_upgrade_the_baseline() -> void:
+	var baseline := MechCatalog.get_gun_by_id("rocket_pod")
+	baseline.apply_missile_builder([] as Array[String])
+	var upgraded := MechCatalog.get_gun_by_id("rocket_pod")
+	upgraded.apply_missile_builder(["fuel", "explosive"] as Array[String])
+
+	assert_gt(upgraded.projectile_speed, baseline.projectile_speed)
+	assert_gt(upgraded.projectile_lifetime, baseline.projectile_lifetime)
+	assert_gt(upgraded.damage, baseline.damage)
+	assert_gt(upgraded.area, baseline.area)
+
+
+func test_cluster_and_proximity_blocks_are_derived_from_layout() -> void:
+	var data := MechCatalog.get_gun_by_id("rocket_pod")
+	data.apply_missile_builder(["cluster", "proximity_trigger"] as Array[String])
+
+	assert_true(data.missile_has_cluster, "Cluster block should enable submunitions")
+	assert_true(data.missile_has_proximity_trigger, "Proximity block should enable airburst detection")
+
+
+func test_proximity_trigger_detects_nearby_enemy() -> void:
+	var proj := RocketProjectile.new()
+	add_child_autofree(proj)
+	proj.global_position = Vector2.ZERO
+	var enemy := Node2D.new()
+	enemy.add_to_group("enemies")
+	enemy.global_position = Vector2(RocketProjectile.PROXIMITY_TRIGGER_RADIUS - 1.0, 0.0)
+	add_child_autofree(enemy)
+
+	assert_true(proj._has_enemy_in_proximity(), "Enemy inside the trigger radius should detonate the missile")
+	enemy.global_position = Vector2(RocketProjectile.PROXIMITY_TRIGGER_RADIUS + 1.0, 0.0)
+	assert_false(proj._has_enemy_in_proximity(), "Enemy outside the trigger radius should not detonate it")
+
+
+func test_cluster_has_multiple_scaled_submunitions() -> void:
+	var proj := RocketProjectile.new()
+	add_child_autofree(proj)
+	proj.damage = 100
+	proj.aoe_scale = 2.0
+
+	assert_gt(RocketProjectile.CLUSTER_EXPLOSION_COUNT, 1)
+	assert_gt(proj.get_cluster_damage(), 0)
+	assert_lt(proj.get_cluster_damage(), proj.damage)
+	assert_gt(proj.get_cluster_blast_scale(), 0.0)
+	assert_lt(proj.get_cluster_blast_scale(), proj.aoe_scale)
+
+
+# ─── Fire control ─────────────────────────────────────────────────────────────
+
+func test_fire_control_modes_have_stable_values() -> void:
+	assert_eq(WeaponData.MissileFireMode.SINGLE, 0)
+	assert_eq(WeaponData.MissileFireMode.TRIPLE, 1)
+	assert_eq(WeaponData.MissileFireMode.ALL_AMMO, 2)
+
+
+func test_setup_applies_fire_control_and_special_blocks() -> void:
+	var data := MechCatalog.get_gun_by_id("rocket_pod")
+	data.missile_fire_mode = WeaponData.MissileFireMode.ALL_AMMO
+	data.apply_missile_builder(["cluster", "proximity_trigger"] as Array[String])
+	_pod.setup(data)
+
+	assert_eq(_pod._fire_mode, WeaponData.MissileFireMode.ALL_AMMO)
+	assert_true(_pod._has_cluster)
+	assert_true(_pod._has_proximity_trigger)
+
+
+func test_fire_control_selects_single_triple_or_all_remaining_ammo() -> void:
+	_pod._ammo_current = 8
+	_pod._fire_mode = WeaponData.MissileFireMode.SINGLE
+	assert_eq(_pod._get_burst_size(), 1)
+	_pod._fire_mode = WeaponData.MissileFireMode.TRIPLE
+	assert_eq(_pod._get_burst_size(), 3)
+	_pod._fire_mode = WeaponData.MissileFireMode.ALL_AMMO
+	assert_eq(_pod._get_burst_size(), 8)
+
+
+func test_triple_fire_control_respects_remaining_ammo() -> void:
+	_pod._ammo_current = 2
+	_pod._fire_mode = WeaponData.MissileFireMode.TRIPLE
+	assert_eq(_pod._get_burst_size(), 2)

@@ -54,6 +54,12 @@ var reactor_option_buttons: Dictionary = {}
 var pending_reactor_module = null
 var pending_reactor_drag_start_pos: Vector2 = Vector2.ZERO
 var reactor_modal_edit_mode: bool = false
+## Ammo storage customisation modal
+var ammo_storage_modal_overlay: ColorRect
+var ammo_storage_options: VBoxContainer
+var pending_ammo_storage_module = null
+var pending_ammo_storage_drag_start_pos: Vector2 = Vector2.ZERO
+var ammo_storage_modal_edit_mode: bool = false
 ## Drag state
 var dragging_module = null
 var drag_start_pos: Vector2 = Vector2.ZERO
@@ -65,6 +71,7 @@ func _ready() -> void:
 		mech_loadout = GameManager.current_loadout
 	_setup_ui()
 	_build_reactor_modal()
+	_build_ammo_storage_modal()
 	if mech_loadout:
 		_load_modules()
 		_setup_torso_selector()
@@ -416,7 +423,9 @@ func _create_module_card(module) -> Control:
 	# Recharge bonus
 	var bonus_label := Label.new()
 	var displayed_recharge_bonus := int(module.get_effective_recharge_rate_bonus()) if module is ModuleData else int(module.recharge_rate_bonus)
-	if displayed_recharge_bonus > 0 and int(module.armor_bonus) > 0:
+	if module is ModuleData and module.is_customizable_weapon_module():
+		bonus_label.text = "+100% ammo"
+	elif displayed_recharge_bonus > 0 and int(module.armor_bonus) > 0:
 		bonus_label.text = "+%d energy/sec, +%d armor" % [displayed_recharge_bonus, int(module.armor_bonus)]
 	elif displayed_recharge_bonus > 0:
 		bonus_label.text = "+%d energy/sec" % displayed_recharge_bonus
@@ -447,6 +456,9 @@ func _on_card_gui_input(event: InputEvent, module, card: Control) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if module is ModuleData and module.is_customizable_reactor():
 			_show_reactor_modal(module, card.get_global_rect().position)
+			return
+		if module is ModuleData and module.is_customizable_weapon_module():
+			_show_ammo_storage_modal(module, card.get_global_rect().position, false)
 			return
 		_start_drag(module, card.get_global_rect().position)
 
@@ -600,6 +612,106 @@ func _hide_reactor_modal() -> void:
 	pending_reactor_drag_start_pos = Vector2.ZERO
 	reactor_modal_edit_mode = false
 
+func _build_ammo_storage_modal() -> void:
+	ammo_storage_modal_overlay = ColorRect.new()
+	ammo_storage_modal_overlay.color = Color(0.0, 0.0, 0.0, 0.72)
+	ammo_storage_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ammo_storage_modal_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ammo_storage_modal_overlay.visible = false
+	ammo_storage_modal_overlay.gui_input.connect(_on_ammo_storage_overlay_input)
+	add_child(ammo_storage_modal_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ammo_storage_modal_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.08, 0.1, 0.14, 0.98)
+	panel_style.set_border_width_all(2)
+	panel_style.border_color = Color(0.25, 0.78, 0.5, 0.95)
+	panel_style.set_corner_radius_all(8)
+	panel_style.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(380, 0)
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "AMMO STORAGE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", C_HEADER)
+	vbox.add_child(title)
+
+	var help := Label.new()
+	help.text = "Choose the equipped weapon that receives +100% ammo."
+	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	help.add_theme_color_override("font_color", C_TEXT_DIM)
+	vbox.add_child(help)
+
+	ammo_storage_options = VBoxContainer.new()
+	ammo_storage_options.add_theme_constant_override("separation", 6)
+	vbox.add_child(ammo_storage_options)
+
+	var cancel_button := Button.new()
+	cancel_button.text = "CANCEL"
+	cancel_button.custom_minimum_size = Vector2(140, 38)
+	cancel_button.pressed.connect(_hide_ammo_storage_modal)
+	vbox.add_child(cancel_button)
+
+func _show_ammo_storage_modal(module: ModuleData, start_pos: Vector2, edit_mode: bool) -> void:
+	pending_ammo_storage_module = module
+	pending_ammo_storage_drag_start_pos = start_pos
+	ammo_storage_modal_edit_mode = edit_mode
+	for child in ammo_storage_options.get_children():
+		child.queue_free()
+	var weapons := _get_equipped_weapons()
+	for weapon_index in weapons.size():
+		var weapon: WeaponData = weapons[weapon_index]
+		var button := Button.new()
+		button.text = "%d. %s" % [weapon_index + 1, weapon.name]
+		button.custom_minimum_size = Vector2(340, 38)
+		button.disabled = edit_mode and weapon_index == module.target_weapon_index
+		button.pressed.connect(_on_ammo_storage_weapon_selected.bind(weapon_index))
+		ammo_storage_options.add_child(button)
+	ammo_storage_modal_overlay.visible = true
+
+func _on_ammo_storage_overlay_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_hide_ammo_storage_modal()
+
+func _on_ammo_storage_weapon_selected(weapon_index: int) -> void:
+	if pending_ammo_storage_module == null:
+		return
+	if ammo_storage_modal_edit_mode:
+		pending_ammo_storage_module.target_weapon_index = weapon_index
+		_refresh_selected_module_panel()
+		_hide_ammo_storage_modal()
+		return
+	var selected_module = pending_ammo_storage_module.duplicate_module()
+	selected_module.target_weapon_index = weapon_index
+	var drag_start := pending_ammo_storage_drag_start_pos
+	_hide_ammo_storage_modal()
+	_start_drag(selected_module, drag_start)
+
+func _hide_ammo_storage_modal() -> void:
+	ammo_storage_modal_overlay.visible = false
+	pending_ammo_storage_module = null
+	pending_ammo_storage_drag_start_pos = Vector2.ZERO
+	ammo_storage_modal_edit_mode = false
+
+func _get_equipped_weapons() -> Array[WeaponData]:
+	var weapons: Array[WeaponData] = []
+	weapons.append_array(mech_loadout.selected_guns)
+	weapons.append_array(mech_loadout.selected_light_guns)
+	return weapons
+
 func _start_drag(module, start_pos: Vector2) -> void:
 	dragging_module = module
 	drag_start_pos = start_pos
@@ -700,9 +812,10 @@ func _on_modify_selected_module_pressed() -> void:
 	if not (selected_grid_module is ModuleData):
 		return
 	var module: ModuleData = selected_grid_module
-	if not module.is_customizable_reactor():
-		return
-	_show_reactor_modify_modal(module)
+	if module.is_customizable_reactor():
+		_show_reactor_modify_modal(module)
+	elif module.is_customizable_weapon_module():
+		_show_ammo_storage_modal(module, Vector2.ZERO, true)
 
 func _refresh_selected_module_panel() -> void:
 	if selected_module_label == null or selected_module_description_label == null or selected_module_modify_button == null:
@@ -715,11 +828,17 @@ func _refresh_selected_module_panel() -> void:
 	var module: ModuleData = selected_grid_module
 	selected_module_label.text = module.name
 	selected_module_description_label.text = _get_module_functionality_description(module)
-	selected_module_modify_button.disabled = not module.is_customizable_reactor()
+	selected_module_modify_button.disabled = not (module.is_customizable_reactor() or module.is_customizable_weapon_module())
 
 func _get_module_functionality_description(module: ModuleData) -> String:
 	if module.is_customizable_reactor():
 		return "%s. %s" % [module.get_reactor_type_name(), _get_reactor_functionality_description(module)]
+	if module.is_customizable_weapon_module():
+		var weapons := _get_equipped_weapons()
+		var weapon_name := "Weapon 1"
+		if module.target_weapon_index >= 0 and module.target_weapon_index < weapons.size():
+			weapon_name = weapons[module.target_weapon_index].name
+		return "%s receives +100%% ammo." % weapon_name
 	var lines: Array[String] = []
 	if not module.description.is_empty():
 		lines.append(module.description)

@@ -63,6 +63,7 @@ var fire_control_mode: FireControlMode = FireControlMode.INPUT
 var projectile_target_mask: int = 2
 ## Which collision layer(s) explosions should damage.
 var explosion_target_mask: int = 2
+var _ammo_capacity: int = MAX_AMMO
 
 ## Solid ammo multipliers.
 const SOLID_DAMAGE_MULT := 1.6
@@ -82,7 +83,8 @@ func setup(data: WeaponData) -> void:
 	_pierce = data.pierce
 	_penetration = data.penetration
 	_ammo_type = data.ammo_type
-	_ammo_current = MAX_AMMO
+	_ammo_capacity = MAX_AMMO
+	_ammo_current = _ammo_capacity
 	_apply_barrel_profile(data.barrel_length)
 	WeaponAttachment.mount_from_data(self, data)
 
@@ -127,7 +129,11 @@ func get_ammo_count() -> int:
 	return _ammo_current
 
 func get_ammo_capacity() -> int:
-	return MAX_AMMO
+	return _ammo_capacity
+
+func set_ammo_capacity_multiplier(multiplier: float) -> void:
+	_ammo_capacity = maxi(1, int(round(float(MAX_AMMO) * maxf(multiplier, 0.0))))
+	_ammo_current = _ammo_capacity
 
 func has_ammo() -> bool:
 	return _ammo_current > 0

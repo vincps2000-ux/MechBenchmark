@@ -38,6 +38,10 @@ const FUEL_REACTOR_DRAIN_PER_SECOND := 1.0
 @export var reactor_type: int = ReactorType.NONE
 @export var reactor_fuel_current: float = 0.0
 @export var reactor_fuel_max: float = 0.0
+## Whether this module lets the player choose an equipped weapon to receive its bonus.
+@export var supports_weapon_customization: bool = false
+## Index in the combined weapon list (medium weapons first, then light weapons).
+@export var target_weapon_index: int = 0
 
 func duplicate_module() -> ModuleData:
 	var copy = duplicate(true) as ModuleData
@@ -46,6 +50,9 @@ func duplicate_module() -> ModuleData:
 
 func is_customizable_reactor() -> bool:
 	return supports_reactor_customization
+
+func is_customizable_weapon_module() -> bool:
+	return supports_weapon_customization
 
 func set_reactor_type(value: int) -> void:
 	if not supports_reactor_customization:

@@ -202,6 +202,29 @@ func test_player_mounting_skips_null_medium_weapon_slots():
 		"Player should mount only the non-null medium weapon entries")
 
 
+func test_player_applies_ammo_storage_to_selected_weapon():
+	var loadout := MechLoadout.new()
+	loadout.selected_legs = LegData.new()
+	var torso := TorsoData.new()
+	torso.torso_type = TorsoData.TorsoType.STEALTH
+	torso.weapon_slots = 1
+	loadout.selected_torso = torso
+	loadout.selected_torsos = [torso]
+	loadout.selected_guns = [MechCatalog.get_gun_by_id("autocannon")]
+	var storage = MechCatalog.get_module_by_id("ammo_storage_1x1")
+	loadout.get_or_create_module_grid(0).place_module(storage, Vector2i.ZERO)
+
+	GameManager.current_loadout = loadout
+	var player = _PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+	var weapon = player.get_weapons()[0]
+
+	assert_eq(weapon.get_ammo_capacity(), Autocannon.MAX_AMMO * 2,
+		"Selected mounted weapon should receive +100% ammo")
+	assert_eq(weapon.get_ammo_count(), Autocannon.MAX_AMMO * 2,
+		"Selected mounted weapon should start with its increased capacity full")
+
+
 func test_backup_battery_consumes_one_and_restores_ninety_energy():
 	var loadout := MechLoadout.new()
 	loadout.selected_legs = LegData.new()

@@ -39,6 +39,12 @@ const TARGETING_TYPE_NAMES := {
 	WeaponData.TargetingType.WIRE_GUIDED: "wire_guided",
 }
 
+const MISSILE_FIRE_MODE_NAMES := {
+	WeaponData.MissileFireMode.SINGLE: "single",
+	WeaponData.MissileFireMode.TRIPLE: "triple",
+	WeaponData.MissileFireMode.ALL_AMMO: "all_ammo",
+}
+
 const BARREL_LENGTH_NAMES := {
 	WeaponData.BarrelLength.VERY_SHORT: "very_short",
 	WeaponData.BarrelLength.SHORT: "short",
@@ -214,6 +220,9 @@ static func weapon_to_dict(gun: WeaponData) -> Dictionary:
 		dict["barrel_count"] = WeaponData.clamp_barrel_count(gun.barrel_count)
 	if baseline == null or gun.laser_intensity != baseline.laser_intensity:
 		dict["laser_intensity"] = gun.laser_intensity
+	if baseline == null or gun.missile_fire_mode != baseline.missile_fire_mode:
+		dict["missile_fire_mode"] = _enum_to_name(
+				MISSILE_FIRE_MODE_NAMES, gun.missile_fire_mode, "triple")
 
 	var missile_layout: Array = []
 	var has_missile_part := false
@@ -263,6 +272,11 @@ static func weapon_from_dict(dict: Dictionary) -> WeaponData:
 		gun.barrel_count = WeaponData.clamp_barrel_count(int(dict["barrel_count"]))
 	if dict.has("laser_intensity"):
 		gun.laser_intensity = clampi(int(dict["laser_intensity"]), 0, 4)
+	if dict.has("missile_fire_mode"):
+		gun.missile_fire_mode = _name_to_enum(
+				MISSILE_FIRE_MODE_NAMES,
+				str(dict["missile_fire_mode"]),
+				gun.missile_fire_mode) as WeaponData.MissileFireMode
 
 	if dict.has("missile_layout"):
 		var layout: Array[String] = []
@@ -337,6 +351,8 @@ static func module_grid_to_dict(grid) -> Dictionary:
 			if module.is_fuel_reactor():
 				entry["fuel_max"] = float(module.reactor_fuel_max)
 				entry["fuel_current"] = float(module.reactor_fuel_current)
+		if module.supports_weapon_customization:
+			entry["target_weapon"] = int(module.target_weapon_index)
 		placements.append(entry)
 	return {
 		"torso": int(grid.torso_index),
@@ -358,5 +374,7 @@ static func module_grid_from_dict(dict: Dictionary):
 				module.reactor_fuel_max = float(entry["fuel_max"])
 			if entry.has("fuel_current"):
 				module.reactor_fuel_current = float(entry["fuel_current"])
+		if module.supports_weapon_customization:
+			module.target_weapon_index = maxi(0, int(entry.get("target_weapon", 0)))
 		grid.place_module(module, Vector2i(int(entry.get("x", 0)), int(entry.get("y", 0))))
 	return grid

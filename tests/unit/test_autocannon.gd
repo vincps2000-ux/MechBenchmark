@@ -56,6 +56,13 @@ func test_try_fire_once_fails_when_out_of_ammo() -> void:
 	assert_false(_autocannon.try_fire_once(),
 			"Autocannon should not fire when ammo is empty")
 
+func test_ammo_capacity_multiplier_refills_to_increased_capacity() -> void:
+	_autocannon.set_ammo_capacity_multiplier(2.0)
+	assert_eq(_autocannon.get_ammo_capacity(), Autocannon.MAX_AMMO * 2,
+			"A +100% ammo bonus should double capacity")
+	assert_eq(_autocannon.get_ammo_count(), Autocannon.MAX_AMMO * 2,
+			"Applying the bonus should fill the increased storage")
+
 func test_short_barrel_is_fast_and_inaccurate() -> void:
 	var data := WeaponData.new()
 	data.barrel_length = WeaponData.BarrelLength.VERY_SHORT

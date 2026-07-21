@@ -277,6 +277,7 @@ func _mount_weapons(torso_type: TorsoData.TorsoType) -> void:
 
 		var weapon: Node = _instantiate_weapon(gun_data.weapon_type)
 		weapon.setup(gun_data)
+		_apply_ammo_storage(weapon, loadout, i)
 		var action_name := "fire_%d" % i
 		if InputMap.has_action(action_name):
 			weapon.fire_action = action_name
@@ -320,6 +321,7 @@ func _mount_weapons_for_torsos(torsos: Array[TorsoData], loadout: MechLoadout) -
 
 			var weapon: Node = _instantiate_weapon(gun_data.weapon_type)
 			weapon.setup(gun_data)
+			_apply_ammo_storage(weapon, loadout, gun_index - 1)
 			if InputMap.has_action(action_name):
 				weapon.fire_action = action_name
 			mount.add_child(weapon)
@@ -363,6 +365,7 @@ func _mount_light_weapons(torso_type: TorsoData.TorsoType) -> void:
 
 		var weapon: Node = _instantiate_weapon(gun_data.weapon_type)
 		weapon.setup(gun_data)
+		_apply_ammo_storage(weapon, loadout, loadout.selected_guns.size() + i)
 		var light_action := "fire_%d" % (loadout.selected_guns.size() + i)
 		if InputMap.has_action(light_action):
 			weapon.fire_action = light_action
@@ -397,6 +400,7 @@ func _mount_light_weapons_for_torsos(torsos: Array[TorsoData], loadout: MechLoad
 
 			var weapon: Node = _instantiate_weapon(gun_data.weapon_type)
 			weapon.setup(gun_data)
+			_apply_ammo_storage(weapon, loadout, medium_count + light_index - 1)
 			if InputMap.has_action(light_action):
 				weapon.fire_action = light_action
 			mount.add_child(weapon)
@@ -406,6 +410,10 @@ func _register_weapon(weapon: Node, torso_index: int) -> void:
 	_weapons.append(weapon)
 	_weapon_torso_indices.append(torso_index)
 	_weapon_default_actions.append(String(weapon.get("fire_action")))
+
+func _apply_ammo_storage(weapon: Node, loadout: MechLoadout, weapon_index: int) -> void:
+	if weapon.has_method("set_ammo_capacity_multiplier"):
+		weapon.call("set_ammo_capacity_multiplier", loadout.get_weapon_ammo_multiplier(weapon_index))
 
 # ─── Weapon management API ────────────────────────────────────────────────────
 func get_weapons() -> Array[Node]:

@@ -9,6 +9,7 @@ signal deploy_pressed(loadout: MechLoadout)
 
 const _MISSILE_BUILDER_PART_CARD_SCRIPT := preload("res://src/ui/missile_builder_part_card.gd")
 const _MISSILE_BUILDER_SLOT_SCRIPT := preload("res://src/ui/missile_builder_slot.gd")
+const _MISSILE_BUILDER_PREVIEW_SCRIPT := preload("res://src/ui/missile_builder_preview.gd")
 const _THROWER_TANK_SCRIPT := preload("res://src/ui/thrower_tank.gd")
 const _MACHINEGUN_WORKBENCH_PREVIEW_SCRIPT := preload("res://src/ui/machinegun_workbench_preview.gd")
 const _NOZZLE_LONG_ICON_PATH := "res://assets/sprites/thrower_nozzle_long.svg"
@@ -84,24 +85,34 @@ var _sub_modal_open_frame: int = -1
 const _MISSILE_SLOT_COUNT := 6
 const _MISSILE_PART_DEFS := {
 	"fuel": {
-		"title": "Fuel Part",
-		"desc": "+Range (longer rocket lifetime)",
+		"title": "Fuel Cell",
+		"desc": "Adds thrust and extends powered flight",
 		"cost": 1,
 	},
 	"explosive": {
-		"title": "Explosive Part",
-		"desc": "+Damage and +AOE",
+		"title": "Warhead Charge",
+		"desc": "Boosts blast damage and radius",
 		"cost": 1,
 	},
 	"wire_guided": {
-		"title": "Wire Guided",
-		"desc": "Guidance module (exclusive)",
+		"title": "Wire Guidance",
+		"desc": "Cursor steering package (exclusive)",
 		"cost": 1,
 	},
 	"homing": {
-		"title": "Homing",
-		"desc": "Guidance module (exclusive, takes 3 slots)",
+		"title": "Homing Array",
+		"desc": "Autonomous tracking array (3 bays, exclusive)",
 		"cost": 3,
+	},
+	"cluster": {
+		"title": "Cluster Block",
+		"desc": "Splits the blast into five scaled submunitions",
+		"cost": 1,
+	},
+	"proximity_trigger": {
+		"title": "Proximity Trigger",
+		"desc": "Airbursts when an enemy enters the trigger radius",
+		"cost": 1,
 	},
 }
 
@@ -110,6 +121,8 @@ var _missile_builder_layout: Array[String] = []
 var _missile_slot_zones: Array = []
 var _missile_builder_status_label: Label = null
 var _missile_builder_stats_label: Label = null
+var _missile_builder_preview: Control = null
+var _missile_fire_mode_buttons: Dictionary = {}
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -2495,20 +2508,25 @@ func _barrel_length_description(length_level: int) -> String:
 func _show_missile_builder_modal(gun: WeaponData) -> void:
 	_missile_builder_weapon = gun
 	_missile_builder_layout = _normalize_missile_layout(gun.missile_builder_layout)
+	_missile_fire_mode_buttons.clear()
 
 	for child in _sub_modal_panel.get_children():
 		_sub_modal_panel.remove_child(child)
 		child.free()
 
 	var root := VBoxContainer.new()
-	root.custom_minimum_size = Vector2(760, 420)
+	var viewport_size := get_viewport_rect().size
+	root.custom_minimum_size = Vector2(
+		clampf(viewport_size.x - 72.0, 560.0, 1080.0),
+		clampf(viewport_size.y - 72.0, 500.0, 720.0)
+	)
 	root.add_theme_constant_override("separation", 14)
 	_sub_modal_panel.add_child(root)
 
 	var title := Label.new()
-	title.text = "🚀  MISSILE BUILDER — %s" % gun.name
+	title.text = "ROCKET POD / ORDNANCE DESIGN BENCH / %s" % gun.name.to_upper()
 	title.add_theme_font_size_override("font_size", 18)
-	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	title.add_theme_color_override("font_color", Color(0.92, 0.72, 0.28))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(title)
 
@@ -2516,13 +2534,14 @@ func _show_missile_builder_modal(gun: WeaponData) -> void:
 	sep.add_theme_color_override("separator", Color(0.3, 0.35, 0.4, 0.5))
 	root.add_child(sep)
 
-	var body := HBoxContainer.new()
+	var body: BoxContainer = VBoxContainer.new() if viewport_size.x < 900.0 else HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 16)
 	root.add_child(body)
 
 	var parts_panel := PanelContainer.new()
-	parts_panel.custom_minimum_size = Vector2(300, 0)
+	parts_panel.custom_minimum_size = Vector2(286, 170)
+	parts_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(parts_panel)
 
 	var parts_style := StyleBoxFlat.new()
@@ -2543,17 +2562,29 @@ func _show_missile_builder_modal(gun: WeaponData) -> void:
 	parts_title.add_theme_color_override("font_color", Color(0.95, 0.78, 0.3))
 	parts_vbox.add_child(parts_title)
 
-	for part_id in ["fuel", "explosive", "wire_guided", "homing"]:
+	var parts_scroll := ScrollContainer.new()
+	parts_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parts_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	parts_vbox.add_child(parts_scroll)
+
+	var parts_list := VBoxContainer.new()
+	parts_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parts_list.add_theme_constant_override("separation", 7)
+	parts_scroll.add_child(parts_list)
+
+	for part_id in ["fuel", "explosive", "cluster", "proximity_trigger", "wire_guided", "homing"]:
 		var def: Dictionary = _MISSILE_PART_DEFS[part_id]
 		var card: Control = _MISSILE_BUILDER_PART_CARD_SCRIPT.new()
 		card.setup(part_id, def.get("title", "Part"), def.get("desc", ""), int(def.get("cost", 1)))
-		parts_vbox.add_child(card)
+		card.drag_started.connect(_on_missile_part_drag_started)
+		card.drag_finished.connect(_on_missile_part_drag_finished)
+		parts_list.add_child(card)
 
 	var parts_hint := Label.new()
-	parts_hint.text = "Drag parts into the 6 missile slots.\nClick a filled slot to remove that module."
+	parts_hint.text = "MICRO THRUSTER + INITIATOR ARE BUILT IN\nDrag upgrades into bays. Click a module to remove it."
 	parts_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parts_hint.add_theme_font_size_override("font_size", 11)
-	parts_hint.add_theme_color_override("font_color", Color(0.58, 0.54, 0.5))
+	parts_hint.add_theme_color_override("font_color", Color(0.68, 0.65, 0.54))
 	parts_vbox.add_child(parts_hint)
 
 	var builder_panel := PanelContainer.new()
@@ -2575,67 +2606,20 @@ func _show_missile_builder_modal(gun: WeaponData) -> void:
 	builder_panel.add_child(builder_vbox)
 
 	var missile_title := Label.new()
-	missile_title.text = "MISSILE CORE (6 SLOTS)"
+	missile_title.text = "LIVE CUTAWAY / 6 MODULAR BAYS"
 	missile_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	missile_title.add_theme_font_size_override("font_size", 14)
 	missile_title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
 	builder_vbox.add_child(missile_title)
 
-	var frame_wrap := CenterContainer.new()
-	frame_wrap.custom_minimum_size = Vector2(0, 40)
-	builder_vbox.add_child(frame_wrap)
-
-	var frame_bar := HBoxContainer.new()
-	frame_bar.custom_minimum_size = Vector2(180, 30)
-	frame_bar.add_theme_constant_override("separation", 0)
-	frame_wrap.add_child(frame_bar)
-
-	var frame_nose := ColorRect.new()
-	frame_nose.custom_minimum_size = Vector2(18, 30)
-	frame_nose.color = Color(0.15, 0.2, 0.25, 0.9)
-	frame_bar.add_child(frame_nose)
-
-	var frame_body := PanelContainer.new()
-	frame_body.custom_minimum_size = Vector2(142, 30)
-	frame_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var body_style := StyleBoxFlat.new()
-	body_style.bg_color = Color(0.08, 0.1, 0.12, 0.92)
-	body_style.set_border_width_all(2)
-	body_style.border_color = Color(0.95, 0.76, 0.3, 0.65)
-	body_style.set_corner_radius_all(6)
-	frame_body.add_theme_stylebox_override("panel", body_style)
-	frame_bar.add_child(frame_body)
-
-	var tail := ColorRect.new()
-	tail.custom_minimum_size = Vector2(20, 30)
-	tail.color = Color(0.2, 0.16, 0.1, 0.9)
-	frame_bar.add_child(tail)
-
-	var rocket_visual := HBoxContainer.new()
-	rocket_visual.alignment = BoxContainer.ALIGNMENT_CENTER
-	rocket_visual.add_theme_constant_override("separation", 6)
-	builder_vbox.add_child(rocket_visual)
-
-	var nose := Label.new()
-	nose.text = "◀"
-	nose.add_theme_font_size_override("font_size", 20)
-	nose.add_theme_color_override("font_color", Color(0.95, 0.8, 0.35))
-	rocket_visual.add_child(nose)
-
+	_missile_builder_preview = _MISSILE_BUILDER_PREVIEW_SCRIPT.new()
+	_missile_builder_preview.setup(_can_place_missile_part)
+	_missile_builder_preview.part_dropped.connect(_on_missile_part_dropped)
+	_missile_builder_preview.slot_clicked.connect(_on_missile_slot_clicked)
+	_missile_builder_preview.drag_target_changed.connect(_on_missile_drag_target_changed)
+	builder_vbox.add_child(_missile_builder_preview)
 	_missile_slot_zones.clear()
-	for i in _MISSILE_SLOT_COUNT:
-		var zone: Control = _MISSILE_BUILDER_SLOT_SCRIPT.new()
-		zone.setup(i, Vector2(46, 46))
-		zone.part_dropped.connect(_on_missile_part_dropped)
-		zone.slot_clicked.connect(_on_missile_slot_clicked)
-		rocket_visual.add_child(zone)
-		_missile_slot_zones.append(zone)
-
-	var thruster := Label.new()
-	thruster.text = "▶"
-	thruster.add_theme_font_size_override("font_size", 20)
-	thruster.add_theme_color_override("font_color", Color(0.95, 0.8, 0.35))
-	rocket_visual.add_child(thruster)
+	_missile_slot_zones.assign(_missile_builder_preview.slot_zones)
 
 	_missile_builder_status_label = Label.new()
 	_missile_builder_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2649,9 +2633,25 @@ func _show_missile_builder_modal(gun: WeaponData) -> void:
 	_missile_builder_stats_label.add_theme_color_override("font_color", Color(0.8, 0.76, 0.68))
 	builder_vbox.add_child(_missile_builder_stats_label)
 
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	builder_vbox.add_child(spacer)
+	var fire_control := HBoxContainer.new()
+	fire_control.alignment = BoxContainer.ALIGNMENT_CENTER
+	fire_control.add_theme_constant_override("separation", 0)
+	builder_vbox.add_child(fire_control)
+
+	var fire_label := Label.new()
+	fire_label.text = "FIRE CONTROL  "
+	fire_label.add_theme_font_size_override("font_size", 12)
+	fire_label.add_theme_color_override("font_color", Color(0.5, 0.82, 0.84))
+	fire_control.add_child(fire_label)
+
+	for mode in [WeaponData.MissileFireMode.SINGLE, WeaponData.MissileFireMode.TRIPLE, WeaponData.MissileFireMode.ALL_AMMO]:
+		var mode_button := Button.new()
+		mode_button.text = _get_missile_fire_mode_label(mode)
+		mode_button.toggle_mode = true
+		mode_button.custom_minimum_size = Vector2(104, 34)
+		mode_button.pressed.connect(_on_missile_fire_mode_selected.bind(mode))
+		fire_control.add_child(mode_button)
+		_missile_fire_mode_buttons[mode] = mode_button
 
 	var controls := HBoxContainer.new()
 	controls.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2676,6 +2676,54 @@ func _show_missile_builder_modal(gun: WeaponData) -> void:
 	_sub_modal_overlay.set_deferred("visible", true)
 
 
+func _on_missile_part_drag_started(part_id: String, slot_cost: int) -> void:
+	if _missile_builder_preview:
+		_missile_builder_preview.set_dragged_part(part_id, slot_cost)
+	if _missile_builder_status_label:
+		_missile_builder_status_label.text = "ROUTING %s / SELECT A GLOWING BAY" % part_id.to_upper().replace("_", " ")
+		_missile_builder_status_label.add_theme_color_override("font_color", Color(0.45, 0.95, 0.86))
+
+
+func _on_missile_part_drag_finished(part_id: String, successful: bool) -> void:
+	if _missile_builder_preview:
+		_missile_builder_preview.clear_dragged_part()
+	if not successful and _missile_builder_status_label:
+		_missile_builder_status_label.text = "%s RETURNED TO PARTS TRAY" % part_id.to_upper().replace("_", " ")
+		_missile_builder_status_label.add_theme_color_override("font_color", Color(0.95, 0.62, 0.28))
+
+
+func _on_missile_drag_target_changed(part_id: String, slot_index: int, valid: bool) -> void:
+	if _missile_builder_status_label == null:
+		return
+	_missile_builder_status_label.text = "%s / BAY %02d / %s" % [
+		part_id.to_upper().replace("_", " "),
+		slot_index + 1,
+		"READY TO INSTALL" if valid else "BAY INCOMPATIBLE",
+	]
+	_missile_builder_status_label.add_theme_color_override(
+		"font_color", Color(0.45, 0.95, 0.86) if valid else Color(1.0, 0.34, 0.24)
+	)
+
+
+func _on_missile_fire_mode_selected(mode: WeaponData.MissileFireMode) -> void:
+	if _missile_builder_weapon == null:
+		return
+	_missile_builder_weapon.missile_fire_mode = mode
+	_record_step()
+	_refresh_missile_builder_view()
+	_refresh_ui()
+
+
+func _get_missile_fire_mode_label(mode: WeaponData.MissileFireMode) -> String:
+	match mode:
+		WeaponData.MissileFireMode.SINGLE:
+			return "SINGLE"
+		WeaponData.MissileFireMode.ALL_AMMO:
+			return "ALL AMMO"
+		_:
+			return "TRIPLE"
+
+
 func _on_missile_part_dropped(part_id: String, slot_index: int) -> void:
 	if _missile_builder_weapon == null:
 		return
@@ -2696,6 +2744,7 @@ func _on_missile_part_dropped(part_id: String, slot_index: int) -> void:
 
 	_place_missile_part(part_id, slot_index)
 	_apply_missile_builder_to_weapon()
+	_record_step()
 	_refresh_missile_builder_view()
 
 
@@ -2709,6 +2758,7 @@ func _on_missile_slot_clicked(slot_index: int) -> void:
 
 	_remove_missile_module_at(slot_index)
 	_apply_missile_builder_to_weapon()
+	_record_step()
 	_refresh_missile_builder_view()
 
 
@@ -2717,11 +2767,14 @@ func _on_missile_builder_clear() -> void:
 		return
 	_missile_builder_layout = _normalize_missile_layout([])
 	_apply_missile_builder_to_weapon()
+	_record_step()
 	_refresh_missile_builder_view()
 
 
 func _refresh_missile_builder_view() -> void:
 	_missile_builder_layout = _normalize_missile_layout(_missile_builder_layout)
+	if _missile_builder_preview:
+		_missile_builder_preview.set_layout(_missile_builder_layout)
 	if _missile_slot_zones.is_empty():
 		return
 
@@ -2743,6 +2796,10 @@ func _refresh_missile_builder_view() -> void:
 				zone.set_display("H", Color(0.65, 0.95, 0.7), true, false)
 			"homing_tail":
 				zone.set_display("·", Color(0.58, 0.82, 0.6), true, true)
+			"cluster":
+				zone.set_display("C", Color(0.84, 0.42, 1.0), true, false)
+			"proximity_trigger":
+				zone.set_display("P", Color(0.35, 0.95, 0.88), true, false)
 			_:
 				zone.set_display("?", Color(0.85, 0.5, 0.45), true, false)
 
@@ -2756,14 +2813,21 @@ func _refresh_missile_builder_view() -> void:
 		_missile_builder_status_label.add_theme_color_override("font_color", Color(0.72, 0.84, 0.95))
 		var speed := _missile_builder_weapon.projectile_speed
 		var range_px := speed * _missile_builder_weapon.projectile_lifetime
-		var explosive_text := "LIVE WARHEAD" if _missile_builder_weapon.missile_has_explosive else "INERT (NO DAMAGE/NO EXPLOSION)"
-		_missile_builder_stats_label.text = "Speed %.0f  |  Range %.0f px  |  Damage %d  |  AOE %.2f\n%s" % [
+		var payloads: Array[String] = ["BASELINE FUEL", "LIVE INITIATOR"]
+		if _missile_builder_weapon.missile_has_cluster:
+			payloads.append("CLUSTER x%d" % RocketProjectile.CLUSTER_EXPLOSION_COUNT)
+		if _missile_builder_weapon.missile_has_proximity_trigger:
+			payloads.append("PROXIMITY FUSE")
+		_missile_builder_stats_label.text = "THRUST %.0f  |  RANGE %.0f px  |  YIELD %d  |  BLAST %.2f\n%s" % [
 			speed,
 			range_px,
 			_missile_builder_weapon.damage,
 			_missile_builder_weapon.area,
-			explosive_text,
+			"  /  ".join(payloads),
 		]
+		for mode in _missile_fire_mode_buttons:
+			var button := _missile_fire_mode_buttons[mode] as Button
+			button.set_pressed_no_signal(mode == _missile_builder_weapon.missile_fire_mode)
 
 
 func _apply_missile_builder_to_weapon() -> void:

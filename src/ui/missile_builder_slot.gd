@@ -4,13 +4,16 @@ extends Panel
 
 signal part_dropped(part_id: String, slot_index: int)
 signal slot_clicked(slot_index: int)
+signal drag_target_changed(part_id: String, slot_index: int, valid: bool)
 
 var slot_index: int = 0
 var is_locked: bool = false
 var is_filled: bool = false
 
 var _is_hover: bool = false
+var _is_invalid_hover: bool = false
 var _label: Label = null
+var _drop_validator: Callable
 
 func setup(index: int, zone_size: Vector2 = Vector2(44, 44)) -> void:
 	slot_index = index
@@ -28,6 +31,10 @@ func setup(index: int, zone_size: Vector2 = Vector2(44, 44)) -> void:
 	set_display("%d" % (slot_index + 1), Color(0.66, 0.62, 0.56), false, false)
 
 
+func set_drop_validator(validator: Callable) -> void:
+	_drop_validator = validator
+
+
 func set_display(text: String, color: Color, filled: bool, locked: bool) -> void:
 	if _label:
 		_label.text = text
@@ -39,19 +46,24 @@ func set_display(text: String, color: Color, filled: bool, locked: bool) -> void
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	if is_locked:
-		_set_hover(false)
+		_set_hover(false, true)
 		return false
 	if not (data is Dictionary):
-		_set_hover(false)
+		_set_hover(false, false)
 		return false
 	var drag_type := String(data.get("type", ""))
-	var ok: bool = drag_type == "missile_builder_part"
-	_set_hover(ok)
-	return ok
+	if drag_type != "missile_builder_part":
+		_set_hover(false, false)
+		return false
+	var part_id := String(data.get("part_id", ""))
+	var valid := not _drop_validator.is_valid() or bool(_drop_validator.call(part_id, slot_index))
+	_set_hover(valid, not valid)
+	drag_target_changed.emit(part_id, slot_index, valid)
+	return valid
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
-	_set_hover(false)
+	_set_hover(false, false)
 	part_dropped.emit(String(data.get("part_id", "")), slot_index)
 
 
@@ -63,23 +75,32 @@ func _gui_input(event: InputEvent) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
-		_set_hover(false)
+		_set_hover(false, false)
 
 
-func _set_hover(on: bool) -> void:
-	if _is_hover == on:
+func _set_hover(on: bool, invalid: bool) -> void:
+	if _is_hover == on and _is_invalid_hover == invalid:
 		return
 	_is_hover = on
+	_is_invalid_hover = invalid
 	_apply_style()
 
 
 func _apply_style() -> void:
 	var style := StyleBoxFlat.new()
 	style.set_corner_radius_all(5)
-	if _is_hover and not is_locked:
+	if _is_invalid_hover:
+		style.bg_color = Color(0.35, 0.07, 0.06, 0.9)
+		style.set_border_width_all(3)
+		style.border_color = Color(1.0, 0.3, 0.22, 1.0)
+		style.shadow_color = Color(1.0, 0.12, 0.08, 0.45)
+		style.shadow_size = 8
+	elif _is_hover and not is_locked:
 		style.bg_color = Color(0.31, 0.23, 0.08, 0.85)
 		style.set_border_width_all(3)
 		style.border_color = Color(1.0, 0.86, 0.31, 1.0)
+		style.shadow_color = Color(1.0, 0.72, 0.18, 0.5)
+		style.shadow_size = 9
 	elif is_locked:
 		style.bg_color = Color(0.08, 0.08, 0.1, 0.5)
 		style.set_border_width_all(1)
@@ -92,4 +113,5 @@ func _apply_style() -> void:
 		style.bg_color = Color(0.08, 0.08, 0.1, 0.4)
 		style.set_border_width_all(2)
 		style.border_color = Color(0.49, 0.45, 0.37, 0.45)
+	style.set_content_margin_all(3)
 	add_theme_stylebox_override("panel", style)

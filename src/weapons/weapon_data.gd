@@ -47,6 +47,12 @@ enum TargetingType {
 	WIRE_GUIDED,   # Tracks the cursor position
 }
 
+enum MissileFireMode {
+	SINGLE,
+	TRIPLE,
+	ALL_AMMO,
+}
+
 enum BarrelLength {
 	VERY_SHORT,
 	SHORT,
@@ -60,13 +66,14 @@ const BARREL_LENGTH_COUNT := 5
 const MIN_BARREL_COUNT := 1
 const MAX_BARREL_COUNT := 4
 const MISSILE_SLOT_COUNT := 6
-const MISSILE_SPEED_NO_FUEL := 95.0
+const MISSILE_BASE_SPEED := 150.0
 const MISSILE_SPEED_PER_FUEL := 185.0
-const MISSILE_LIFETIME_NO_FUEL := 0.6
+const MISSILE_BASE_LIFETIME := 0.8
 const MISSILE_LIFETIME_PER_FUEL := 1.1
+const MISSILE_BASE_DAMAGE := 12
 const MISSILE_DAMAGE_PER_EXPLOSIVE := 34
-const MISSILE_AOE_BASE_WITH_EXPLOSIVE := 1.0
-const MISSILE_AOE_PER_EXPLOSIVE := 0.8
+const MISSILE_BASE_AOE := 0.55
+const MISSILE_AOE_PER_EXPLOSIVE := 0.7
 
 ## Stable catalog identifier used by MechBlueprint serialization.
 @export var id: String = ""
@@ -92,6 +99,9 @@ const MISSILE_AOE_PER_EXPLOSIVE := 0.8
 @export var projectile_lifetime: float = 3.0
 @export var missile_builder_layout: Array[String] = []
 @export var missile_has_explosive: bool = true
+@export var missile_has_cluster: bool = false
+@export var missile_has_proximity_trigger: bool = false
+@export var missile_fire_mode: MissileFireMode = MissileFireMode.TRIPLE
 ## Laser intensity level (0 = Flicker, 1 = Low, 2 = Standard, 3 = High, 4 = Overload).
 ## Controls energy drain, damage, and penetration. Default 2 = Standard (current baseline).
 @export var laser_intensity: int = 2
@@ -161,6 +171,8 @@ func apply_missile_builder(layout: Array[String]) -> void:
 	var fuel_count := 0
 	var explosive_count := 0
 	var guidance_type := TargetingType.UNGUIDED
+	var has_cluster := false
+	var has_proximity_trigger := false
 
 	for part in normalized:
 		match part:
@@ -172,19 +184,18 @@ func apply_missile_builder(layout: Array[String]) -> void:
 				guidance_type = TargetingType.WIRE_GUIDED
 			"homing":
 				guidance_type = TargetingType.SEEKING
+			"cluster":
+				has_cluster = true
+			"proximity_trigger":
+				has_proximity_trigger = true
 
-	projectile_speed = MISSILE_SPEED_NO_FUEL + float(fuel_count) * MISSILE_SPEED_PER_FUEL
-	projectile_lifetime = MISSILE_LIFETIME_NO_FUEL + float(fuel_count) * MISSILE_LIFETIME_PER_FUEL
-
-	if explosive_count <= 0:
-		missile_has_explosive = false
-		damage = 0
-		area = 0.0
-	else:
-		missile_has_explosive = true
-		damage = explosive_count * MISSILE_DAMAGE_PER_EXPLOSIVE
-		area = MISSILE_AOE_BASE_WITH_EXPLOSIVE + float(explosive_count - 1) * MISSILE_AOE_PER_EXPLOSIVE
-
+	projectile_speed = MISSILE_BASE_SPEED + float(fuel_count) * MISSILE_SPEED_PER_FUEL
+	projectile_lifetime = MISSILE_BASE_LIFETIME + float(fuel_count) * MISSILE_LIFETIME_PER_FUEL
+	missile_has_explosive = true
+	damage = MISSILE_BASE_DAMAGE + explosive_count * MISSILE_DAMAGE_PER_EXPLOSIVE
+	area = MISSILE_BASE_AOE + float(explosive_count) * MISSILE_AOE_PER_EXPLOSIVE
+	missile_has_cluster = has_cluster
+	missile_has_proximity_trigger = has_proximity_trigger
 	targeting_type = guidance_type
 
 

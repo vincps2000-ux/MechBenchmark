@@ -9,7 +9,6 @@ const PROJECTILE_SCENE := preload("res://scenes/weapons/rocket_projectile.tscn")
 const FIRE_INTERVAL     := 1.2
 const DEFAULT_PROJECTILE_SPEED := 400.0
 const MUZZLE_FLASH_TIME := 0.04
-const BURST_COUNT       := 3
 const BURST_DELAY       := 0.08
 const SPREAD_DEG        := 8.0
 const MAX_AMMO          := 12
@@ -26,11 +25,15 @@ var _projectile_speed: float = DEFAULT_PROJECTILE_SPEED
 var _projectile_lifetime: float = 3.0
 var _aoe_scale: float = 1.0
 var _has_explosive: bool = true
+var _has_cluster: bool = false
+var _has_proximity_trigger: bool = false
+var _fire_mode: WeaponData.MissileFireMode = WeaponData.MissileFireMode.TRIPLE
 var _cooldown: float   = 0.0
 var _flash_timer: float = 0.0
 var _burst_remaining: int = 0
 var _burst_timer: float   = 0.0
 var _ammo_current: int = MAX_AMMO
+var _ammo_capacity: int = MAX_AMMO
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -46,7 +49,11 @@ func setup(data: WeaponData) -> void:
 	_projectile_lifetime = data.projectile_lifetime
 	_aoe_scale = data.area
 	_has_explosive = data.missile_has_explosive
-	_ammo_current = MAX_AMMO
+	_has_cluster = data.missile_has_cluster
+	_has_proximity_trigger = data.missile_has_proximity_trigger
+	_fire_mode = data.missile_fire_mode
+	_ammo_capacity = MAX_AMMO
+	_ammo_current = _ammo_capacity
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -67,7 +74,7 @@ func _process(delta: float) -> void:
 
 	var trigger_pressed := InputMap.has_action(fire_action) and Input.is_action_pressed(fire_action)
 	if trigger_pressed and can_start_burst():
-		_burst_remaining = BURST_COUNT
+		_burst_remaining = _get_burst_size()
 		_burst_timer = 0.0
 		_cooldown = FIRE_INTERVAL
 
@@ -82,11 +89,24 @@ func _process(delta: float) -> void:
 func can_start_burst() -> bool:
 	return _cooldown <= 0.0 and _burst_remaining <= 0 and has_ammo()
 
+func _get_burst_size() -> int:
+	match _fire_mode:
+		WeaponData.MissileFireMode.SINGLE:
+			return mini(1, _ammo_current)
+		WeaponData.MissileFireMode.ALL_AMMO:
+			return _ammo_current
+		_:
+			return mini(3, _ammo_current)
+
 func get_ammo_count() -> int:
 	return _ammo_current
 
 func get_ammo_capacity() -> int:
-	return MAX_AMMO
+	return _ammo_capacity
+
+func set_ammo_capacity_multiplier(multiplier: float) -> void:
+	_ammo_capacity = maxi(1, int(round(float(MAX_AMMO) * maxf(multiplier, 0.0))))
+	_ammo_current = _ammo_capacity
 
 func has_ammo() -> bool:
 	return _ammo_current > 0
@@ -114,6 +134,8 @@ func _fire_rocket() -> bool:
 	proj.aoe_scale = _aoe_scale
 	proj.max_lifetime = _projectile_lifetime
 	proj.explosive_enabled = _has_explosive
+	proj.cluster_enabled = _has_cluster
+	proj.proximity_trigger_enabled = _has_proximity_trigger
 	proj.rotation = fire_dir.angle()
 	proj.global_position = muzzle_pos
 	get_tree().root.add_child(proj)

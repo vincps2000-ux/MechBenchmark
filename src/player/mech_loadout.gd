@@ -178,3 +178,16 @@ func get_total_max_health_bonus() -> int:
 			total += grid.get_max_health_bonus()
 	return total
 
+## Returns the additive ammo multiplier for a combined equipped-weapon slot.
+## Each ammo storage module targeting the slot adds another 100% base capacity.
+func get_weapon_ammo_multiplier(weapon_index: int) -> float:
+	var multiplier := 1.0
+	for grid in module_grids:
+		if grid == null:
+			continue
+		for module in grid.get_placed_modules():
+			if module is ModuleData and module.supports_weapon_customization \
+					and module.target_weapon_index == weapon_index:
+				multiplier += 1.0
+	return multiplier
+

@@ -187,12 +187,13 @@ static func get_all_light_guns() -> Array[WeaponData]:
 	rocket_pod.name             = "Rocket Pod"
 	rocket_pod.weapon_type      = WeaponData.WeaponType.ROCKET_POD
 	rocket_pod.slot_size        = WeaponData.SlotSize.LIGHT
-	rocket_pod.damage           = 15
+	rocket_pod.damage           = WeaponData.MISSILE_BASE_DAMAGE
 	rocket_pod.cooldown         = 1.2
-	rocket_pod.projectile_speed = 400.0
+	rocket_pod.projectile_speed = WeaponData.MISSILE_BASE_SPEED
+	rocket_pod.projectile_lifetime = WeaponData.MISSILE_BASE_LIFETIME
 	rocket_pod.projectile_count = 3
 	rocket_pod.pierce           = 1
-	rocket_pod.area             = 1.2
+	rocket_pod.area             = WeaponData.MISSILE_BASE_AOE
 
 	var machinegun := WeaponData.new()
 	machinegun.id               = "machinegun"
@@ -266,6 +267,17 @@ static func get_all_modules() -> Array:
 	reactor_1x1.grid_cell_color   = Color.CORNFLOWER_BLUE
 	reactor_1x1.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
 
+	var ammo_storage = _ModuleData.new()
+	ammo_storage.id                = "ammo_storage_1x1"
+	ammo_storage.name              = "Ammo Storage Module"
+	ammo_storage.description       = "Dedicated ammunition storage for one equipped weapon."
+	ammo_storage.tutorial_text     = "Occupies 1 grid slot. Adds +100% ammo to the selected weapon."
+	ammo_storage.grid_shape        = shape_1x1
+	ammo_storage.grid_cell_color   = Color(0.25, 0.78, 0.5, 1.0)
+	ammo_storage.supports_weapon_customization = true
+	ammo_storage.target_weapon_index = 0
+	ammo_storage.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
+
 	# 2x1 Armor Module: Two slots, strong armor bonus
 	var armor_2x1 = _ModuleData.new()
 	armor_2x1.id                = "armor_2x1"
@@ -301,7 +313,7 @@ static func get_all_modules() -> Array:
 	redundant_super_structure.grid_cell_color   = Color.GREEN
 	redundant_super_structure.module_icon_path  = "res://assets/sprites/module_reactor_1x1.svg"
 
-	return [reactor_2x2, reactor_1x1, armor_2x1, armor_1x1, redundant_super_structure]
+	return [reactor_2x2, reactor_1x1, ammo_storage, armor_2x1, armor_1x1, redundant_super_structure]
 
 # ── ID lookups (used by MechFactory / blueprint deserialization) ─────────────
 

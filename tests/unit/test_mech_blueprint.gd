@@ -27,6 +27,14 @@ func test_catalog_lookup_by_id() -> void:
 	assert_eq(MechCatalog.get_module_by_id("reactor_2x2").name, "Reactor (2x2)")
 	assert_null(MechCatalog.get_leg_by_id("nope"), "Unknown id should return null")
 
+
+func test_ammo_storage_is_a_customizable_1x1_module_defaulting_to_first_weapon() -> void:
+	var module = MechCatalog.get_module_by_id("ammo_storage_1x1")
+	assert_not_null(module, "Ammo storage should be available in the module catalog")
+	assert_eq(module.get_grid_bounds().size, Vector2i.ONE, "Ammo storage should occupy one grid cell")
+	assert_true(module.supports_weapon_customization, "Ammo storage should allow weapon selection")
+	assert_eq(module.target_weapon_index, 0, "Ammo storage should target the first weapon by default")
+
 # ── Blueprint JSON ────────────────────────────────────────────────────────────
 
 func test_blueprint_json_round_trip() -> void:
@@ -70,7 +78,8 @@ func _customized_loadout() -> MechLoadout:
 	loadout.selected_guns = [autocannon]
 
 	var rocket_pod := MechCatalog.get_gun_by_id("rocket_pod")
-	rocket_pod.apply_missile_builder(["fuel", "explosive", "explosive", "homing", "", ""] as Array[String])
+	rocket_pod.apply_missile_builder(["fuel", "explosive", "cluster", "proximity_trigger", "homing", ""] as Array[String])
+	rocket_pod.missile_fire_mode = WeaponData.MissileFireMode.ALL_AMMO
 	var machinegun := MechCatalog.get_gun_by_id("machinegun")
 	machinegun.ammo_type = WeaponData.AmmoType.SMART
 	machinegun.barrel_count = 4
@@ -116,6 +125,10 @@ func test_round_trip_preserves_missile_builder() -> void:
 	assert_eq(rocket.targeting_type, WeaponData.TargetingType.SEEKING, "Homing guidance should round-trip")
 	assert_eq(rocket.projectile_speed, expected_speed, "Derived missile speed should be regenerated")
 	assert_eq(rocket.damage, expected_damage, "Derived missile damage should be regenerated")
+	assert_true(rocket.missile_has_cluster, "Cluster block should round-trip")
+	assert_true(rocket.missile_has_proximity_trigger, "Proximity trigger should round-trip")
+	assert_eq(rocket.missile_fire_mode, WeaponData.MissileFireMode.ALL_AMMO,
+			"Fire-control setting should round-trip")
 
 func test_round_trip_preserves_machinegun_workbench_configuration() -> void:
 	var restored := MechFactory.build_loadout(MechFactory.blueprint_from_loadout(_customized_loadout()))
@@ -181,6 +194,33 @@ func test_round_trip_preserves_reactor_customization() -> void:
 	assert_not_null(restored_reactor, "Reactor placement should round-trip")
 	assert_eq(int(restored_reactor.reactor_type), int(ModuleData.ReactorType.FUSION),
 		"Reactor type should round-trip")
+
+
+func test_round_trip_preserves_ammo_storage_weapon_selection() -> void:
+	var loadout := _customized_loadout()
+	var grid = loadout.get_or_create_module_grid(0)
+	var storage = MechCatalog.get_module_by_id("ammo_storage_1x1")
+	storage.target_weapon_index = 2
+	grid.place_module(storage, Vector2i(0, 0))
+
+	var restored := MechFactory.build_loadout(MechFactory.blueprint_from_loadout(loadout))
+	var restored_storage = restored.get_module_grid(0).get_module_at(Vector2i(0, 0))
+	assert_eq(restored_storage.target_weapon_index, 2, "Selected weapon slot should round-trip")
+
+
+func test_ammo_storage_bonus_is_additive_for_selected_weapon() -> void:
+	var loadout := _customized_loadout()
+	var first_grid = loadout.get_or_create_module_grid(0)
+	var second_grid = loadout.get_or_create_module_grid(1)
+	var first_storage = MechCatalog.get_module_by_id("ammo_storage_1x1")
+	var second_storage = MechCatalog.get_module_by_id("ammo_storage_1x1")
+	first_storage.target_weapon_index = 1
+	second_storage.target_weapon_index = 1
+	first_grid.place_module(first_storage, Vector2i(0, 0))
+	second_grid.place_module(second_storage, Vector2i(0, 0))
+
+	assert_eq(loadout.get_weapon_ammo_multiplier(0), 1.0, "Other weapons should keep base ammo")
+	assert_eq(loadout.get_weapon_ammo_multiplier(1), 3.0, "Each storage should add 100% base ammo")
 
 
 func test_blueprint_contains_only_json_types() -> void:

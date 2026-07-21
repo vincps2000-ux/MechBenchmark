@@ -47,6 +47,7 @@ var _scatter_radius: float = SCATTER_RADIUS
 var _fill_time: float = FILL_TIME
 var _cooldown: float = 0.0
 var _ammo_current: int = MAX_AMMO
+var _ammo_capacity: int = MAX_AMMO
 
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
@@ -68,7 +69,8 @@ func setup(data: WeaponData) -> void:
 	if data.area > 0.0:
 		_blast_radius = BLAST_RADIUS * data.area
 		_scatter_radius = SCATTER_RADIUS * data.area
-	_ammo_current = MAX_AMMO
+	_ammo_capacity = MAX_AMMO
+	_ammo_current = _ammo_capacity
 	WeaponAttachment.mount_from_data(self, data)
 
 ## Called by PlayerController when this weapon must hold fire (deadspot/drone).
@@ -169,7 +171,11 @@ func get_ammo_count() -> int:
 	return _ammo_current
 
 func get_ammo_capacity() -> int:
-	return MAX_AMMO
+	return _ammo_capacity
+
+func set_ammo_capacity_multiplier(multiplier: float) -> void:
+	_ammo_capacity = maxi(1, int(round(float(MAX_AMMO) * maxf(multiplier, 0.0))))
+	_ammo_current = _ammo_capacity
 
 func has_ammo() -> bool:
 	return _ammo_current > 0

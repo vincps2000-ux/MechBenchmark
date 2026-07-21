@@ -26,6 +26,7 @@ var _damage: int = 3
 ## Armour penetration value, configured via setup()
 var _penetration: int = 2
 var _ammo_current: float = float(MAX_AMMO)
+var _ammo_capacity: int = MAX_AMMO
 ## Element profile used to color the flame visuals.
 var _thrower_element: WeaponData.ThrowerElement = WeaponData.ThrowerElement.FUEL
 ## Nozzle profile controls cone angle, reach, and hit density.
@@ -87,7 +88,8 @@ func setup(data: WeaponData) -> void:
 	_thrower_element = data.thrower_element
 	_thrower_nozzle = data.thrower_nozzle
 	_apply_nozzle_profile(_thrower_nozzle)
-	_ammo_current = float(MAX_AMMO)
+	_ammo_capacity = MAX_AMMO
+	_ammo_current = float(_ammo_capacity)
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -124,7 +126,11 @@ func get_ammo_count() -> int:
 	return ceili(_ammo_current)
 
 func get_ammo_capacity() -> int:
-	return MAX_AMMO
+	return _ammo_capacity
+
+func set_ammo_capacity_multiplier(multiplier: float) -> void:
+	_ammo_capacity = maxi(1, int(round(float(MAX_AMMO) * maxf(multiplier, 0.0))))
+	_ammo_current = float(_ammo_capacity)
 
 func has_ammo() -> bool:
 	return _ammo_current > 0.0

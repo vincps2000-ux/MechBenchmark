@@ -43,6 +43,7 @@ var _burst_remaining: int = 0
 ## Countdown to the next shell or the end of recovery.
 var _cooldown: float = 0.0
 var _ammo_current: int = MAX_AMMO
+var _ammo_capacity: int = MAX_AMMO
 ## InputMap action name for firing this weapon.
 var fire_action: String = "fire"
 
@@ -60,7 +61,8 @@ func setup(data: WeaponData) -> void:
 	_burst_size       = maxi(1, data.projectile_count)
 	_recovery_time    = data.cooldown
 	_projectile_speed = data.projectile_speed
-	_ammo_current     = MAX_AMMO
+	_ammo_capacity    = MAX_AMMO
+	_ammo_current     = _ammo_capacity
 	WeaponAttachment.mount_from_data(self, data)
 
 func stop_firing() -> void:
@@ -110,7 +112,11 @@ func get_ammo_count() -> int:
 	return _ammo_current
 
 func get_ammo_capacity() -> int:
-	return MAX_AMMO
+	return _ammo_capacity
+
+func set_ammo_capacity_multiplier(multiplier: float) -> void:
+	_ammo_capacity = maxi(1, int(round(float(MAX_AMMO) * maxf(multiplier, 0.0))))
+	_ammo_current = _ammo_capacity
 
 func has_ammo() -> bool:
 	return _ammo_current > 0
